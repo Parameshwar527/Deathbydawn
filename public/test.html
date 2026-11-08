@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Direct link test</title>
+<style>
+  :root { --bg:#101216; --panel:#181b21; --line:#2a2f38; --text:#e8ecf1; --dim:#8b94a3; --ok:#6fe0a6; --bad:#ff7a7a; --warn:#ffd36b; --btn:#2d6cdf; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font:16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:520px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:24px; margin:8px 0 6px; }
+  .lead { color:var(--dim); margin:0 0 20px; }
+  button, input { font:inherit; width:100%; min-height:54px; border-radius:10px; border:1px solid var(--line); }
+  button { background:var(--btn); color:#fff; border:0; font-weight:600; }
+  button:active { filter:brightness(.9); }
+  input { background:var(--panel); color:var(--text); text-align:center; font-size:22px; letter-spacing:.2em; text-transform:uppercase; margin-bottom:10px; }
+  .or { text-align:center; color:var(--dim); margin:14px 0; }
+  .code { text-align:center; font-size:44px; font-weight:700; letter-spacing:.18em; margin:6px 0 2px; }
+  .hint { text-align:center; color:var(--dim); margin:0 0 18px; }
+  dl { margin:0; border:1px solid var(--line); border-radius:12px; background:var(--panel); overflow:hidden; }
+  .row { display:flex; justify-content:space-between; gap:12px; padding:12px 14px; border-top:1px solid var(--line); }
+  .row:first-child { border-top:0; }
+  dt { color:var(--dim); flex:0 0 38%; }
+  dd { margin:0; text-align:right; flex:1; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  #verdict { margin-top:16px; padding:14px; border-radius:12px; background:var(--panel); border:1px solid var(--line); min-height:56px; }
+  .small { color:var(--dim); font-size:14px; margin-top:14px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Direct link test</h1>
+  <p class="lead">Checks whether two phones can connect directly, and how the ping compares with your Render relay. Use two phones on different networks (for example, one on Wi-Fi and one on mobile data).</p>
+
+  <section id="start">
+    <button id="hostBtn">Phone 1: make a room</button>
+    <div class="or">then on the other phone</div>
+    <input id="code" maxlength="5" placeholder="CODE" autocapitalize="characters" autocomplete="off" inputmode="text">
+    <button id="joinBtn">Phone 2: join with code</button>
+  </section>
+
+  <section id="live" hidden>
+    <div id="codeBox" hidden>
+      <div class="code" id="codeBig"></div>
+      <p class="hint">Type this code on phone 2.</p>
+    </div>
+    <dl>
+      <div class="row"><dt>Relay link</dt><dd id="relay" class="">-</dd></div>
+      <div class="row"><dt>Direct link</dt><dd id="direct" class="">-</dd></div>
+      <div class="row"><dt>Direct path</dt><dd id="path" class="">-</dd></div>
+      <div class="row"><dt>Relay ping</dt><dd id="rping" class="">-</dd></div>
+      <div class="row"><dt>Direct ping</dt><dd id="dping" class="">-</dd></div>
+    </dl>
+    <div id="verdict">Waiting…</div>
+    <p class="small">Ping numbers show up on phone 2 (the joiner). Leave both phones on this page for about 20 seconds, then screenshot phone 2 and send it to me.</p>
+  </section>
+</main>
+
+<script>
+const CH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ICE = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];   // free STUN only, no TURN: it either connects directly or it does not
+const $ = id => document.getElementById(id);
+const wsBase = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?room=';
+
+let role = '', ws = null, pc = null, dc = null, peerId = null;
+let pending = [], remoteSet = false, connected = false, failed = false, failTimer = null, pingTimer = null, pingN = 0;
+const relayRtts = [], directRtts = [];
+
+const set = (id, text, cls) => { const e = $(id); e.textContent = text; e.className = cls || ''; };
+const med = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+const fmt = v => v == null ? '-' : Math.round(v) + ' ms';
+
+function show(code) {
+  $('start').hidden = true; $('live').hidden = false;
+  if (code) { $('codeBox').hidden = false; $('codeBig').textContent = code; }
+}
+
+function sendSig(m) {
+  if (!ws || ws.readyState !== 1) return;
+  const s = JSON.stringify(m);
+  if (role === 'host') { if (peerId) ws.send('T' + peerId + '\n' + s); }
+  else ws.send(s);
+}
+
+/* ---------- relay (signaling + relay ping) ---------- */
+function startHost() {
+  role = 'host';
+  const code = Array.from({ length: 5 }, () => CH[Math.random() * CH.length | 0]).join('');
+  const hk = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => (b % 36).toString(36)).join('');
+  show(code);
+  set('relay', 'Contacting server… (up to 30 s if it was asleep)', 'warn');
+  ws = new WebSocket(wsBase + code + '&role=host&hk=' + hk);
+  ws.onmessage = e => {
+    const d = e.data; if (typeof d !== 'string') return; const c = d[0];
+    if (c === 'R') set('relay', 'Connected. Waiting for phone 2…', 'ok');
+    else if (c === 'J') { peerId = d.slice(1); set('relay', 'Phone 2 joined', 'ok'); startPeer(true); }
+    else if (c === 'L') { set('direct', 'Phone 2 left', 'bad'); }
+    else if (c === 'M') { const i = d.indexOf('\n'); if (i > 0) { try { onSignal(JSON.parse(d.slice(i + 1))); } catch (x) {} } }
+  };
+  ws.onclose = () => set('relay', 'Server link closed', 'bad');
+}
+
+function startJoin(code) {
+  role = 'join';
+  show('');
+  set('relay', 'Contacting server… (up to 30 s if it was asleep)', 'warn');
+  ws = new WebSocket(wsBase + code);
+  let up = false;
+  ws.onmessage = e => {
+    const d = e.data; if (typeof d !== 'string') return;
+    if (!up) { if (d === 'R') { up = true; set('relay', 'Connected', 'ok'); startRelayPings(); } return; }
+    try { onSignal(JSON.parse(d)); } catch (x) {}
+  };
+  ws.onclose = ev => {
+    if (!up) set('relay', ev.code === 4004 ? 'No room with that code' : 'Could not connect to the server', 'bad');
+    else set('relay', 'Server link closed', 'bad');
+  };
+}
+
+function startRelayPings() {
+  setInterval(() => { if (relayRtts.length < 40) sendSig({ t: 'rp', n: ++pingN, c: performance.now() }); }, 400);
+}
+
+/* ---------- direct link (WebRTC with free STUN) ---------- */
+function startPeer(isHost) {
+  pc = new RTCPeerConnection({ iceServers: ICE });
+  pc.onicecandidate = e => { if (e.candidate) sendSig({ t: 'ice', c: e.candidate }); };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'failed') giveUp('Failed. These two networks block a direct link. The game would use the relay.');
+  };
+  set('direct', 'Trying…', 'warn');
+  failTimer = setTimeout(() => { if (!connected) giveUp('Failed after 15 s. The game would use the relay.'); }, 15000);
+  if (isHost) {
+    dc = pc.createDataChannel('p', { ordered: false, maxRetransmits: 0 });   // same style the game would use for snapshots: no waiting for lost packets
+    wireChannel(dc);
+    pc.createOffer().then(o => pc.setLocalDescription(o)).then(() => sendSig({ t: 'offer', sdp: pc.localDescription }));
+  } else {
+    pc.ondatachannel = e => { dc = e.channel; wireChannel(dc); };
+  }
+}
+
+function giveUp(msg) {
+  if (connected || failed) return;
+  failed = true; clearTimeout(failTimer);
+  set('direct', msg, 'bad'); set('path', 'none', 'bad'); render();
+}
+
+function wireChannel(ch) {
+  ch.onopen = () => {
+    connected = true; clearTimeout(failTimer);
+    set('direct', 'Connected', 'ok'); describePath();
+    if (role === 'join') pingTimer = setInterval(() => { if (directRtts.length < 40 && dc.readyState === 'open') dc.send(JSON.stringify({ t: 'dp', c: performance.now() })); }, 400);
+  };
+  ch.onmessage = e => {
+    let m; try { m = JSON.parse(e.data); } catch (x) { return; }
+    if (m.t === 'dp') ch.send(JSON.stringify({ t: 'dq', c: m.c }));
+    else if (m.t === 'dq') { directRtts.push(performance.now() - m.c); render(); }
+  };
+}
+
+async function describePath() {
+  try {
+    const st = await pc.getStats(); const by = {}; let pair = null;
+    st.forEach(r => { by[r.id] = r; });
+    st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = by[r.selectedCandidatePairId]; });
+    if (!pair) st.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+    if (!pair) return set('path', 'unknown');
+    const a = (by[pair.localCandidateId] || {}).candidateType, b = (by[pair.remoteCandidateId] || {}).candidateType;
+    const tag = ' (' + a + '/' + b + ')';
+    if (a === 'host' && b === 'host') set('path', 'Same network or IPv6' + tag, 'ok');
+    else if (a === 'relay' || b === 'relay') set('path', 'Relayed' + tag, 'bad');
+    else set('path', 'Across the internet' + tag, 'ok');
+  } catch (x) { set('path', 'unknown'); }
+}
+
+/* ---------- signaling messages ---------- */
+async function onSignal(m) {
+  try {
+    if (m.t === 'offer') {
+      startPeer(false);
+      await pc.setRemoteDescription(m.sdp); remoteSet = true; flushIce();
+      const a = await pc.createAnswer(); await pc.setLocalDescription(a);
+      sendSig({ t: 'answer', sdp: pc.localDescription });
+    } else if (m.t === 'answer') {
+      await pc.setRemoteDescription(m.sdp); remoteSet = true; flushIce();
+    } else if (m.t === 'ice') {
+      if (pc && remoteSet) pc.addIceCandidate(m.c).catch(() => {}); else pending.push(m.c);
+    } else if (m.t === 'rp') {
+      sendSig({ t: 'rq', c: m.c });                                   // host echoes the relay ping
+    } else if (m.t === 'rq') {
+      relayRtts.push(performance.now() - m.c); render();
+    }
+  } catch (x) {}
+}
+function flushIce() { for (const c of pending) pc.addIceCandidate(c).catch(() => {}); pending = []; }
+
+/* ---------- display ---------- */
+function render() {
+  const r = med(relayRtts), d = med(directRtts);
+  if (relayRtts.length) set('rping', fmt(r) + '  (' + relayRtts.length + ' samples)');
+  if (directRtts.length) set('dping', fmt(d) + '  (' + directRtts.length + ' samples)', 'ok');
+  const v = $('verdict');
+  if (failed) {
+    v.textContent = 'Direct link did not connect between these networks. Try again with the phones on different networks (Wi-Fi on one, mobile data on the other). If it fails again, tell me which networks you used.';
+  } else if (role === 'join' && relayRtts.length >= 8 && directRtts.length >= 8) {
+    const diff = r - d;
+    v.textContent = diff > 5
+      ? 'Direct is about ' + Math.round(diff) + ' ms faster than the relay (' + fmt(d) + ' vs ' + fmt(r) + '). Worth building into the game.'
+      : 'Direct is not meaningfully faster here (' + fmt(d) + ' vs ' + fmt(r) + '). If both phones were on the same Wi-Fi, test again on different networks.';
+  } else if (role === 'host') {
+    v.textContent = connected ? 'Connected. Read the ping numbers on phone 2.' : 'Setting up the direct link…';
+  } else {
+    v.textContent = 'Measuring…';
+  }
+}
+
+/* ---------- start ---------- */
+fetch('/ping', { mode: 'no-cors', cache: 'no-store' }).catch(() => {});   // wake the server up early
+$('code').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().split('').filter(c => CH.includes(c)).join('').slice(0, 5); });
+$('hostBtn').onclick = startHost;
+$('joinBtn').onclick = () => { const c = $('code').value; if (c.length === 5) startJoin(c); else $('code').focus(); };
+try { const q = new URLSearchParams(location.search).get('room'); if (q) $('code').value = q.toUpperCase().split('').filter(c => CH.includes(c)).join('').slice(0, 5); } catch (e) {}
+</script>
+</body>
+</html>
