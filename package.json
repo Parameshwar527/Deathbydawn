@@ -1,0 +1,11 @@
+{
+  "name": "death-by-dawn-relay",
+  "version": "1.0.0",
+  "description": "Death by Dawn: game page + WebSocket relay in one small Node server (same protocol as worker.js)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" },
+  "license": "UNLICENSED",
+  "private": true
+}
