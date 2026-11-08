@@ -6728,7 +6728,8 @@ function netDbg(now) {
   nd.el.textContent = 'role   ' + (S.role === 'host' ? 'host' : 'client') + '\nroute  ' + nd.route + '\npred   ' + PR.mode +
     '\nrtt    ' + (PR.n ? Math.round(PR.rtt) + ' ms' : '-') + '   snap ' + Math.round(NET.ema) + ' ms   draw-delay ' + Math.round(NET.interp) + ' ms' +
     '\nspeed  ' + (hs ? 'host says ' + PR.hs : 'learned ' + Math.round(PR.spd)) + (PR.hd ? '  [host-driven]' : '') +
-    '\nfix    last ' + D.e.toFixed(1) + ' px  avg ' + (D.n ? (D.sum / D.n).toFixed(1) : '0') + '  max ' + D.max.toFixed(0) + '  ' + D.hits.length + '/s';
+    '\nfix    last ' + D.e.toFixed(1) + ' px  avg ' + (D.n ? (D.sum / D.n).toFixed(1) : '0') + '  max ' + D.max.toFixed(0) + '  ' + D.hits.length + '/s' +
+    '\ntiming ' + (S.role === 'host' ? 'n/a (I am the host)' : NET.off !== null ? 'host clock (smooth)' : 'arrival time (old)');
 }
 function find(d, id) { for (let i = 0; i < d.length; i += 3) if (d[i] === id) return [d[i + 1], d[i + 2]]; return null; }
 function interp(id) {   // render 100 ms in the past, lerp between bracketing snapshots
