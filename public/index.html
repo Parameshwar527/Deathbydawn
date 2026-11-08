@@ -2220,7 +2220,7 @@ function speedOf(p, now) {   // world units / second for this player's role + st
   let base;
   if (p.role === 'killer') { base = p.carry != null ? CFG.CARRY_SPEED : CFG.KILLER_SPEED; if (EG.final) base *= CFG.MONSTER_SPEED_MULT; else if (EG.solo) base *= 1 + (CFG.SOLO_SPEED_MULT - 1) * soloFrac(now); if (p.carry != null && (EG.final || EG.solo)) base *= EG.final ? CFG.CARRY_BOOST_MULT : 1 + (CFG.SOLO_CARRY_BOOST_MULT - 1) * soloFrac(now); if (p.carry == null) base *= 1 + CFG.CHASE_MAX_BONUS * chaseMulOf(p) * (S.chase || 0); if (k6Disg(p)) base = CFG.SURVIVOR_SPEED; if (isK5(p.id)) { base *= K5_BASE; if (K5.act) base *= K5_SLOW + (1 - K5_SLOW) * Math.max(0, Math.min(1, (now - K5.actAt) / K5_SLOW_DECAY_MS)); else if (K5.onTrail) base *= K5_TRAIL_BOOST; } }   // killer_5: TRAIL slows him by 30% at the moment it is switched on, easing back to normal over K5_SLOW_DECAY_MS; TRAIL off while standing in his own trail = +40%   // dawn has broken: the killer speeds up; chase momentum (S.chase 0..1) adds up to CHASE_MAX_BONUS while he keeps a survivor in his beam
   else switch (p.st) { case 'downed': base = CFG.CRAWL_SPEED; break; case 'carried': case 'hooked': case 'dead': return 0; default: base = CFG.SURVIVOR_SPEED * (k3FrogOn(p, now) ? K3_FROG_SPEED : 1); }
-  p.mods = p.mods.filter(m => m.until > now); let mult = p.role === 'killer' && isK2(p.id) ? k2Spd() : 1; for (const m of p.mods) mult *= m.ramp ? m.from + (1 - m.from) * Math.max(0, Math.min(1, (now - m.t0) / m.ms)) : m.mult;
+  p.mods = p.mods.filter(m => m.until > now); let mult = p.role === 'killer' && isK2(p.id) ? k2Spd() : 1; for (const m of p.mods) mult *= m.ramp ? m.from + ((m.to === undefined ? 1 : m.to) - m.from) * Math.max(0, Math.min(1, (now - m.t0) / m.ms)) : m.mult;   // (optional m.to: the ramp ends at this multiplier instead of 1)
   if (p.role === 'survivor' && ddActive(p)) mult *= CFG.PK_DD_SPEED;   // DEMONIC DEAL
   return base * mult;
 }
@@ -2648,7 +2648,7 @@ function bondStep(now) {   // BONDED (host, every tick of the hunt): the reveals
     if (!p.bondW && now >= p.bondAt - CFG.PK_BOND_WARN_MS) { p.bondW = 1; sxSend(p.id, 'bondg', CFG.PK_BOND_WARN_MS + ms); }
     if (now < p.bondAt) continue;
     p.bondW = 0; p.bondAt = now + ms + CFG.PK_BOND_GAP_MS; p.bondPh = ph ? 0 : 1; if (!K) continue;
-    const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && K1.inv > now);   // a killer who is inside a TV / invisible stays hidden from the holder; a hat-wearer stays hidden from the killer
+    const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && (K1.inv > now || K1.stl));   // a killer who is inside a TV / invisible stays hidden from the holder; a hat-wearer stays hidden from the killer
     if (ph === 0) evSend({ k: 'bond', id: p.id, kid: K.id, ms, sh: 0, sk: kHid ? 0 : 1 });   // the holder sees the killer
     else evSend({ k: 'bond', id: p.id, kid: K.id, ms, sh: hatHid(p, now) ? 0 : 1, sk: 0 });   // the killer sees the holder
   }
@@ -2709,7 +2709,7 @@ function bbRoll(p, now) {
   const ms = BB_SHOW[kind]; p.bbKind = kind; p.bbUsed[kind] = 1;
   if (kind === 'speed') addMod(p, 'bbspd', BB.SPEED_MUL, BB.SPEED_MS, now);
   else if (kind === 'item') { const ids = ITEM_POOL_PERKS, id = ids[Math.random() * ids.length | 0]; p.item = id; p.ch = CFG.ITEM_CHARGES[id] || 1; p.itemAt = now; sendItem(p); }   // a random BASE item (the perks-on pool without the perk-only items)
-  else if (kind === 'mark') { const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && K1.inv > now); evSend({ k: 'bond', id: p.id, kid: K.id, ms: BB.MARK_MS, sh: 0, sk: kHid ? 0 : 1, all: 1 }); }   // every survivor sees the killer's pin; the killer is not told where anybody is
+  else if (kind === 'mark') { const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && (K1.inv > now || K1.stl)); evSend({ k: 'bond', id: p.id, kid: K.id, ms: BB.MARK_MS, sh: 0, sk: kHid ? 0 : 1, all: 1 }); }   // every survivor sees the killer's pin; the killer is not told where anybody is
   else if (kind === 'swap') {
     const q = mates[Math.random() * mates.length | 0]; k3FrogCancelActs(p, 'You swapped places'); k3FrogCancelActs(q, 'You swapped places');
     const px = p.x, py = p.y, qx = q.x, qy = q.y; p.x = qx; p.y = qy; q.x = px; q.y = py; resolve(p); resolve(q);
@@ -2789,7 +2789,7 @@ function ddEmpty(p, K, now) {   // the bar hit zero
   // sxSend(p.id, 'ddscare', 900);   // (the jumpscare is switched off; ddJumpscare() is still in the file)
   evSend({ k: 'ddoval', id: p.id }); msgTo(p, 'Demonic Deal: the totem went dark!');   // instead: the red ritual oval (the one under a protected generator) shows under the holder for 1 s
   const kx = K0.x; K0.x = 1; try { hitSurvivor(p, now, 1); } finally { K0.x = kx; }   // a real hit, but not the killer's own: no Last Light, no trap charge, no killer-ability side effects
-  if (K) { const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && K1.inv > now); evSend({ k: 'bond', id: p.id, kid: K.id, ms: CFG.PK_DD_PING_MS, sh: hatHid(p, now) ? 0 : 1, sk: 0 }); msgTo(K, 'A totem went dark: survivor revealed'); }   // the holder's position is pinged to the killer only
+  if (K) { const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && (K1.inv > now || K1.stl)); evSend({ k: 'bond', id: p.id, kid: K.id, ms: CFG.PK_DD_PING_MS, sh: hatHid(p, now) ? 0 : 1, sk: 0 }); msgTo(K, 'A totem went dark: survivor revealed'); }   // the holder's position is pinged to the killer only
 }
 function ddStep(now, dtMs) {   // host, every tick of the hunt
   if (!S.perk.on) return;
@@ -2881,6 +2881,7 @@ function abLockSet(p, ms, now) { if (!abilitiesOn() || !p || p.role !== 'killer'
 function hostAct(p, a, down, n) {   // validates range, state and cooldowns; clients only ever REQUEST
   if (!S.started || S.phase !== 'hunt' || ACTS.indexOf(a) < 0 || p.st==='sent' || inUD(p.x,p.y)) return;
   if (!abilitiesOn() && ABIL_ONLY_ACTS.indexOf(a) >= 0) return;   // abilities OFF: no ability action is ever honoured, whatever a client sends
+  if (down && p.role === 'killer' && isK1(p.id)) { K1.stillAt = performance.now(); if (K1.stl) k1Stealth(p, false); }   // killer_1: any button breaks the stillness invisibility
   if (p.role === 'survivor' && (((a === 'barricade' || a === 'breakdoor') && down) || (a === 'repair' && !down && p.rep && GH.g.some(g => g.rep.includes(p.id))) || (a === 'rescue' && !down && p.hold))) pkReact(p);   // REACTION: letting go of a generator / an unhook that was really in progress, or pressing the block / break button
   if (down && p.stunEnd && performance.now() < p.stunEnd && a !== 'rescue' && a !== 'repair') return;   // killer_6: a stunned survivor cannot act
   if (down && p.role === 'survivor' && K3_FROG_BLOCK.indexOf(a) >= 0 && k3FrogOn(p)) { const t = performance.now(); if (!(p.frogMsgAt > t)) { p.frogMsgAt = t + 1500; msgTo(p, "Frogs can't do that"); } return; }   // command 7: a frog can't START an interaction (letting go of a held button still goes through)
@@ -3802,9 +3803,9 @@ function abilityPress() { if (!abilitiesOn()) return; if (isK0(S.me) && S.wo.k0)
    - ABILITY BUTTON (or Left Shift). The button has two modes, decided by where she stands:
        WAIL (default)   she turns invisible for up to K1_INV_MS (15 s). Her next ATTACK, or the ability button pressed again, is the reveal: no swing, hits nobody,
                            +K1_WAIL_FEAR (5) fear to every survivor within K1_WAIL_R. For K1_REVEAL_CD (2 s) she cannot attack and moves 50% slower (K1_REVEAL_SLOW),
-                           then she gets +30% speed (K1_BOOST_SPD) for K1_BOOST_MS (1.6 s). Cooldown K1_WAIL_CD (15 s, counted from when she leaves invisibility). No clone is spawned.
+                           then she gets +30% speed fading to +20% (K1_BOOST_END) (K1_BOOST_SPD) for K1_BOOST_MS (3 s). Cooldown K1_WAIL_CD (15 s, counted from when she leaves invisibility). No clone is spawned.
        GUARD            when she stands within K1_GUARD_REACH of a generator (not repaired yet) or a hook (free or occupied) that has no guard yet, and Guard is ready.
-                           A clone of her appears there and moves around that post (never farther than K1_GUARD_ROAM) for K1_GUARD_MS (15 s). It fills the fear meter
+                           A clone of her appears there and moves around that post (never farther than K1_GUARD_ROAM) for K1_GUARD_MS (25 s). It fills the fear meter
                            passively at 50% (K1_CLONE_EFF), gives the red eyes + terror heartbeat, and looks like her. She sees it too, labelled GUARD. Cooldown K1_GUARD_CD (35 s).
    - Survivors see their own fear bar (under the top bar, next to the coin chip). Every survivor also gets a FEAR GLOW + SPARKLES (k1Glow) that grows with their meter.
    - A HOOKED / DOWNED / CARRIED survivor's fear meter is frozen (no fill, no drain, no wail/pop fear, drain-delay timer, breakdown and immunity timers all stop).
@@ -3832,17 +3833,18 @@ function abilityPress() { if (!abilitiesOn()) return; if (isK0(S.me) && S.wo.k0)
       - the button:       updateControls (J1 / m1) and abilityPress
       - drawing:          draw loop -> drawK1World (before drawDecoys) and drawK1Over (after drawKillerSight); updateAux -> k1Hud
    ################################################################################################ */
-const K1_FEAR_R0 = 600, K1_FEAR_R = K1_FEAR_R0 * 1.2 * 1.2, K1_FEAR_RATE = 8,   // K1_FEAR_R0 = the original radius: the falloff per unit of distance is still computed from it, so fear is exactly as strong at every distance as before and just keeps going (down to ~71% at the edge now that K1_FEAR_FAR is .8) out to the new radius (600 -> 720 -> 864, a further +20%). Fill rate 10 -> 12 per second at point blank (+20%), then reduced to 11 per second
-    K1_FEAR_FAR = .8, K1_CLONE_EFF = .5, K1_DRAIN_DELAY = 2000, K1_DRAIN_RATE = 5;   // passive: radius / fear per second at point blank (11/s) / strength at the edge of the radius (x) / clone strength / time away before draining (ms, 2 s) / drain per second
+const K1_FEAR_R0 = 600, K1_FEAR_R = K1_FEAR_R0 * 1.2 * 1.2 * .5, K1_FEAR_RATE = 8,   // (radius now HALF of before: 864 -> 432; the falloff is computed over the new radius, so it is 8/s next to her and 6/s (x .75, K1_FEAR_FAR) at the very edge)   // K1_FEAR_R0 = the original radius: the falloff per unit of distance is still computed from it, so fear is exactly as strong at every distance as before and just keeps going (down to ~71% at the edge now that K1_FEAR_FAR is .8) out to the new radius (600 -> 720 -> 864, a further +20%). Fill rate 10 -> 12 per second at point blank (+20%), then reduced to 11 per second
+    K1_FEAR_FAR = .75, K1_CLONE_EFF = .5, K1_DRAIN_DELAY = 2000, K1_DRAIN_RATE = 5;   // passive: radius / fear per second at point blank (11/s) / strength at the edge of the radius (x) / clone strength / time away before draining (ms, 2 s) / drain per second
 const K1_WAIL_R = 210, K1_WAIL_FEAR = 5, K1_WAIL_CD = 15000, K1_CLONE_SPD = CFG.KILLER_SPEED * .75;   // Wail: radius / fear / cooldown / walking speed of the fake killer sprites (hallucinations)
-const K1_INV_MS = 15000, K1_REVEAL_CD = 2000, K1_REVEAL_SLOW = .5, K1_BOOST_SPD = 1.3, K1_BOOST_MS = 1600;   // WAIL: invisible up to 15 s (ATTACK or the ability button again = the cry, which ends it; or it just runs out). Right after she leaves invisibility: no attacking for 2 s (K1_REVEAL_CD) and -50% speed for that time (K1_REVEAL_SLOW = x0.5), then +30% speed (K1_BOOST_SPD = x1.3) for 1.6 s (K1_BOOST_MS). The ability button has a K1_WAIL_CD (15 s) cooldown, counted from the moment she leaves invisibility.
+const K1_INV_MS = 15000, K1_REVEAL_CD = 2000, K1_REVEAL_SLOW = .5, K1_BOOST_SPD = 1.3, K1_BOOST_END = 1.2, K1_BOOST_MS = 3000;   // WAIL: invisible up to 15 s (ATTACK or the ability button again = the cry, which ends it; or it just runs out). Right after she leaves invisibility: no attacking for 2 s (K1_REVEAL_CD) and -50% speed for that time (K1_REVEAL_SLOW = x0.5), then +30% speed (K1_BOOST_SPD = x1.3) for 3 s (K1_BOOST_MS). The ability button has a K1_WAIL_CD (15 s) cooldown, counted from the moment she leaves invisibility.
 //   // Wail: how long she stays invisible at most (ms; she is revealed by her ATTACK, or silently when this runs out) / attack cooldown after the reveal (ms)
-const K1_GUARD_MS = 15000, K1_GUARD_CD = 35000, K1_GUARD_REACH = 130, K1_GUARD_ROAM = 140, K1_GUARD_SPD = CFG.KILLER_SPEED * .5;   // GUARD: how long the clone stands guard (ms) / cooldown (ms, from the moment it is placed) / how close to a generator or hook she must be / how far the clone strays from its post / its walking speed
+const K1_GUARD_MS = 25000, K1_GUARD_CD = 35000, K1_GUARD_REACH = 130, K1_GUARD_ROAM = 140, K1_GUARD_SPD = CFG.KILLER_SPEED * .5;   // GUARD: how long the clone stands guard (ms) / cooldown (ms, from the moment it is placed) / how close to a generator or hook she must be / how far the clone strays from its post / its walking speed
+const K1_STILL_MS = 3000;   // STILLNESS: standing still and doing nothing (no walking, attack or ability) for this long makes her invisible; ANY movement or button breaks it at once (no cooldown, no slow, no cry)
 const K1_HALLU_FREQ = 1.5;   // fear hallucinations (fake red eyes, fake heartbeat, fake killer sprite) happen this much more often at every level: every gap between them is divided by this (1.5 = 50% more frequent)
 const K1_SEND_MS = 250, K1_TIERS = [0, 32.5, 65.5, 99.5];   // fear values are sent at most 4x a second (clients smooth them) / start of effect levels 0..3 (= 0-32%, 33-65%, 66-99%, 100%; the .5 matches the rounded % on the bar)
 const K1_SLOW = [.05, .10, .15, .20], K1_VIS = [1, .9, .7, .4];   // EFFECTS by level: generator repair + unhook are this much slower / survivor vision radius multiplier
 const K1_BREAK_MS = 8000, K1_IMM_MS = 10000;   // at 100%: the breakdown lasts this long (level 3 effects), then the meter empties and cannot fill for the immunity time
-function k1Empty() { return { inv: 0, on: false, brk: {}, imm: {}, init: false, wailAt: 0, gdAt: 0, boostAt: 0, f: {}, near: {}, clones: [], n: 1, sendAt: 0, dirty: false }; }
+function k1Empty() { return { inv: 0, stl: false, stillAt: 0, on: false, brk: {}, imm: {}, init: false, wailAt: 0, gdAt: 0, boostAt: 0, f: {}, near: {}, clones: [], n: 1, sendAt: 0, dirty: false }; }
 let K1 = k1Empty();
 const isK1 = id => kAbIdx(id) === 1;   // killer_1 = the second KILLERS entry; its ability code never mentions the character's name
 function k1Player() { for (const p of HP.values()) if (p.role === 'killer' && p.on && isK1(p.id)) return p; return null; }
@@ -3857,7 +3859,10 @@ function k1CloneHead(c, now) {   // new wander heading of a guard; when it has s
   let a = Math.random() * TAU; if (Math.hypot(c.ax - c.x, c.ay - c.y) > K1_GUARD_ROAM * .8) a = Math.atan2(c.ay - c.y, c.ax - c.x) + (Math.random() - .5) * 1.4;
   c.vx = Math.cos(a) * K1_GUARD_SPD; c.vy = Math.sin(a) * K1_GUARD_SPD; c.hd = now + 900 + Math.random() * 1100;
 }
-function k1Invis(B) { return !!B && K1.inv > performance.now(); }
+function k1Invis(B) { return !!B && (K1.inv > performance.now() || K1.stl); }
+function k1Stealth(B, on) {   // STILLNESS invisibility on / off (clients get both 'k1inv' = invisible and 'k1stl' = it is the passive kind, so the buttons do not say Reveal)
+  if (K1.stl === on) return; K1.stl = on; sxSend(B.id, 'k1inv', on ? 3600000 : 0); sxSend(B.id, 'k1stl', on ? 3600000 : 0);
+}
 function k1Unveil(B, silent) {   // invisibility ends (the reveal attack, a pickup, or the timer)
   if (!K1.inv) return; K1.inv = 0; K1.wailAt = performance.now() + K1_WAIL_CD; if (B) sxSend(B.id, 'k1inv', 0); woSend('k1');
 }
@@ -3898,7 +3903,7 @@ function k1Step(now, dtMs) {
   const B = k1Player(), was = K1.on; K1.on = !!B;
   if (!B) { if (was || K1.init || Object.keys(K1.f).length) { K1 = k1Empty(); woSend('k1'); } return; }   // not killer_1: no fear data exists; clients get an empty state once
   const dt = dtMs / 1000; let ch = false;
-  if (K1.boostAt && now >= K1.boostAt) { K1.boostAt = 0; addMod(B, 'k1b', K1_BOOST_SPD, K1_BOOST_MS, now); }   // the 2 s after the wail are over: +30% speed for 1.6 s
+  if (K1.boostAt && now >= K1.boostAt) { K1.boostAt = 0; addMod(B, 'k1b', K1_BOOST_SPD, K1_BOOST_MS, now, true); const bm = B.mods.find(m => m.id === 'k1b'); if (bm) bm.to = K1_BOOST_END; }   // the 2 s after the wail are over: +30% speed that fades linearly to +20% over 3 s (then it ends)
   if (K1.inv && now >= K1.inv) k1Unveil(B);   // the invisibility ran out: she just reappears (no cry)
   if (!K1.init) { K1.init = true; K1.sendAt = now; ch = true; }   // first tick of the hunt: send the state to everyone at once
   // ---- guards: wander around their post, expire ----
@@ -3913,10 +3918,14 @@ function k1Step(now, dtMs) {
     else if (free(c.x, ny)) { c.y = ny; c.vx = 0; }
     else k1CloneHead(c, now);
     K1.dirty = true; }   // guards move all the time: the clients get fresh positions 4x a second
+  // ---- STILLNESS: standing still doing nothing for K1_STILL_MS = invisible; walking / carrying / attacking / any button breaks it ----
+  { const mv = K1.lx === undefined || Math.hypot(B.x - K1.lx, B.y - K1.ly) > .3 || !!B.ix || !!B.iy || B.carry != null || !!B.wind || K1.inv > now; K1.lx = B.x; K1.ly = B.y;
+    if (mv) { K1.stillAt = now; if (K1.stl) k1Stealth(B, false); }
+    else if (!K1.stl && abilitiesOn() && now - K1.stillAt >= K1_STILL_MS) k1Stealth(B, true); }
   // ---- passive FEAR: fill near her / her clones, drain after K1_DRAIN_DELAY away ----
   const src = [[B.x, B.y, 1]]; for (const c of K1.clones) src.push([c.x, c.y, K1_CLONE_EFF]);
   for (const p of HP.values()) { if (!k1Alive(p)) continue;
-    let best = 0; for (const s of src) { const d = Math.hypot(p.x - s[0], p.y - s[1]); if (d <= K1_FEAR_R) best = Math.max(best, s[2] * (1 - (1 - K1_FEAR_FAR) * d / K1_FEAR_R0)); }
+    let best = 0; for (const s of src) { const d = Math.hypot(p.x - s[0], p.y - s[1]); if (d <= K1_FEAR_R) best = Math.max(best, s[2] * (1 - (1 - K1_FEAR_FAR) * d / K1_FEAR_R)); }
     const f = K1.f[p.id];
     if (f === undefined) { K1.f[p.id] = 0; ch = true; continue; }
     if (k1Frozen(p)) { K1.near[p.id] = (K1.near[p.id] || now) + dtMs; if ((K1.brk[p.id] || 0) > 0) K1.brk[p.id] += dtMs; if ((K1.imm[p.id] || 0) > now) K1.imm[p.id] += dtMs; if ((K1.brk[p.id] || 0) > 0 || (K1.imm[p.id] || 0) > now) K1.dirty = true; continue; }   // HOOKED / DOWNED / CARRIED: everything is paused (no fill, no drain, the drain-delay timer, the breakdown and the immunity all stop)
@@ -4007,9 +4016,9 @@ function drawK1World(me, vw, vh, now, role, vId) {   // under the darkness: guar
     k1Glow(p.id, q[0], q[1], now, k1Fear(p.id)); }
 }
 const K1_AURA_MULT = .6;   // cyan aura glow strength (x .6 = -40%; the sparkles are not affected)
-const K1_RGB = '58,255,208', K1_GLOW_B = [.55, .85, 1.25, 1.8];   // the glow + sparkles are ALWAYS cyan; K1_GLOW_B = brightness multiplier per fear tier 0..3 (eased between tiers)
+const K1_RGB = '58,255,208', K1_RGB_FULL = '220,20,60', K1_GLOW_B = [.55, .85, 1.25, 1.8];   // the glow + sparkles are ALWAYS cyan; K1_GLOW_B = brightness multiplier per fear tier 0..3 (eased between tiers)
 function k1Glow(id, x, y, now, v) {   // soft pulsing aura + rising sparkles; both grow with the fear meter (nothing below ~4%)
-  const u = Math.min(1, v / 100); if (u < .04) return; const col = K1_RGB, t = now / 1000, tr = k1Tier(v);
+  const u = Math.min(1, v / 100); if (u < .04) return; const t = now / 1000, tr = k1Tier(v), col = tr >= 3 ? K1_RGB_FULL : K1_RGB;   // a COMPLETE meter (tier 3, the breakdown) turns the aura + sparkles crimson
   const gb = K1C.gb || (K1C.gb = {}), gs = gb[id] || (gb[id] = { b: K1_GLOW_B[0], t: now }); gs.b += (K1_GLOW_B[tr] - gs.b) * Math.min(1, Math.max(0, now - gs.t) / 1000 * 4); gs.t = now; const B = gs.b;   // eased brightness for this survivor's tier
   const R = (24 + 40 * u) * (.9 + .1 * Math.sin(t * (2.2 + 3 * u) + id)), g = ctx.createRadialGradient(x, y, 2, x, y, R);
   g.addColorStop(0, `rgba(${col},${Math.min(1, (.1 + .32 * u) * B * K1_AURA_MULT).toFixed(3)})`); g.addColorStop(.55, `rgba(${col},${Math.min(1, (.04 + .14 * u) * B * K1_AURA_MULT).toFixed(3)})`); g.addColorStop(1, `rgba(${col},0)`);
@@ -5829,6 +5838,7 @@ function k3GrantFx() {   // a command was granted: gold-red bloom, a rising chim
 /* ---- command effects on the client ---- */
 const k3GunOn = () => { const J = S.wo.k3; return !!J && isK3(S.me) && J.gun > 0; };
 const hatOn = id => { if (k7Hid(id)) return true; const f = S.fx2[id], n = performance.now(); return !!f && f.hat > n && hatPhaseHidden(f.hatT0 || n, n); };   // Magician's Hat is on (killer can't see them, survivors see them see-through)
+const k1WailFx = id => { const f = S.fx2[id], t = performance.now(); return !!f && f.k1inv > t && !(f.k1stl > t); };   // the WAIL invisibility (her attack = the reveal), not the passive stillness one
 const k1InvisFx = id => { const f = S.fx2[id]; return !!f && f.k1inv > performance.now(); };   // Wail: she is invisible until her ATTACK reveals her
 const k3Invis = id => { const f = S.fx2[id]; return !!f && (f.k3inv > performance.now() || f.k1inv > performance.now()); };   // "fold the earth" / Wail: invisible to everyone but herself (she sees a faded ghost)   // "fold the earth": she is invisible for a moment after landing
 function k3Laggy(now) { const f = S.fx2[S.me]; return !!f && f.k3lag > now; }   // "fray the threads": only survivors ever get this
@@ -6264,7 +6274,7 @@ const INFO_KILLERS = [   // [KILLERS index, [[kind, title, text, optional sprite
     ['Ability', 'Trap', 'A bear trap that stops and slows whoever steps on it, pings them to the killer and clamps a reverse bear trap on them. A teammate has to remove it or it counts as a hit, and survivors can disarm the trap itself by holding DISARM.'],
     ['Ability', 'IR Scanner', 'A rotating beam planted at the start of the hunt. It pings survivors who move or repair inside it and slows their repairs.']]],
   [1, [
-    ['Passive', 'Fear', 'Survivors build up fear while near her and calm down once they get away. High fear slows repairs and unhooks, shrinks their vision and makes them hallucinate until they panic.'],
+    ['Passive', 'Fear', 'Survivors build up fear while near her and calm down once they get away. High fear slows repairs and unhooks, shrinks their vision and makes them hallucinate until they panic. Her fear range is short and weakest at its edge. If she stands perfectly still for a few seconds she turns invisible, until she moves or presses anything.'],
     ['Ability', 'Wail', 'She turns invisible, then reveals herself with a wail that frightens everyone nearby but hurts nobody. Afterwards she is briefly slowed, then briefly sped up.'],
     ['Ability', 'Guard', 'Next to a generator or a hook she posts a clone that prowls around it and scares anyone working close. It cannot hurt anybody.']]],
   [2, [
@@ -6487,7 +6497,7 @@ function refreshStatus() {   // survivors and the killer: one small chip per sur
   S.players.filter(p => p.role === 'survivor').forEach(p => {
     const g = SI[(S.st[p.id] || {}).s || 'healthy'] || SI.healthy, el = document.createElement('span');
     el.className = 'si' + (p.id === S.me ? ' me' : '') + (p.on ? '' : ' away');
-    const d = document.createElement('i'); d.style.background = p.color; const b = document.createElement('b'); const fg = K1C.fog && myRole() === 'survivor'; b.textContent=fg?'?':((S.st[p.id]||{}).s==='sent'?'◉ '+Math.ceil(Math.max(0,((S.st[p.id]||{}).udEnd||0)-performance.now())/1000)+'s':g[0]);b.style.color=fg?'#9aa0b0':g[1];   // killer_1 fear: unknown states
+    const d = document.createElement('i'); d.style.background = p.color; const b = document.createElement('b'); const fg = false /* DISABLED (was: K1C.fog && myRole() === 'survivor') = the Banshee '?' on everyone's status chips; put that condition back to re-enable */; b.textContent=fg?'?':((S.st[p.id]||{}).s==='sent'?'◉ '+Math.ceil(Math.max(0,((S.st[p.id]||{}).udEnd||0)-performance.now())/1000)+'s':g[0]);b.style.color=fg?'#9aa0b0':g[1];   // killer_1 fear: unknown states
     el.append(d, b); box.append(el); });
 }
 function resetToMenu(msg) {
@@ -6605,7 +6615,7 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; applyInp
 function sendAct(a, down, n) {
   if (a === 'block') a = 'barricade'; if (a === 'rbt') a = 'rbtoff'; if (a === 'hookdis') a = 'hook';
   if (a === 'attack' && k6Me()) a = 'k6scr';   // killer_6: disguised, the attack button is SCREAM
-  if (a === 'attack' && down && !k3GunOn() && !k5ShockOn() && !k5BasicOn() && !k2InMe() && !(isK1(S.me) && k1InvisFx(S.me))) startPendingSwing();   // instant local slash for the killer; the host's 'atk' message settles hit/miss (a gun shot has no slash)
+  if (a === 'attack' && down && !k3GunOn() && !k5ShockOn() && !k5BasicOn() && !k2InMe() && !(isK1(S.me) && k1WailFx(S.me))) startPendingSwing();   // instant local slash for the killer; the host's 'atk' message settles hit/miss (a gun shot has no slash)
   const go = () => { if (S.role === 'host') { const p = HP.get(S.me); if (p) hostAct(p, a, down, n); } else if (S.inRoom && !S.reconnecting) T.send({ t: 'act', a, down, n }); }, d = k3LagDelay(performance.now());   // "fray the threads": a survivor's actions arrive late
   if (d) setTimeout(go, d); else go();
 }
@@ -10993,7 +11003,7 @@ function updateControls(now) {
   if (itK !== UIC.item) { UIC.item = itK; UIC.k0t = null; const b = $('itm'); b.classList.toggle('hidden', itK === -1); b.classList.toggle('abil', abil && !J && !J1 && !J3 && !J6 && !J5 && !J2 && !J4 && !J7);
     if (abil) { $('itmN').textContent = J7 ? (J7.form ? 'Knife' : 'Rifle') : J ? 'Traps' : J1 ? (m1 ? 'Guard' : 'Wail') : J3 ? (J3.n ? 'Wish x' + J3.n : 'No wish') : J6 ? (J6.form === 1 ? 'Chaos' : 'Transform') : J5 ? (J5.act ? 'Trail ON' : 'Trail') : J2 ? 'Recast' : J4 ? 'Lunge' : 'Ability'; if (J) $('itmI').src = k0Icon(J.held || 1); else if (J1) $('itmI').src = k1Icon(m1 ? 'guard' : 'wail'); else if (J3) $('itmI').src = k3Icon(); else if (J6) $('itmI').src = k6Icon(J6.form === 1 ? 'ch' : 'tf'); else if (J5) $('itmI').src = k5Icon(J5.act ? 'on' : 'off'); else if (J2) $('itmI').src = k2Icon(); else if (J4) $('itmI').src = k4Icon(0); else if (J7) $('itmI').src = k7Icon(J7.form ? 'knife' : 'rifle'); b.style.setProperty('--ic', J1 ? '#3affd0' : J6 ? '#e9e6dc' : J2 ? '#c2412e' : J4 ? K4_COL[0] : '#ff4f57'); }   // killer_4: the icon is Huggy's face
     else if (itI >= 0) { $('itmI').src = itemSprite(itI).toDataURL(); $('itmN').textContent = ITEMS[itI].name + ((S.itemC | 0) > 1 ? ' x' + S.itemC : ''); b.style.setProperty('--ic', ITEMS[itI].col); } }
-  if (abil && J1) { const cdl = Math.max(0, (m1 ? J1.gd : J1.wail) - now), t1 = k1InvisFx(S.me) ? 'Reveal' : (m1 ? 'Guard' : 'Wail') + (cdl > 0 ? ' ' + Math.ceil(cdl / 1000) + 's' : ''); if (t1 !== UIC.k1t) { UIC.k1t = t1; $('itmN').textContent = t1; $('itm').style.opacity = cdl > 0 ? .55 : ''; } }   // killer_1: cooldown shown in the label
+  if (abil && J1) { const cdl = Math.max(0, (m1 ? J1.gd : J1.wail) - now), t1 = k1WailFx(S.me) ? 'Reveal' : (m1 ? 'Guard' : 'Wail') + (cdl > 0 ? ' ' + Math.ceil(cdl / 1000) + 's' : ''); if (t1 !== UIC.k1t) { UIC.k1t = t1; $('itmN').textContent = t1; $('itm').style.opacity = cdl > 0 ? .55 : ''; } }   // killer_1: cooldown shown in the label
   else if (UIC.k1t) { UIC.k1t = ''; $('itm').style.opacity = ''; }
   if (abil && J2) { const nr = k2NearTv(now), inn = J2.tv >= 0, ext = inn && J2.ex, cdl = Math.max(0, J2.tcd - now), blk = !inn && nr >= 0 && sbRiftBlk(nr, now), tele = inn || (nr >= 0 && cdl <= 0 && !blk), cd2 = Math.max(0, J2.cd - now), sw = J2.pt >= 0 && J2.pe > now, t2 = ext ? 'Exiting...' : inn ? 'Exit Rift' : tele || blk ? 'Rift Walk' : sw ? 'Swapping...' : 'Swap' + (cd2 > 0 ? ' ' + Math.ceil(cd2 / 1000) + 's' : ''), dim = ext || blk || (!tele && (cd2 > 0 || sw)); if (t2 !== UIC.k2t || dim !== UIC.k2d) { UIC.k2t = t2; UIC.k2d = dim; $('itmN').textContent = t2; $('itmI').src = tele || blk ? k2TeleIcon() : k2Icon(); $('itm').style.opacity = dim ? .55 : ''; } }   // killer_2: Swap by default, Rift Walk next to a portal, Exit Rift inside one
   else if (UIC.k2t) { UIC.k2t = ''; UIC.k2d = false; $('itm').style.opacity = ''; }
@@ -11020,7 +11030,7 @@ function updateControls(now) {
     { const dm = rfl > 0 || !!(sbl && sbl.dim); if (dm !== UIC.rfd) { UIC.rfd = dm; $('ctx').classList.toggle('dis', dm); } } }   // killer_2: HOOK becomes SEND; Reforming: greyed out with the seconds left while the barricade cools down   // killer_2: HOOK becomes SEND
   try { dsbUpdate(now); } catch (e) {}
   if (showAtk) { const dg6 = k6Me();
-    const at6 = dg6 ? 'SCREAM' : isK1(S.me) && k1InvisFx(S.me) ? 'REVEAL' : k5ShockOn() ? 'THORNS' : isK7(S.me) && S.wo.k7 && S.wo.k7.form === 1 ? 'SHOOT ' + S.wo.k7.bul : 'ATTACK'; if (at6 !== UIC.atkT) { UIC.atkT = at6; $('atk').textContent = at6; }   // killer_6: disguised, the attack button is SCREAM (no cooldown ring)
+    const at6 = dg6 ? 'SCREAM' : isK1(S.me) && k1WailFx(S.me) ? 'REVEAL' : k5ShockOn() ? 'THORNS' : isK7(S.me) && S.wo.k7 && S.wo.k7.form === 1 ? 'SHOOT ' + S.wo.k7.bul : 'ATTACK'; if (at6 !== UIC.atkT) { UIC.atkT = at6; $('atk').textContent = at6; }   // killer_6: disguised, the attack button is SCREAM (no cooldown ring)
     const left = dg6 ? 0 : Math.max(0, S.cdEnd - now), tot6 = dg6 ? 0 : S.cdTot, q = Math.round((tot6 ? Math.min(1, left / tot6) : 0) * 50) / 50;
     if (q !== UIC.cd) { $('atk').style.setProperty('--cd', q); UIC.cd = q; } $('atk').classList.toggle('dis', carrying); }
 }
