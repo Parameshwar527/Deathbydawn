@@ -2262,7 +2262,7 @@ function hostTick() {
   // Simulate at TICK_HZ, but send snapshots at SNAPSHOT_HZ_LARGE when the room is large.
   const iv = 1 / (online >= CFG.LARGE_ROOM_PLAYERS ? CFG.SNAPSHOT_HZ_LARGE : CFG.TICK_HZ);
   snapAcc += dt;
-  if (snapAcc >= iv - 0.004) { snapAcc -= iv; if (snapAcc > iv) snapAcc = 0; S.seq++; const m = { t: 's', q: S.seq, d }; if (f !== undefined) m.f = f; { const a = [], sv = []; for (const p of HP.values()) if (!p.bot && !p.host) { if (p.inN) a.push(p.id, p.inN % 65536); sv.push(p.id, Math.round(p.spEff || 0), p.drvF | 0); } if (a.length) m.a = a; if (sv.length) m.sv = sv; } /* a = input acks (round trip), sv = the speed the host really applies to each player + 'host is driving you' flag, so clients predict with the exact rules */ T.broadcast(m, true); }   // f = killer facing, only present when there is a killer
+  if (snapAcc >= iv - 0.004) { snapAcc -= iv; if (snapAcc > iv) snapAcc = 0; S.seq++; const m = { t: 's', q: S.seq, d, h: Math.round(now * 10) / 10 };   /* h = host clock when this snapshot was sampled: clients use it to space snapshots evenly (smooth motion) */ if (f !== undefined) m.f = f; { const a = [], sv = []; for (const p of HP.values()) if (!p.bot && !p.host) { if (p.inN) a.push(p.id, p.inN % 65536); sv.push(p.id, Math.round(p.spEff || 0), p.drvF | 0); } if (a.length) m.a = a; if (sv.length) m.sv = sv; } /* a = input acks (round trip), sv = the speed the host really applies to each player + 'host is driving you' flag, so clients predict with the exact rules */ T.broadcast(m, true); }   // f = killer facing, only present when there is a killer
 }
 
 /* ---------- combat rules (host-authoritative) ---------- */
@@ -5857,7 +5857,7 @@ function clientMsg(m) {
 }
 function clientMsg2(m) {
   switch (m.t) {
-    case 's': if (m.q > S.seq) { S.seq = m.q; netSample(); pushSnap(m.d, m.f); predAck(m.a, m.sv); } break;
+    case 's': if (m.q > S.seq) { S.seq = m.q; netSample(); pushSnap(m.d, m.f, m.h); predAck(m.a, m.sv); } break;
     case 'welcome': clearTimeout(S.hsT); S.me = m.you; S.players = m.players; syncChars(); S.rid = m.r; S.code = m.code; S.seq = 0; snaps = [];
       S.inRoom = true; S.reconnecting = false; banner(''); busy(false); joining(false);
       applyState(m); Timers.start(() => {}, onHb);
@@ -6630,14 +6630,27 @@ function onResize() { resize(); try { toastPlace(); } catch (e) {} }
 try { new ResizeObserver(onResize).observe(cv); } catch (e) {} addEventListener('resize', onResize);
 addEventListener('orientationchange', () => { resetInput(); setTimeout(onResize, 120); setTimeout(onResize, 450); });   // iOS reports stale sizes right after rotating
 try { if (window.visualViewport) visualViewport.addEventListener('resize', onResize); } catch (e) {}
-const NET = { interp: CFG.INTERP_MS, last: 0, ema: 33, jit: 4 };   // client: how far in the past the world is drawn; follows how evenly snapshots arrive
+const NET = { interp: CFG.INTERP_MS, last: 0, ema: 33, jit: 4, off: null };   // client: how far in the past the world is drawn; follows how evenly snapshots arrive
 function netSample() {
   const t = performance.now();
   if (NET.last) { const dt = t - NET.last; if (dt < 1000) { NET.ema += (dt - NET.ema) * .05; NET.jit += (Math.abs(dt - NET.ema) - NET.jit) * .05; } }
   NET.last = t;
   const want = Math.max(CFG.INTERP_MS, Math.min(CFG.INTERP_MAX, NET.ema * 1.5 + NET.jit * 3)); NET.interp += (want - NET.interp) * .02;
 }
-function pushSnap(d, f) { snaps.push({ t: performance.now(), d, f }); if (snaps.length > 12) snaps.shift(); }   // f = killer facing 0..255 (optional)
+/* SMOOTH REMOTE MOTION: a snapshot used to be stamped with the moment it ARRIVED, so every bit of network jitter (and bursts after a stall) turned straight
+   into judder: other players sped up and slowed down from frame to frame. Now each snapshot is placed on the HOST's own timeline (h) and only the
+   one-way offset to our clock is estimated: it drops fast to the quickest arrivals and creeps up slowly, so snapshots stay evenly spaced however unevenly
+   they arrive. The drawing delay (NET.interp) still covers the jitter. Old hosts without h, and the host itself, keep the arrival-time stamps. */
+function pushSnap(d, f, h) {   // f = killer facing 0..255 (optional), h = host clock (ms) when the snapshot was sampled (optional)
+  const a = performance.now(); let t = a;
+  if (h !== undefined) {
+    if (!snaps.length) NET.off = null;   // fresh start (join, new round, reconnect): estimate the offset again
+    const s = a - h;
+    if (NET.off === null || Math.abs(s - NET.off) > 1500) NET.off = s; else if (s < NET.off) NET.off += (s - NET.off) * .5; else NET.off += (s - NET.off) * .01;
+    t = h + NET.off; const l = snaps[snaps.length - 1]; if (l && t < l.t + .5) t = l.t + .5;   // never out of order
+  }
+  snaps.push({ t, d, f }); if (snaps.length > 12) snaps.shift();
+}
 /* ---------- CLIENT-SIDE PREDICTION (non-host players) ----------
    Without this a client sees ITSELF only after: input -> host -> snapshot -> interpolation delay, so every steer feels late by the full round trip.
    Now my own dot is moved locally the instant I steer (same wall collision as the host), and each snapshot only gently pulls it back to the
