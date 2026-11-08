@@ -637,18 +637,18 @@ const CFG = {
     PK_BOND_EVERY_MS: 7000, PK_BOND_SURV_MS: 1500, PK_BOND_KILL_MS: 1000, PK_BOND_GAP_MS: 3000, PK_BOND_WARN_MS: 1000,   // Reforming: ONE cooldown after each use (starts ready) / icon glow after using it. Bonded (alternating, never at the same time): first wait PK_BOND_EVERY_MS, then the HOLDER sees the killer for PK_BOND_SURV_MS, PK_BOND_GAP_MS of pause, then the KILLER sees the holder for PK_BOND_KILL_MS, PK_BOND_GAP_MS of pause, and round again; the icon glows from PK_BOND_WARN_MS before each reveal until it ends
     // Last Light: blind time (ms) / ability-lock time (ms) of its thrown Holy Light / icon glow after it is thrown (ms) / the holder's ambient vision multiplier (+15%); Reaction: speed multiplier and duration (ms) after leaving a generator / an unhook or using the block / break button; Potential: the bar's size, as % of one generator (dumped on the generator the moment it is full) / a generator at or above this % takes the holder's repair directly, and the holder banks BONUS (10%) of that repair on top
   PK_TK_MULT: 2.04, PK_UNDYING_FIRST_MS: 1000, PK_UNDYING_STEP_MS: 4000,   // Telekinetic: repair / unhook reach x this (1.7 + 20% = 2.04); Undying: downed time the first time (ms), plus this much more each further time (capped at DOWN_RECOVER_MS)
-  PK_OFFER_N: 2, PK_OFFER_CHANCE: .5, PK_TWIN_REP: 1.15, PK_TWIN_VIS: 1.2, PK_TWIN_R: 0, /* Long Last Twin: repair speed x / vision x while the twins are close; PK_TWIN_R = how close (0 = Telekinetic's reach, GEN_R x PK_TK_MULT) */   // perks offered to each survivor / default chance that a maxHolders perk shows up in a match at all (a perk can set its own offerChance)
+  PK_OFFER_N: 2, PK_OFFER_CHANCE: .5, PK_TWIN_REP: 1.30, PK_TWIN_VIS: 1.2, PK_TWIN_R: 0, /* Long Last Twin: repair speed x / vision x while the twins are close; PK_TWIN_R = how close (0 = Telekinetic's reach, GEN_R x PK_TK_MULT) */   // perks offered to each survivor / default chance that a maxHolders perk shows up in a match at all (a perk can set its own offerChance)
   PK_GEN_MULT: 1.3, PK_HOOK_MS: 40000,   // survivor perks ON (global): generators need this much more repair work (x1.3 = 30% more) / time until a hooked survivor dies (ms; 40 s = same as without perks)
   PK_DROP_RATE: .5, PK_ITEM_PERK_BONUS: .06, PK_ITEM_PERK_BONUS_CAP: .18,   // perks ON: items drop at x PK_DROP_RATE of today's rate; every item perk held adds PK_ITEM_PERK_BONUS to that rate, capped at PK_ITEM_PERK_BONUS_CAP
   PK_DD_PROT_MS: 3000, PK_DD_DECAY_MS: 66667, PK_DD_SLOW: .05, PK_DD_TAP: .04, PK_DD_THRESH: .2, PK_DD_SPEED: 1.1, PK_DD_REPAIR: 1.2, PK_DD_KICK_KEEP: .85, PK_DD_MIN_K: 1100, PK_DD_R: 70, PK_DD_RESET: .5, PK_DD_PING_MS: 3000, PK_DD_SYNC_MS: 1500,   // DEMONIC DEAL: totem bar full-to-empty (ms) / a generator a holder leaves (bar above the threshold) cannot be kicked for this long (ms) / drain speed x while the holder is downed / carried / hooked / sent (much slower) / each tap on the totem restores this much of the bar / the perk works while the bar is above this / holder speed x / holder generator repair x / share of a generator's progress KEPT after a kick (.85 = kicks remove 15%; the best holder counts, no stacking) / totem spawns at least this far from the killer's start / reach to enchant / bar after it hits zero / how long the killer sees the holder (ms) / host resend (ms)
   HEADSTART_MS: 5000,                  // survivors move, killer frozen
-  SURVIVOR_SPEED: 243, KILLER_SPEED: 215.10,   // (survivor was 270 and is now -10%; killer was 237 and is now about -9.2%; carrying speed is -5% too) world units / second (host-authoritative, per role)
+  SURVIVOR_SPEED: 243, KILLER_SPEED: 230.85,   // (survivor was 270 and is now -10%; killer was 237 and is now about -9.2%; carrying speed is -5% too) world units / second (host-authoritative, per role)
   CHASE_MAX_BONUS: 0.10, CHASE_RAMP_MS: 6000, CHASE_DECAY_MS: 3000,   // killer momentum: while a survivor stands inside the flashlight beam (with line of sight) the killer's speed climbs up to +10% over 6 s of continuous sight; once nobody is in the beam it bleeds back off over 3 s
   KILLER_TURN_DPS: 540,                // max flashlight turn speed, degrees / second
   // ---- darkness / visibility ----
   DARKNESS: 0.96,                      // opacity of the dark overlay
-  UD_MS: 50000, UD_SEQ_MS: [50000, 35000, 20000], UD_NEED: 20,   /* Demogorgon sends: 50 s, 35 s, 20 s, and it stays at 20 s (UD_SEQ_MS = duration of the 1st, 2nd, 3rd+ send; the last entry repeats). UD_MS = the first / debug send (50 s); Nikki's "the Upside Down" uses K3_UD_MS (60 s) instead */ UD_SPAWN_MS: 1191, UD_SPAWN_FIRST: 3, UD_DARKNESS: 0.96,     // sent duration and realm darkness (pure black, same as the main map: DARKNESS)
-  SURV_VIEW_R: 312,                    // survivor light radius
+  UD_MS: 50000, UD_SEQ_MS: [50000, 40000, 30000, 20000], UD_NEED: 20,   /* Demogorgon sends: starts at 50 s and loses 10 s every send (50, 40, 30, 20 s) and then stays at 20 s (UD_SEQ_MS = duration of the 1st, 2nd, 3rd, 4th+ send; the last entry repeats). UD_MS = the first / debug send (50 s); Nikki's "the Upside Down" uses K3_UD_MS (60 s) instead */ UD_SPAWN_MS: 1191, UD_SPAWN_FIRST: 3, UD_DARKNESS: 0.96,     // sent duration and realm darkness (pure black, same as the main map: DARKNESS)
+  SURV_VIEW_R: 280.8,                  // survivor light radius (was 312, now -10%)
   FLASH_RANGE: 374, FLASH_ANGLE: 54,   // killer flashlight length (units) and full cone angle (degrees)
   HOOK_SEE_R: 62,                       // the killer always sees the hooks and anyone standing right next to one (small circle)
   KILLER_AMBIENT_R: 126,                // small light circle around the killer (was 140, now 10% smaller for every killer)
@@ -661,7 +661,7 @@ const CFG = {
   EYES_DURATION_MS: 520,
   EYE_GAP: 7, EYE_SIZE: 3, EYE_GLOW: 18,   // half distance between the eyes, dot radius, glow radius (world units)
   // ---- terror warning (survivors) ----
-  TERROR_R: 750,                       // killer closer than this => vignette + heartbeat
+  TERROR_R: 525,                       // killer closer than this => vignette + heartbeat (was 750, now -30% for every killer)
   HB_MIN_RATE: 1, HB_MAX_RATE: 3,      // beats / second at the edge of TERROR_R and when touching the killer
   HB_F0: 60, HB_F1: 40, HB_GAP_MS: 150,// thump pitch falls F0 -> F1 Hz, lub -> dub gap
   HB_VOLUME: 0.9,                      // 0..1
@@ -676,8 +676,8 @@ const CFG = {
   ATTACK_SLOW_MULT: 0.1, LAUGH_MS: 3000,               // killer speed multiplier after EVERY swing (hit or miss); lasts exactly as long as that swing's cooldown
   CRAWL_SPEED: 63,                     // downed survivors
   PICKUP_R: 70, CARRY_SPEED: 184.3, CARRY_OFFSET: 14,  // pickup range, killer speed while carrying, carried dot's offset behind the killer
-  HOOK_R: 104, HOOKS_TO_DIE: 3, HOOK_GRACE_MS: 36000,    // killer-to-hook range to hang someone (was 80, +30%); time until a hooked survivor dies (36 s = old 30 s +20%); the timer is PAUSED while a rescuer is unhooking
-  RESCUE_R: 80, RESCUE_HOLD_MS: 7200, RESCUE_MULT_BY_N: [1, 1, 1, 1, 1, 1.3, 1.6, 1.9, 2.2, 2.5],   // unhook time x this, indexed by survivors in the round (<= 4 survivors: base time; each survivor beyond 4 adds +30% of the base time)
+  HOOK_R: 104, HOOK_POOL_MS: 60000, HOOK_AUTO_MS: 30000, HOOK_BLINK_MS: 3000,   /* AUTO-RELEASE: a hooked survivor nobody has tried to unhook for HOOK_AUTO_MS (30 s, counted from the last unhook attempt) drops off the hook by itself as INJURED; the model blinks for the last HOOK_BLINK_MS (3 s) */    // killer-to-hook range to hang someone (was 80, +30%); time until a hooked survivor dies (36 s = old 30 s +20%); the timer is PAUSED while a rescuer is unhooking
+  RESCUE_R: 80, RESCUE_HOLD_MS: 3600, RESCUE_MULT_BY_N: [1, 1, 1, 1, 1, 1.3, 1.6, 1.9, 2.2, 2.5],   // unhook time x this, indexed by survivors in the round (<= 4 survivors: base time; each survivor beyond 4 adds +30% of the base time)
  
   HOOK_WARN_FRAC: 0.5,                 // when the hook timer ring has this fraction of the grace time left it changes colour (visual warning only)
   PICKUP_IMMUNITY_MS: 3000,            // after a rescue the (downed) survivor can't be picked up by the killer for this long; shown as a shield ring
@@ -699,6 +699,7 @@ const CFG = {
   VIB_VICTIM_INJURED: 70, VIB_VICTIM_DOWNED: [70, 40, 110],   // victim vibration: injured (ms) / downed (pattern)
   SFX_VOLUME: 0.8,                     // swing + hit sounds, 0..1
   // ---- ambience (continuous night bed + distant sounds; all synthesized in the AMBIENCE block) ----
+  CHASE_MUSIC_MS: 1500, CHASE_MUSIC_LOST_MS: 700, CHASE_VOLUME: 0.5,   // chase music: it starts once the chase speed meter (CHASE_RAMP_MS) has been fuelling for this long (ms) without a break / it fades out after this long (ms) with nobody in the killer's beam / its level 0..1 (only the chased survivor and the killer hear it)
   MUS_VOLUME: 0.5,                     // menu + lobby music level, 0..1 (only plays outside a round; the in-game ambience takes over)
   AMB_VOLUME: 0.7,                     // master level of the ambient bed, 0..1 (the heartbeat, hits, generator hum etc. are not affected)
   AMB_GAP_MIN_MS: 9000, AMB_GAP_MAX_MS: 22000,   // time between distant one-shot sounds (owl, wolf, creaking timber, wind gust) during the hunt
@@ -726,6 +727,7 @@ const CFG = {
   MONSTER_DELAY_MS: 10000, MONSTER_SPEED_MULT: 1.3, MONSTER_SLOW_MULT: 0.5,   // MONSTER FORM (killer status): starts MONSTER_DELAY_MS after the gates open. While active: killer speed x MONSTER_SPEED_MULT (+30%), the post-swing slow multiplier is MONSTER_SLOW_MULT (0.5 = 50% slow, instead of ATTACK_SLOW_MULT = 90% slow), any hit downs a survivor in one go, and the killer sees everyone in pulses (EG_SEE_*)
   CARRY_BOOST_MULT: 1.3,   // LAST STAND + full MONSTER FORM: extra speed multiplier (+30%) while the killer carries a survivor
   SOLO_MS: 70000, SOLO_WARN_MS: 3000, SOLO_SPEED_MULT: 1.2, SOLO_CARRY_BOOST_MULT: 1.2, SOLO_SLOW_MULT: 0.5, SOLO_RAMP_MS: 10000, SOLO_RAMP_STEPS: 6, SOLO_REROLL_MS: 10000, SOLO_GIVE_MS: 12000,   // LAST SURVIVOR sequence: one survivor left (gates still shut) => they must survive SOLO_MS; the killer gets a NERFED monster form that RAMPS UP: it starts with NO buffs and every SOLO_RAMP_MS (10 s) it moves 1/SOLO_RAMP_STEPS of the way to its full LAST STAND values (SOLO_SPEED_MULT = +30% speed, CARRY_BOOST_MULT carry speed, SOLO_SLOW_MULT = 0.5 swing slow multiplier), so it is at full strength from SOLO_RAMP_MS x SOLO_RAMP_STEPS (60 s) on; no sight pulses, no one-hit down until the gates open (then the full monster form takes over); the sequence is called LAST STAND: a player holding an item has it re-rolled to a different random one every SOLO_REROLL_MS, an empty-handed player gets a random one after SOLO_GIVE_MS
+  GEN_TIME_MULT: 1,                    // global: every generator takes this much LONGER to repair (1.3 = +30%)
   GEN_NEEDED: 2,                       // generators that must be fixed (the rest lock and reset)
   GEN_R: 90,                           // reach for REPAIR / KICK (the host allows +ACT_SLACK on top)
   GEN_BEACON_R: 700, GEN_BEACON_FADE: 150,   // yellow beacon on OPEN generators (survivors): only within this distance of the viewed player, fading in over the last GEN_BEACON_FADE units
@@ -1391,7 +1393,7 @@ function copy(text) { try { navigator.clipboard.writeText(text).catch(() => fall
 
 /* ================= HOST SIMULATION ================= */
 // Combat/status fields on every sim player. st: healthy | injured | downed | carried | hooked | dead (killer stays 'healthy' forever).
-function resetCombat(p) { p.lk = -1; p.lkT = 0; p.k7OpenAt = 0; p.st = 'healthy'; p.injAt = 0; p.mods = []; p.cd = p.wind = p.downEnd = p.pickupImmuneUntil = 0; p.carry = p.carriedBy = null; p.hold = false; p.hookIdx = -1; p.hookEnd = 0; p.sentHook = -1; p.sentEnd = 0; p.udC = null; p.udMs = 0; p.prog = 0; p.rpOn = false; p.task = -1; p.rep = p.kick = false; p.kickT = 0; p.kickGen = -1; p.esc = false; p.gateT = 0; p.hookCount = 0; p.hookExtra = 0; p.udn = 0; p.pot = p.potAt = 0; p.ddOn = p.ddInit = 0; p.ddV = 0; p.ddTapAt = 0; p.item = null; p.hatLeft = 0; p.hatRate = 1; p.hatWork = false; p.adrEnd = 0; p.snakeEnd = 0; p.rpMul = 1; p.slideUntil = 0; p.slickImm = 0; p.frogEnd = 0; p.frogMsgAt = 0; p.ldx = p.ldy = 0; p.ch = p.role === 'killer' ? 0 : dfltCh(p.id); }
+function resetCombat(p) { p.lk = -1; p.lkT = 0; p.k7OpenAt = 0; p.st = 'healthy'; p.injAt = 0; p.mods = []; p.cd = p.wind = p.downEnd = p.pickupImmuneUntil = 0; p.carry = p.carriedBy = null; p.hold = false; p.hookIdx = -1; p.hookEnd = 0; p.hookBank = CFG.HOOK_POOL_MS; p.sentHook = -1; p.sentEnd = 0; p.udC = null; p.udMs = 0; p.prog = 0; p.rpOn = false; p.task = -1; p.rep = p.kick = false; p.kickT = 0; p.kickGen = -1; p.esc = false; p.gateT = 0; p.hookCount = 0; p.hookExtra = 0; p.udn = 0; p.pot = p.potAt = 0; p.ddOn = p.ddInit = 0; p.ddV = 0; p.ddTapAt = 0; p.item = null; p.hatLeft = 0; p.hatRate = 1; p.hatWork = false; p.adrEnd = 0; p.snakeEnd = 0; p.rpMul = 1; p.slideUntil = 0; p.slickImm = 0; p.frogEnd = 0; p.frogMsgAt = 0; p.ldx = p.ldy = 0; p.ch = p.role === 'killer' ? 0 : dfltCh(p.id); }
 function addPlayer(name, connId, token, host) {
   let id = 0; while (HP.has(id)) id++;
   const used = new Set([...HP.values()].map(p => p.color));
@@ -1879,7 +1881,7 @@ function botK6(p, B, now, L, tgt, down) {   // returns true when it took over th
   return false;
 }
 
-/* ---------- killer_7 (Participant) bot: knife up close, swaps to the RIFLE when a survivor is at range, stands still to aim and shoots, runs to a locker to reload, and opens a locker a survivor hides in ---------- */
+/* ---------- killer_7 (Game Guard) bot: knife up close, swaps to the RIFLE when a survivor is at range, stands still to aim and shoots, runs to a locker to reload, and opens a locker a survivor hides in ---------- */
 function botK7Locker(p, B) {   // walk to the nearest locker and open it (reload + kicks out anyone inside)
   let bi = -1, bd = 1e9; for (let i = 0; i < K7.L.length; i++) { const d = Math.hypot(K7.L[i].x - p.x, K7.L[i].y - p.y); if (d < bd) { bd = d; bi = i; } }
   if (bi < 0) return false; return botK7Open(p, B, bi);
@@ -2031,7 +2033,7 @@ const canMove = p => (S.phase === 'hunt' && !(p.role === 'killer' && K4.lg)) || 
 /* ---- CHARACTER SELECT (cosmetic, host-authoritative). S.pick[id] = { c, locked } on the host and on every client; an id with no entry is implicitly { c: id % CHARS.length, locked: false }.
    The final choice is written to p.ch (roster 'ch') when select ends. Wire: c->h {t:'pick',c} {t:'lock'}; h->all {t:'ch',id,c,locked}; late joiners get pk:[[id,c,locked]] in welcome/start. ---- */
 const dfltCh = id => ((id % CHARS.length) + CHARS.length) % CHARS.length;
-const KILLERS = [{ name: 'Jigsaw', flavor: 'Find them. Hang them. Before dawn.', col: '#ff4f57' }, { name: 'The Banshee', flavor: 'You will hear her before you see her.', col: '#3affd0' }, { name: 'The Demogorgon', flavor: 'It opens. It hungers. It always finds you.', col: '#d1454f' }, { name: 'Freaky Nikki', flavor: 'She quit hiding it. Smile back.', col: '#e0264a' }, { name: 'Huggy Wuggy', flavor: 'Come here. Give me a big, big hug.', col: '#2f6bff' }, { name: 'The Boiled One', flavor: 'Skin like a scalded wound. It never stops screaming.', col: '#ff3b30' }, { name: 'The Skinwalker', flavor: 'It knows your voice. It never needed a face.', col: '#e9e6dc' }, { name: 'Participant', flavor: 'Didn\'t hear the announcement yet?', col: '#2ee6c5' }];   // cosmetic only: same stats
+const KILLERS = [{ name: 'Jigsaw', flavor: 'Find them. Hang them. Before dawn.', col: '#ff4f57' }, { name: 'The Banshee', flavor: 'You will hear her before you see her.', col: '#3affd0' }, { name: 'The Demogorgon', flavor: 'It opens. It hungers. It always finds you.', col: '#d1454f' }, { name: 'Freaky Nikki', flavor: 'She quit hiding it. Smile back.', col: '#e0264a' }, { name: 'Huggy Wuggy', flavor: 'Come here. Give me a big, big hug.', col: '#2f6bff' }, { name: 'The Boiled One', flavor: 'Skin like a scalded wound. It never stops screaming.', col: '#ff3b30' }, { name: 'The Skinwalker', flavor: 'It knows your voice. It never needed a face.', col: '#e9e6dc' }, { name: 'Game Guard', flavor: 'Rule one: nobody leaves the game.', col: '#ff4fa8' }];   // cosmetic only: same stats
 let testKiller = -1;   // test room, you as survivor: which killer the bot plays (-1 = random, else an index into KILLERS)
 const isKiller = id => { const q = S.players.find(x => x.id === id); return !!q && q.role === 'killer'; };
 const pickOf = id => S.pick[id] || { c: isKiller(id) ? 0 : dfltCh(id), locked: false };
@@ -2080,7 +2082,9 @@ const RULESET_ABIL = { SNAKE_MULT: CFG.SNAKE_MULT, SNAKE_MS: CFG.SNAKE_MS, TP_DI
 const RULESET_LEGACY = { SNAKE_MULT: 1.7, SNAKE_MS: 6000, TP_DIST: 195, TRAP_R: 30, TRAP_R_K: 45, SURV_ITEM_MULT: 0.75, ITEM_CHARGES: {} };
 function applyRuleset() { const src = abilitiesOn() ? RULESET_ABIL : RULESET_LEGACY; for (const k in src) CFG[k] = src[k]; }
 const perksRule = () => !!S.rules.perks && abilitiesOn();
-const hookGraceMs = () => perksRule() ? CFG.PK_HOOK_MS : CFG.HOOK_GRACE_MS;   // survivor perks ON: a hook lasts PK_HOOK_MS (40 s)   // survivor perks are ON (the setting; perkSetup decides whether a match really has a perk screen)
+const hookGraceMs = () => CFG.HOOK_POOL_MS;   // POOLED HOOK TIME: every survivor has HOOK_POOL_MS (60 s) in total across ALL hooks, never refreshed; the ring / warning use the full pool as 100%
+const hookRemaining = v => v.hookBank == null ? CFG.HOOK_POOL_MS : v.hookBank;   // ms of hook time this survivor still has (host)
+//   // survivor perks ON: a hook lasts PK_HOOK_MS (40 s)   // survivor perks are ON (the setting; perkSetup decides whether a match really has a perk screen)
 let PERK_TEST_SEL = null;   // Test Room only (lobby button "Choose perks"): a Set of perk ids the host ticked; only these are offered. null = every implemented perk
 const PERK_TEST_ONLY = null;   // TESTING: when this list is set, ONLY these perks are ever offered (every match, not just the Test Room). Set it to null to offer every implemented perk again
 const perkPool = () => PERK_TEST_ONLY ? PERKS.filter(p => PERK_TEST_ONLY.includes(p.id)) : PERKS.filter(p => S.test && PERK_TEST_SEL ? PERK_TEST_SEL.has(p.id) : p.implemented);
@@ -2166,21 +2170,31 @@ function setPhase(ph, ms, quiet) {   // host: change phase, and tell everyone (c
 function fireEyes() { S.eyesStart = performance.now(); S.eyesMs = CFG.EYES_DURATION_MS; T.broadcast({ t: 'eyes', ms: S.eyesMs }); eyesSound(); }
 
 // Chase momentum (host only): S.chase 0..1 rises while any healthy/injured survivor is inside the killer's flashlight cone with a clear line of sight, and falls when none is.
+const CHM = { id: -1, sent: 0, fuel: 0, lost: 0, tgt: -1, on: false };   // chase music (host): id = the survivor being chased (-1 = nobody); fuel = how long the chase speed meter has been fuelling without a break
+function chmSet(id, now) {   // tell everybody (only the chased survivor and the killer play the music); re-sent every 0.5 s with the meter level, which drives how intense the music is
+  if (id === CHM.id && !(id >= 0 && now - CHM.sent > 500)) return;
+  const c = +(S.chase || 0).toFixed(2); CHM.id = id; CHM.sent = now; S.chm = id; S.chmC = c; try { T.broadcast({ t: 'chm', id, c }); } catch (e) {}
+}
 function chaseStep(killer, dt) {
-  if (!killer || S.phase !== 'hunt' || !killer.on) { S.chase = 0; return; }
-  let seen = false;
-  if (killer.carry == null && !k6Disg(killer)) {   // (a disguised Skinwalker has no flashlight, so nobody can be 'in his beam')
-    const half = CFG.FLASH_ANGLE * kVisMul(killer.id) * Math.PI / 360 + .05;
-    for (const q of HP.values()) {
-      if (q.role !== 'survivor' || !q.on || (q.st !== 'healthy' && q.st !== 'injured')) continue;
-      const dx = q.x - killer.x, dy = q.y - killer.y;
-      if (dx * dx + dy * dy > Math.pow(CFG.FLASH_RANGE * kRangeMul(killer.id), 2)) continue;
-      if (Math.abs(angDiff(Math.atan2(dy, dx), S.face)) > half) continue;
-      if (losClear(killer.x, killer.y, q.x, q.y)) { seen = true; break; }
-    }
+  const nowC = performance.now();
+  if (!killer || S.phase !== 'hunt' || !killer.on) { S.chase = 0; CHM.fuel = CHM.lost = 0; CHM.on = false; chmSet(-1, nowC); return; }
+  let seen = false, first = -1, tgtSeen = false;
+  const half = CFG.FLASH_ANGLE * kVisMul(killer.id) * Math.PI / 360 + .05, can = killer.carry == null && !k6Disg(killer);   // (a disguised Skinwalker has no flashlight, so nobody can be 'in his beam')
+  for (const q of HP.values()) {
+    if (q.role !== 'survivor' || !q.on || (q.st !== 'healthy' && q.st !== 'injured') || !can) continue;
+    const dx = q.x - killer.x, dy = q.y - killer.y;
+    if (dx * dx + dy * dy > Math.pow(CFG.FLASH_RANGE * kRangeMul(killer.id), 2)) continue;
+    if (Math.abs(angDiff(Math.atan2(dy, dx), S.face)) > half) continue;
+    if (losClear(killer.x, killer.y, q.x, q.y)) { seen = true; if (first < 0) first = q.id; if (q.id === CHM.tgt) tgtSeen = true; }
   }
   const c = S.chase || 0;
   S.chase = seen ? Math.min(1, c + dt * 1000 / CFG.CHASE_RAMP_MS) : Math.max(0, c - dt * 1000 / CFG.CHASE_DECAY_MS);
+  // chase music: starts after the speed meter has been fuelling for CHASE_MUSIC_MS in a row (a gap under 0.4 s does not count) and fades out after CHASE_MUSIC_LOST_MS with nobody in the beam
+  if (seen) { CHM.fuel += dt * 1000; CHM.lost = 0; if (!tgtSeen) CHM.tgt = first; if (CHM.fuel >= CFG.CHASE_MUSIC_MS) CHM.on = true; }
+  else { CHM.lost += dt * 1000; if (CHM.lost > 400) CHM.fuel = 0; }
+  const tq = HP.get(CHM.tgt);
+  if (CHM.on && (CHM.lost >= CFG.CHASE_MUSIC_LOST_MS || !can || !tq || !tq.on || (tq.st !== 'healthy' && tq.st !== 'injured'))) CHM.on = false;
+  chmSet(CHM.on ? CHM.tgt : -1, nowC);
 }
 // Speed modifiers: p.mods = [{ id, mult, until }]. Adding one with an existing id replaces it. speedOf() = base speed x product of all active mults.
 function addMod(p, id, mult, ms, now, ramp, hold) { hold = hold | 0; p.mods = p.mods.filter(m => m.id !== id); p.mods.push({ id, mult, until: now + hold + ms, from: mult, t0: now + hold, ms, ramp: !!ramp }); }   // hold (optional, ramp mods): the multiplier stays at `mult` for this many ms first, then ramps over `ms`. ramp = the multiplier moves linearly from `mult` to 1 over `ms`
@@ -2250,6 +2264,7 @@ function hostTick() {
     /* bots steer with botBrain (pathfinding), no random bouncing */   // bounce
   }
   // Killer facing: last non-zero input direction, turned smoothly at KILLER_TURN_DPS.
+  if (killer && K7.form === 1 && isK7(killer.id) && killer.aimA !== undefined && now - (killer.aimT || 0) < 1000) S.faceTarget = killer.aimA;   // killer_7, rifle form: the mouse steers the flashlight (client sends 'aim'; it expires after 1 s without news, then the walking direction rules again)
   let f; if (killer) { const step = CFG.KILLER_TURN_DPS * Math.PI / 180 * dt; S.face += Math.max(-step, Math.min(step, angDiff(S.faceTarget, S.face))); f = encodeFace(S.face); }
   if (S.phase === 'hunt' || S.phase === 'headstart') { try { k2Step(now); } catch (e) { console.warn('[k2]', e); } try { k4Step(now); } catch (e) { console.warn('[k4]', e); } }   // killer_2: target lock (also during the headstart so the first target is ready)
   if (S.phase === 'hunt') { stepCombat(now, dt * 1000, killer); try { umStep(now, dt); } catch (e) { console.warn('[um]', e); } genStep(now, dt * 1000, killer); doorStep(now); soloStep(now); egStep(now, dt * 1000); try { sbStep(now, dt * 1000); } catch (e) { console.warn('[sab]', e); } try { bondStep(now); } catch (e) { console.warn('[bond]', e); } try { bbStep(now); } catch (e) { console.warn('[banes]', e); } try { ddStep(now, dt * 1000); } catch (e) { console.warn('[dd]', e); } itemStep(now, dt * 1000); }
@@ -2566,7 +2581,7 @@ function genStep(now, dtMs, killer) {   // every hunt tick: expire disabled time
     let wsum = 0; for (const id of cnt[i]) { const q = HP.get(id); wsum += (q && q.snakeEnd > now ? CFG.SNAKE_REPAIR_MULT : 1) * k1Slow(q, now) * k5Slow(q) * (q && q.bbRep > now ? BB.SWAP_REP : 1) * (q && ddActive(q) ? CFG.PK_DD_REPAIR : 1) * (q && twinNearH(q) ? CFG.PK_TWIN_REP : 1); }   // killer_1: each repairer's fear slows their contribution
     const kr = CFG.GEN_RATE_BY_K[clampN(k, 1, 9)], boost = wsum / k;
     let sl = 0; for (const id of cnt[i]) { const pg = K0.ping[id]; sl += pg && pg.sc && now - pg.s < K0_SCAN_SLOW_MS ? K0_SCAN_SLOW : 1; } sl /= k;   // IR scanner: pinged repairers are slower
-    let gain = 100 * kr * boost * sl * split / charges * dt / (perksRule() ? CFG.PK_GEN_MULT : 1);   // survivor perks ON: 30% more repair work per generator
+    let gain = 100 * kr * boost * sl * split / charges * dt / (perksRule() ? CFG.PK_GEN_MULT : 1) / CFG.GEN_TIME_MULT;   // survivor perks ON: 30% more repair work per generator
     const ph = cnt[i].filter(id => hasPerk(id, 'potential'));   // POTENTIAL: a holder's share goes into their own bar (banked, not on the generator, so a kick cannot touch it)
     if (ph.length) { const sh = gain / k, hi = g.prog >= CFG.PK_POT_HI; if (!hi) gain -= sh * ph.length; for (const id of ph) { const q = HP.get(id); if (q) { q.pot = Math.min(CFG.PK_POT_CAP, (q.pot || 0) + sh * (hi ? CFG.PK_POT_BONUS : 1)); q.potAt = now; } } }   // generator at 75%+: the holder's repair goes straight onto it and 10% of it is banked as a bonus
     g.prog += gain;
@@ -2598,7 +2613,7 @@ function dbgKickNearest() {   // debug button: applies the kick effect to the op
 function stList(now) {   // compact status of everyone, for welcome/start (reconnects)
   return [...HP.values()].map(p => { const e = { id: p.id, s: p.st || 'healthy' };
     if(e.s==='sent'){e.hk=p.sentHook;e.ms=Math.max(0,Math.round(p.sentEnd-now));e.tot=p.udMs||CFG.UD_MS;}
-    if (e.s === 'hooked') { e.hk = p.hookIdx; e.ms = Math.max(0, Math.round(p.hookEnd - now)); e.rp = Math.round(p.prog); e.ro = p.rpOn ? 1 : 0; e.rr = p.rpMul || 1; }
+    if (e.s === 'hooked') { e.hk = p.hookIdx; e.ms = Math.max(0, Math.round(p.hookEnd - now)); e.rp = Math.round(p.prog); e.ro = p.rpOn ? 1 : 0; e.rr = p.rpMul || 1; e.ai = p.rpOn ? CFG.HOOK_AUTO_MS : Math.max(0, Math.round((p.hkLast || now) + CFG.HOOK_AUTO_MS - now)); }
     if (e.s === 'downed') { e.rec = Math.max(0, Math.round(p.downEnd - now)); e.rt = p.downTot || CFG.DOWN_RECOVER_MS; if (now < p.pickupImmuneUntil) e.prot = Math.round(p.pickupImmuneUntil - now); }   // recovery time left + pickup immunity left
     if (p.esc) e.esc = 1;
     if (e.s === 'carried') e.by = p.carriedBy;
@@ -2926,13 +2941,12 @@ function hostAct(p, a, down, n) {   // validates range, state and cooldowns; cli
     v.hookCount = (v.hookCount || 0) + 1; if (isK2(p.id) && !EG.solo) k2SendKick(p, now);   // (before his scents are reset, so they still add to the disable time; the LAST STAND kill is not a send)
     if (isK2(p.id)) { K2.free = 0; K2.at = 0; K2.n = 0; K2.sc = []; K2.pe = 0; K2.pt = -1; }   // killer_2: SEND resets scent buffs; the normal prey-selection logic picks a new target
     if (isK2(p.id) && EG.solo) { p.carry = null; v.carriedBy = null; v.x = h[0]; v.y = h[1]; v.ix = v.iy = 0; killSurvivor(v); msgTo(v, 'Lost in the Upside Down'); msgTo(p, 'Sent for good'); return; }   // LAST STAND (one survivor left): Demogorgon's send is final - the survivor dies on the spot instead of entering the Upside Down, and since nobody is left the match ends
-    if (!isK2(p.id) && v.hookCount >= CFG.HOOKS_TO_DIE + (v.hookExtra || 0)) { v.x = h[0]; v.y = h[1]; killSurvivor(v); return; }   // 3rd hook: dies on the spot (the hook stays free)
     p.carry=null;v.carriedBy=null;
     if(isK2(p.id)){const ums=CFG.UD_SEQ_MS[Math.min(CFG.UD_SEQ_MS.length-1,Math.max(0,(v.hookCount||1)-1))];v.udMs=ums;v.sentHook=bi;v.sentEnd=now+ums;v.hookIdx=-1;v.prog=0;v.rpOn=false;
       const others=[...HP.values()].filter(q=>q!==v&&q.role==='survivor'&&q.st==='sent');
       const spawn=UD.spawns.slice().sort((a,b)=>Math.min(...others.map(q=>Math.hypot(q.x-a[0],q.y-a[1])),Infinity)-Math.min(...others.map(q=>Math.hypot(q.x-b[0],q.y-b[1])),Infinity)).pop()||UD.spawns[0];
       v.x=spawn[0];v.y=spawn[1];v.ix=v.iy=0;setSt(v,'sent',{hk:bi,ms:ums,tot:ums});msgTo(p,'Sent!');checkWin();
-    }else{v.x=h[0];v.y=h[1];v.hookIdx=bi;HU[bi]=v.id;v.hookEnd=now+hookGraceMs();v.prog=0;v.rpOn=false;setSt(v,'hooked',{hk:bi,ms:hookGraceMs()});k5Ring(1,bi,h[0],h[1],now);checkWin();pkLastLight(v,p.id);k4Lust3(now);}   // (Last Light: a hook triggers it too)
+    }else{v.x=h[0];v.y=h[1];v.hookIdx=bi;HU[bi]=v.id;v.hookEnd=now+hookRemaining(v);v.hkLast=now;v.prog=0;v.rpOn=false;setSt(v,'hooked',{hk:bi,ms:hookRemaining(v),ai:CFG.HOOK_AUTO_MS});k5Ring(1,bi,h[0],h[1],now);checkWin();pkLastLight(v,p.id);k4Lust3(now);}   // (Last Light: a hook triggers it too)
   }
 }
 function rescueMs() { let n = 0; for (const p of S.players) if (p.role === 'survivor') n++; return CFG.RESCUE_HOLD_MS * CFG.RESCUE_MULT_BY_N[Math.max(0, Math.min(9, n))]; }   // same answer on host and clients (roster)
@@ -2969,7 +2983,11 @@ function stepCombat(now, dtMs, killer) {
       if (r === v || r.role !== 'survivor' || !r.on || !r.hold || now < (r.stunEnd || 0) || k3FrogOn(r, now) || (r.st !== 'healthy' && r.st !== 'injured')) continue;
       if (Math.hypot(r.x - h[0], r.y - h[1]) <= CFG.RESCUE_R * pkRangeMul(r.id) + CFG.ACT_SLACK) { on = true; r.hatWork = true; mul = Math.max(mul, (r.snakeEnd > now ? CFG.SNAKE_UNHOOK_MULT : 1) * k1Slow(r, now) * k5Slow(r)); } }   // (r.hatWork: unhooking drains a Magician's Hat faster)
     if (on) { v.hookEnd += dtMs;   // unhook in progress: the hook timer is paused
-      v.prog += dtMs * mul; if (v.prog >= rescueMs()) { rescueDone(v, now); continue; } }   // released/out of range: progress just pauses
+      v.hookBank = Math.max(1, v.hookEnd - now);   // POOL: what is left is kept for the next hook
+      v.hkLast = now;   // AUTO-RELEASE: someone is working on the unhook right now, so the idle clock restarts
+      v.prog += dtMs * mul; if (v.prog >= rescueMs()) { rescueDone(v, now); continue; } }
+    else { v.hookBank = Math.max(1, v.hookEnd - now);   // released/out of range: progress just pauses
+      if (now - (v.hkLast || now) >= CFG.HOOK_AUTO_MS) { rescueDone(v, now); msgTo(v, 'You slipped off the hook'); continue; } }   // AUTO-RELEASE: 30 s since the last unhook attempt (or since being hooked) -> off the hook, injured
     if (!on) mul = 1;
     if (on !== v.rpOn || mul !== (v.rpMul || 1)) { v.rpOn = on; v.rpMul = mul; sendRp(v); }
   }
@@ -3037,6 +3055,7 @@ function hostMsg(cid, m) {
     let x = +m.x, y = +m.y; if (!isFinite(x) || !isFinite(y)) x = y = 0;
     const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } p.ix = x; p.iy = y; }
   else if (m.t === 'act') hostAct(p, String(m.a), !!m.down, m.n);
+  else if (m.t === 'aim') { const a = +m.a; if (isFinite(a) && p.role === 'killer') { p.aimA = a; p.aimT = performance.now(); } }   // killer_7 rifle: mouse aim angle (radians)
   else if (m.t === 'tstart') tsStart(p, m.id);
   else if (m.t === 'tdone') tsDone(p, m.id);
   else if (m.t === 'tquit') tsQuit(p, m.id);
@@ -3178,7 +3197,7 @@ function k2Hop(p, now, dir) {   // the travel arrow: slide to the ONE next TV of
    One body. His ATTACK button is only the normal swing.
    BLOOD LUST (passive): near the blood trail of an injured survivor (K4_BL_R) he gets +10% speed and his lunge charges recover 10% faster, for 2 s after the last time he was near one (host k4Lust); the client shows his monster form while it is on (drawKiller, K4BL).
    He can't charge or lunge while the slow of a swing (missed or landed, mod 'attackSlow') is running.
-   LUNGE (ability button, 3 charges): TAP the ability = a short dash (K4_LG_MIN units); HOLD it = charge a long lunge (he walks at x0.75 meanwhile; full charge after K4_CH_FULL ms,
+   LUNGE (ability button, 3 charges): TAP the ability = a short dash (K4_LG_MIN units); HOLD it = charge a long lunge (he walks at x0.9 meanwhile, a 10% penalty; full charge after K4_CH_FULL ms,
    K4_LG_MIN..K4_LG_MAX units by charge), letting go fires it straight ahead - or it fires by itself once the hold reaches K4_CH_MAX_MS - (his input is ignored while it flies).
    Every survivor the path touches is slowed to x0.3 for 3 s. He has K4_CHARGES charges (K4.cds[i] = the time charge i is ready again); used charges come back ONE AFTER ANOTHER: only one recharge runs at a time and each takes K4_LG_CD (12 s) (a charge that is spent while others are recharging is queued behind them).
    Acts 'k4chg' (ability pressed) / 'k4rel' (ability released, n = 1 fire, 0 cancel), host k4Charge / k4Release / k4Fire / k4Lunge, client abilityPress / abUp, k4LungeFx, event 'k4l'.
@@ -3190,7 +3209,7 @@ const K4_PAL = [   // fur colours: [normal base, shade, highlight, gates-open ba
   ['#3a60d6', '#223a9a', '#6c8ff2', '#1d2c98', '#101a5e', '#3d55cf', '#8aa2e0']];
 const K4_COL = ['#6c8ff2'];
 const K4_BL_R = 80, K4_BL_MS = 2000, K4_BL_SPD = 1.1, K4_BL_CD = 1, K4_BL_HIT_MS = 3000;   // BLOOD LUST (passive): within K4_BL_R units of a blood trail drop of an injured survivor he gets K4_BL_SPD x speed and his lunge charges recover K4_BL_CD (100% = twice as fast) faster, for K4_BL_MS after the last time he was near (and K4_BL_HIT_MS after he hits or hooks someone: k4Lust3)   // marker / effect colour (a bit brighter than the fur)
-const K4_TAP_MS = 220, K4_CH_FULL = 733, K4_CH_MAX_MS = 4000, K4_CH_SLOW = .75;   // LUNGE: a hold shorter than K4_TAP_MS is the short dash / full charge after this many ms of holding / a charge held this long fires the lunge by itself (at full charge) / walking speed while charging (x0.75 = 25% slower)
+const K4_TAP_MS = 220, K4_CH_FULL = 733, K4_CH_MAX_MS = 4000, K4_CH_SLOW = .9;   // LUNGE: a hold shorter than K4_TAP_MS is the short dash / full charge after this many ms of holding / a charge held this long fires the lunge by itself (at full charge) / walking speed while charging (x0.9 = a 10% movement penalty while charging)
 const K4_LG_MIN = 75, K4_LG_MAX = 158, K4_LG_SPD = 900, K4_LG_W = 60, K4_LG_CD = 11000, K4_CHARGES = 3, K4_LG_SLOW = .3, K4_LG_SLOW_MS = 3000;   // LUNGE: short dash distance / longest distance (a full charge) / dash speed (units per s) / width of the path (survivors inside are hit) / time each charge takes to come back, one after another (ms, 11 s) / number of charges / survivor speed multiplier after being caught (x0.3 = 70% slower) / for how long
 function k4Empty() { return { at: 0, cds: new Array(K4_CHARGES).fill(0), ch: 0, lg: null, lt: 0, bt: [], tr: {}, bl: 0, lb: 0, slU: 0 }; }   // bt = live blood drops [{x, y, t}] / tr = per survivor trail bookkeeping / bl = Blood Lust ends at / slU = when his swing slow ends (synced so the client greys the button)   // cds = per charge: when it is ready again (0 / past = ready) / ch = when the current charge started (0 = not charging) / lg = the lunge in flight
 let K4 = k4Empty();
@@ -3243,6 +3262,9 @@ function k4Lunge(B, now) {   // LUNGE: charging slows him; a lunge in flight dri
     if (Math.hypot(v.x - (px + sx * t), v.y - (py + sy * t)) > K4_LG_W / 2 + CFG.RADIUS) continue;
     L.hit[v.id] = 1; addMod(v, 'k4lg', K4_LG_SLOW, K4_LG_SLOW_MS, now); msgTo(v, 'Caught in the lunge!');
   }
+  { const off = CFG.RADIUS * 2;   // everyone he has caught is shoved along in front of him, so they end up at the far edge of the dash (walls still stop them)
+    for (const id in L.hit) { const v = HP.get(+id); if (!v || !v.on || (v.st !== 'healthy' && v.st !== 'injured' && v.st !== 'downed')) continue;
+      const al = (v.x - B.x) * L.dx + (v.y - B.y) * L.dy; if (al < off) moveCircle(v, L.dx * (off - al), L.dy * (off - al)); } }
   if (L.trav >= L.dist - .5 || mv < step * .4) { K4.lg = null; K4.at = 0; woSend('k4'); }
 }
 function k4Charge(p, now) {   // 'k4chg' (ABILITY pressed): start charging if a charge is ready
@@ -3260,8 +3282,8 @@ function k4Release(p, fire, now) {   // 'k4rel' (ABILITY let go): fire = lunge (
 }
 function k4Fire(B, t, now) {   // the lunge itself for a charge that lasted t ms: from a release, or from a charge that ran out. t <= K4_TAP_MS gives the short dash
   const q = Math.max(0, Math.min(1, (t - K4_TAP_MS) / (K4_CH_FULL - K4_TAP_MS))), want = K4_LG_MIN + (K4_LG_MAX - K4_LG_MIN) * q, a = S.face, dx = Math.cos(a), dy = Math.sin(a);
-  let d = 0; while (d < want && !circleHits(B.x + dx * (d + 8), B.y + dy * (d + 8), CFG.RADIUS)) d += 8;   // how far there is room before a wall
-  if (d < 40) { msgTo(B, 'No room to lunge'); woSend('k4'); return; }
+  let d = 0; while (d < want && !circleHits(B.x + dx * (d + 1), B.y + dy * (d + 1), CFG.RADIUS)) d += 1;   // how far there is room before a wall (1-unit steps so he ends flush against it)
+  // a lunge charged into a wall is still performed: he just stops at the wall (d is the room there is, even if that is very little)
   if (k4Slowed(B, now)) { woSend('k4'); return; }
   let si = -1; for (let i = 0; i < K4.cds.length; i++) if (K4.cds[i] <= now && (si < 0 || K4.cds[i] < K4.cds[si])) si = i;   // spend the charge that has been ready the longest
   if (si < 0) { woSend('k4'); return; }
@@ -3413,9 +3435,9 @@ function throwPt(p, d) {   // where a thrown grenade lands: ahead of the thrower
 const K0_COST = [0, 1, 0, 0], K0_NAME = ['', 'Trap', 'IR Scanner', 'Reverse Trap'],   // the IR Scanner is no longer in the shop: he places ONE for free at the start (cost 0)
    
     K0_W = 2.4, K0_TRAP_R = 32.4, K0_SPOT_R = 84 * .7 * 1.2 * .97 * 1.3, K0_DIS_R = K0_SPOT_R, K0_DIS_MS = 1500, K0_R = 290, K0_HA = .09, K0_RBT_MS = 50000, K0_RBT_PEN = 2500;   // each failed removal skill check takes 2.5 s off the reverse trap's timer
-const K0_TRAP_PAY = 0, K0_PAY_CD = 6000, K0_TRACK_MS = 2000, K0_STOP_MS = 500, K0_SLOW_MS = 4000;   // trap payoff: coins per sprung trap (same as a landed hit) / min gap between payouts / tracking time after the last refresh / how long the trap's slow takes to wear off (starts at a 100% slow)
+const K0_TRAP_PAY = 0, K0_PAY_CD = 6000, K0_TRACK_MS = 2000, K0_STOP_MS = 0, K0_SLOW_MS = 2000;   // trap payoff: coins per sprung trap (same as a landed hit) / min gap between payouts / tracking time after the last refresh / how long the trap's slow takes to wear off (starts at a 100% slow)
 const K0_MAX_STOCK = 9, K0_CHARGE_MS = 20000, K0_START_STOCK = 0, K0_MAX_TRAPS = 9, K0_SCAN_DELAY = 3000, K0_SCAN_REVEAL_MS = 6000;   // trap charges he can carry (8) / ms to charge one trap (20 s) / charges he starts with / max traps kept on the map; placing beyond the cap replaces the oldest / the scanner wakes this long after it is placed
-const K0_DESC = ['', 'Full stop for 0.5s, then a 4s fading slow, pings, 50s reverse trap. Up to 9; permanent, but survivors can disarm it.', 'Pings movers and repairers. Starts in 3s.', ''];
+const K0_DESC = ['', '100% slow that fades over 2s, pings, 50s reverse trap. Up to 9; permanent, but survivors can disarm it.', 'Pings movers and repairers. Starts in 3s.', ''];
 function k0Empty() { return { stock: K0_START_STOCK, nx: 0, held: 0, free: 1, traps: [], scans: [], rb: {}, ping: {}, n: 1, x: 0, q: [] }; }   // free = starting IR scanners he may still place for free (1: the placement screen opens when the hunt begins)
 let K0 = k0Empty();
 const K0_SCAN_SLOW = .7, K0_SCAN_SLOW_MS = 4000;   // a survivor the scanner caught in the last 4 s repairs generators at 70% speed
@@ -3968,12 +3990,13 @@ function drawK1World(me, vw, vh, now, role, vId) {   // under the darkness: guar
     let q = posOf(p.id); if (sx === 'hooked' && S.map.hooks[st.hk]) q = S.map.hooks[st.hk]; if (!q || !near(q[0], q[1]) || !canSee(role, vId, p.id)) continue;
     k1Glow(p.id, q[0], q[1], now, k1Fear(p.id)); }
 }
+const K1_AURA_MULT = .6;   // cyan aura glow strength (x .6 = -40%; the sparkles are not affected)
 const K1_RGB = '58,255,208', K1_GLOW_B = [.55, .85, 1.25, 1.8];   // the glow + sparkles are ALWAYS cyan; K1_GLOW_B = brightness multiplier per fear tier 0..3 (eased between tiers)
 function k1Glow(id, x, y, now, v) {   // soft pulsing aura + rising sparkles; both grow with the fear meter (nothing below ~4%)
   const u = Math.min(1, v / 100); if (u < .04) return; const col = K1_RGB, t = now / 1000, tr = k1Tier(v);
   const gb = K1C.gb || (K1C.gb = {}), gs = gb[id] || (gb[id] = { b: K1_GLOW_B[0], t: now }); gs.b += (K1_GLOW_B[tr] - gs.b) * Math.min(1, Math.max(0, now - gs.t) / 1000 * 4); gs.t = now; const B = gs.b;   // eased brightness for this survivor's tier
   const R = (24 + 40 * u) * (.9 + .1 * Math.sin(t * (2.2 + 3 * u) + id)), g = ctx.createRadialGradient(x, y, 2, x, y, R);
-  g.addColorStop(0, `rgba(${col},${Math.min(1, (.1 + .32 * u) * B).toFixed(3)})`); g.addColorStop(.55, `rgba(${col},${Math.min(1, (.04 + .14 * u) * B).toFixed(3)})`); g.addColorStop(1, `rgba(${col},0)`);
+  g.addColorStop(0, `rgba(${col},${Math.min(1, (.1 + .32 * u) * B * K1_AURA_MULT).toFixed(3)})`); g.addColorStop(.55, `rgba(${col},${Math.min(1, (.04 + .14 * u) * B * K1_AURA_MULT).toFixed(3)})`); g.addColorStop(1, `rgba(${col},0)`);
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill();
   const n = Math.round(1 + 12 * u);
   for (let i = 0; i < n; i++) {
@@ -4045,8 +4068,7 @@ function drawK1Hallu(me, k, W, H, now, role, fear, tier) {
   if (lv === 3) {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     const pu = .5 + .5 * Math.sin(now / 130), g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .25, W / 2, H / 2, Math.hypot(W, H) / 2);
-    g.addColorStop(0, 'rgba(120,0,40,0)'); g.addColorStop(1, `rgba(120,0,40,${(.35 + .25 * pu).toFixed(3)})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    if (((now / 90) | 0) % 7 === 0) for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(58,255,208,.08)'; ctx.fillRect(0, (now * .37 + i * 977) % H, W, 2 + i * 3); }   // glitch bars
+    g.addColorStop(0, 'rgba(120,0,40,0)'); g.addColorStop(1, `rgba(120,0,40,${((.35 + .25 * pu) * .6).toFixed(3)})`);   // full-fear red pulse: intensity -40% ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     ctx.restore();
     if (!C.nextWh) C.nextWh = now + rnd(1500, 3500);
     if (!pz && now >= C.nextWh) { C.nextWh = now + rnd(1500, 4000); if (!muted && AC && AC.state === 'running') try { sfxWhisper(); } catch (e) {} } }
@@ -4944,8 +4966,7 @@ function k3mHook(m, now) {   // hangs the carried survivor: exactly the normal h
   if (bi < 0) return; const h = MAP.hooks[bi];
   if (SBH[bi] && SBH[bi].arm) { sbTrigger(m, v, bi, now); return; }
   v.hookCount = (v.hookCount || 0) + 1; m.carry = null; v.carriedBy = null;
-  if (v.hookCount >= CFG.HOOKS_TO_DIE + (v.hookExtra || 0)) { v.x = h[0]; v.y = h[1]; killSurvivor(v); return; }
-  v.x = h[0]; v.y = h[1]; v.hookIdx = bi; HU[bi] = v.id; v.hookEnd = now + hookGraceMs(); v.prog = 0; v.rpOn = false; setSt(v, 'hooked', { hk: bi, ms: hookGraceMs() }); k5Ring(1, bi, h[0], h[1], now); checkWin();
+  v.x = h[0]; v.y = h[1]; v.hookIdx = bi; HU[bi] = v.id; v.hookEnd = now + hookRemaining(v); v.hkLast = now; v.prog = 0; v.rpOn = false; setSt(v, 'hooked', { hk: bi, ms: hookRemaining(v), ai: CFG.HOOK_AUTO_MS }); k5Ring(1, bi, h[0], h[1], now); checkWin();
 }
 function k3mStrike(m, now) {   // the standard killer swing: sector hit check, hit / miss cooldown, slow after every swing; a hit injures (1st) or downs (2nd) exactly like a real killer's
   const hits = [];
@@ -5140,58 +5161,50 @@ function k7Apply(a, now) {
   const w = {}; for (const e of a[5] || []) w[e[0]] = { rev: now + e[1], bl: now + e[2], n: e[3] };
   S.wo.k7 = { form: a[0], bul: a[1], swEnd: now + a[2], L, h, hid, w };
 }
-const k7Bleed = (id, now) => { const J = S.wo && S.wo.k7, w = J && J.w && J.w[id]; return !!w && now < w.bl; };   // this survivor is bleeding from a Participant bullet (blood trail)
+const k7Bleed = (id, now) => { const J = S.wo && S.wo.k7, w = J && J.w && J.w[id]; return !!w && now < w.bl; };   // this survivor is bleeding from a Game Guard bullet (blood trail)
 const k7Hid = id => !!(S.wo && S.wo.k7 && S.wo.k7.hid && S.wo.k7.hid[id]);   // this survivor is inside a locker (invisible to everyone, like the Magician's Hat)
 function k7NearC(mp, free) { const J = S.wo.k7; if (!J) return -1; let bi = -1, bd = K7_LK_R + CFG.ACT_SLACK; for (let i = 0; i < J.L.length; i++) { const l = J.L[i]; if (free && l.occ >= 0) continue; const d = Math.hypot(l.x - mp[0], l.y - mp[1]); if (d <= bd && losClear(mp[0], mp[1], l.x + l.nx * (K7_LK_D / 2 + 6), l.y + l.ny * (K7_LK_D / 2 + 6))) { bd = d; bi = i; } } return bi; }   // same clear-line rule as the host's k7Near, so HIDE / OPEN only show when they will work
 const K7_ART = {
   rifle: r => { r(1, 9, 4, 4, '#5a3b24'); r(1, 9, 4, 1, '#7a5636'); r(5, 8, 7, 3, '#2a2d36'); r(5, 8, 7, 1, '#4d5260'); r(12, 8, 4, 2, '#2a2d36'); r(12, 8, 4, 1, '#4d5260'); r(7, 11, 2, 3, '#2a2d36'); r(5, 6, 3, 2, '#4d5260'); r(2, 13, 6, 1, '#15151d'); },
-  knife: r => { for (let i = 0; i < 8; i++) { r(5 + i, 9 - i, 2, 2, i > 5 ? '#f2f5fb' : '#c3cad8'); } r(3, 11, 3, 3, '#17171f'); r(5, 9, 3, 1, '#8a8f9c'); r(4, 10, 1, 1, '#2ee6c5'); }
+  knife: r => { for (let i = 0; i < 8; i++) { r(5 + i, 9 - i, 2, 2, i > 5 ? '#f2f5fb' : '#c3cad8'); } r(3, 11, 3, 3, '#17171f'); r(5, 9, 3, 1, '#8a8f9c'); r(4, 10, 1, 1, '#ff4fa8'); }
 };
 const k7Spr = k => cachedSpr('k7' + k, () => outlined(pxc(16, 16, K7_ART[k])));
 const K7_URL = {}; function k7Icon(k) { return K7_URL[k] || (K7_URL[k] = k7Spr(k).toDataURL()); }
-function guardBmp(pose, f, lau, mon, gun) {   // Participant (a Purge night-hunter, Statue of Liberty look): spiked teal crown, dark mask with glowing neon X eyes + stitched grin, long dark hair, teal draped dress, bare arms + sandals; knife in her hand, or a rifle held across her chest. Monster form: blood-red crown + dress, red neon. Same 26x32 frame
+function guardBmp(pose, f, lau, mon, gun) {   // Game Guard (a masked arena guard): hooded hot-pink jumpsuit, black mesh mask with a white triangle, black harness strap + belt + gloves + boots; knife in hand, or a black submachine gun across the chest. Drawn in three-quarter view (mask turned toward the front hand). Monster form: blood-red suit, red glowing symbol. Same 26x32 frame
   return cachedSpr(`gg${pose}${f}${lau ? 1 : 0}${mon ? 1 : 0}${gun ? 1 : 0}`, () => outlined(pxc(26, 32, r0 => {
     const ox = 2, oy = 4, r = (x, y, w, h, c) => r0(x + ox, y + oy, w, h, c);
-    const DR = mon ? '#8d1230' : '#27a38e', DRD = mon ? '#560a1f' : '#17695d', DRH = mon ? '#c23258' : '#5fdcc2';   // dress (teal / blood red)
-    const CR = mon ? '#9a1634' : '#2fb39f', CRD = mon ? '#5a0b20' : '#1b7c6e', CRH = mon ? '#d24a68' : '#74efd6';   // crown
-    const SKIN = mon ? '#c9b8b8' : '#e2b69c', SKD = mon ? '#9a8587' : '#b98068', MSK = mon ? '#2a1418' : '#1c383e', MSKD = mon ? '#170a0d' : '#10252a';
-    const NEON = lau || mon ? '#ff3a4a' : '#8dfff0', NEOD = lau || mon ? '#8a1a26' : '#1f9a8a';
-    const HR = '#2b1d1c', HRH = '#4a3535', BLK2 = '#222230', SAND = '#3a2a24', HND = '#17171f';
-    const GUN = '#262932', GUNH = '#4d5260', STOCK = '#4a3424', STEEL = '#c3cad8', EDGE = '#f2f5fb', BLOOD = '#a3121c', ARM = SKIN, ARMD = SKD, GLV = SKIN;
+    const SU = mon ? '#a3142f' : '#e6275d', SUD = mon ? '#5f0a1b' : '#a8163f', SUH = mon ? '#d23a58' : '#ff6a93';   // suit: base / shade / highlight
+    const BLK = '#17171f', BLKH = '#34343f', MSK = '#101015', MSKH = '#25252d';   // black gear / mask + mesh dots
+    const SYM = lau || mon ? '#ff3a4a' : '#f4f6fa', SYD = lau || mon ? '#8a1a26' : '#aeb4c2';   // the white symbol (red when he hunts)
+    const GUN = '#1e2027', GUNH = '#4a4f5c', STOCK = '#2c2c36', STEEL = '#c3cad8', EDGE = '#f2f5fb', BLOOD = '#a3121c', ARM = SU, ARMD = SUD, GLV = BLK;
     const sw = pose === 'swing' && !gun, run = pose === 'run', [lL, lR, aL, aR, by] = run ? KRUN[f & 3] : [0, 0, 0, 0, pose === 'swing' ? 0 : f & 1], bx = run || (pose === 'swing' && f) ? 1 : 0;
-    const leg = (x, lift, out) => { const o = lift ? out : 0, lx = x + o + bx; r(lx, 22, 3, 4 - lift, DR); r(lx, 22, 1, 4 - lift, DRH); r(lx + 2, 22, 1, 4 - lift, DRD); r(lx, 25 - lift, 3, 1, DRD); r(x - 1 + o + bx, 26 - lift, 4, 2, SKIN); r(x - 1 + o + bx, 27 - lift, 4, 1, SAND); };   // long dress legs, bare feet in sandals
-    r(2 + bx, 13 + by + aL, 3, 7, ARM); r(2 + bx, 13 + by + aL, 1, 7, ARMD); r(2 + bx, 19 + by + aL, 3, 2, GLV);   // far arm (bare)
+    const leg = (x, lift, out) => { const o = lift ? out : 0, lx = x + o + bx; r(lx, 22, 3, 4 - lift, SU); r(lx, 22, 1, 4 - lift, SUH); r(lx + 2, 22, 1, 4 - lift, SUD); r(lx, 24 - lift, 3, 1, BLK); r(x - 1 + o + bx, 26 - lift, 4, 2, BLK); r(x - 1 + o + bx, 26 - lift, 4, 1, BLKH); };   // baggy suit legs, black ankle strap, black boots
+    r(2 + bx, 13 + by + aL, 3, 7, ARM); r(2 + bx, 13 + by + aL, 1, 7, ARMD); r(2 + bx, 19 + by + aL, 3, 2, GLV);   // far arm: sleeve + black glove
     leg(6, lL, -1); leg(11, lR, 1);
-    // long dark hair falling behind the shoulders
-    r(4 + bx, 10 + by, 2, 9 - by, HR); r(14 + bx, 10 + by, 2, 9 - by, HR); r(4 + bx, 12 + by, 1, 5, HRH); r(15 + bx, 14 + by, 1, 4, HRH);
-    // draped dress: V neckline, folds, waist knot
-    r(5 + bx, 12 + by, 10, 3, DR); r(5 + bx, 12 + by, 10, 1, DRH); r(5 + bx, 15 + by, 10, 7 - by, DR); r(5 + bx, 15 + by, 1, 7 - by, DRD); r(14 + bx, 15 + by, 1, 7 - by, DRD);
-    r(8 + bx, 12 + by, 4, 1, SKIN); r(9 + bx, 13 + by, 2, 1, SKIN); r(9 + bx, 14 + by, 1, 1, SKD);   // V neck
-    r(6 + bx, 14 + by, 2, 1, DRH); r(12 + bx, 14 + by, 2, 1, DRH); r(7 + bx, 16 + by, 1, 5 - by, DRD); r(11 + bx, 16 + by, 1, 5 - by, DRD); r(9 + bx, 17 + by, 2, 1, DRH);   // drape folds + waist knot
-    r(5 + bx, 20, 10, 3, DR); r(5 + bx, 20, 1, 3, DRD); r(14 + bx, 20, 1, 3, DRD); r(8 + bx, 21, 1, 2, DRD); r(12 + bx, 21, 1, 2, DRD); r(5 + bx, 22, 10, 1, DRD);   // skirt
-    if (mon) { r(5 + bx, 21, 1, 1, DRD); r(9 + bx, 22, 2, 1, MSKD); r(13 + bx, 21, 2, 1, DRD); }   // torn hem
-    // head: dark face-mask framed by hair, crown on top
-    r(4 + bx, 2 + by, 12, 9, HR); r(5 + bx, 11 + by, 10, 1, HR); r(4 + bx, 3 + by, 1, 6, HRH);   // hair around the face
-    r(6 + bx, 2 + by, 8, 9, MSK); r(6 + bx, 2 + by, 8, 1, MSKD); r(6 + bx, 10 + by, 8, 1, MSKD); r(6 + bx, 2 + by, 1, 9, MSKD); r(13 + bx, 2 + by, 1, 9, MSKD); r(9 + bx, 6 + by, 2, 2, MSKD);   // mask + nose shadow
-    r(8 + bx, 11 + by, 4, 1, SKIN);   // chin / neck
-    // neon X eyes + stitched grin (red when she hunts)
-    for (const [x, y] of [[6, 4], [8, 4], [7, 5], [6, 6], [8, 6], [11, 4], [13, 4], [12, 5], [11, 6], [13, 6]]) r(x + bx, y + by, 1, 1, NEON);
-    r(7 + bx, 5 + by, 1, 1, NEOD === '' ? NEON : NEON); r(12 + bx, 5 + by, 1, 1, NEON);
-    r(7 + bx, 9 + by, 6, 1, NEON); for (let x = 8; x <= 12; x += 2) { r(x + bx, 8 + by, 1, 1, NEOD); r(x + bx, 10 + by, 1, 1, NEOD); }
-    r(6 + bx, 8 + by, 1, 1, NEOD); r(13 + bx, 8 + by, 1, 1, NEOD);   // grin corners
-    // crown: band with arch windows + seven rays
-    r(5 + bx, 0 + by, 10, 2, CR); r(5 + bx, by, 10, 1, CRH); r(5 + bx, 1 + by, 1, 1, CRD); r(14 + bx, 1 + by, 1, 1, CRD);
-    for (let x = 6; x <= 12; x += 2) r(x + bx, 1 + by, 1, 1, CRD);   // arch windows
-    r(9 + bx, -4 + by, 2, 4, CR); r(9 + bx, -4 + by, 1, 4, CRH); r(7 + bx, -3 + by, 1, 3, CR); r(12 + bx, -3 + by, 1, 3, CRD); r(7 + bx, -3 + by, 1, 1, CRH);
-    r(5 + bx, -2 + by, 1, 2, CR); r(14 + bx, -2 + by, 1, 2, CRD); r(3 + bx, -1 + by, 2, 1, CR); r(15 + bx, -1 + by, 2, 1, CRD); r(3 + bx, by, 2, 1, CRD); r(15 + bx, by, 2, 1, CRD);
-    r(5 + bx, 2 + by, 1, 1, NEOD); r(14 + bx, 2 + by, 1, 1, NEOD);   // faint neon glow where the mask meets the crown
-    if (gun) {   // rifle held across the chest (strap over the shoulder)
-      for (let i = 0; i < 7; i++) r(6 + i + bx, 13 + i + by, 1, 1, BLK2);
-      r(8 + bx, 17 + by, 5, 3, STOCK); r(8 + bx, 17 + by, 5, 1, '#6e4d33'); r(13 + bx, 16 + by, 8, 3, GUN); r(13 + bx, 16 + by, 8, 1, GUNH); r(15 + bx, 19 + by, 2, 3, GUN); r(21 + bx, 16 + by, 3, 2, GUN); r(21 + bx, 16 + by, 3, 1, GUNH); r(17 + bx, 14 + by, 3, 2, GUNH);
+    // torso: zip suit, zip line pushed toward the turned side, chest pocket, belt with buckle
+    r(5 + bx, 12 + by, 10, 8 - by, SU); r(5 + bx, 12 + by, 10, 1, SUH); r(5 + bx, 12 + by, 1, 8 - by, SUD); r(14 + bx, 13 + by, 1, 7 - by, SUD);
+    r(11 + bx, 12 + by, 1, 8 - by, BLK);   // zipper
+    r(7 + bx, 15 + by, 3, 2, SUD); r(7 + bx, 15 + by, 3, 1, SUH); r(8 + bx, 16 + by, 1, 1, BLK);   // chest pocket + ring
+    r(5 + bx, 20, 10, 2, BLK); r(5 + bx, 20, 10, 1, BLKH); r(10 + bx, 20, 2, 2, STEEL);   // belt + buckle
+    r(5 + bx, 22, 10, 1, SU); r(5 + bx, 22, 1, 1, SUD); r(14 + bx, 22, 1, 1, SUD); r(11 + bx, 22, 1, 1, BLK);   // hip / crotch line
+    if (!gun) for (let i = 0; i < 6; i++) r(6 + i + bx, 12 + i + by, 1, 1, BLK);   // harness strap over the shoulder (the rifle sling does this job in rifle form)
+    // hood: rounded, darker on the back (far) side, small peak on top
+    r(7 + bx, 0 + by, 7, 1, SU); r(6 + bx, 1 + by, 9, 1, SU); r(5 + bx, 2 + by, 11, 8, SU); r(6 + bx, 10 + by, 9, 2, SU); r(9 + bx, -1 + by, 3, 1, SU); r(7 + bx, 0 + by, 5, 1, SUH); r(9 + bx, -1 + by, 2, 1, SUH);
+    r(5 + bx, 2 + by, 3, 8, SUD); r(6 + bx, 10 + by, 2, 2, SUD); r(5 + bx, 3 + by, 1, 6, SU);   // hood back in shade, fold line
+    r(12 + bx, 11 + by, 3, 1, SUD);   // hood collar
+    // mask: black mesh, turned toward the front hand (3/4 view), rounded corners
+    r(8 + bx, 2 + by, 7, 9, MSK); r(9 + bx, 1 + by, 5, 1, MSK); r(9 + bx, 11 + by, 5, 1, MSK); r(8 + bx, 2 + by, 1, 9, MSKH);
+    for (let y = 3; y <= 10; y += 2) for (let x = 9 + (y & 2 ? 0 : 1); x <= 14; x += 2) r(x + bx, y + by, 1, 1, MSKH);   // mesh dots
+    // white triangle outline on the mask
+    for (const [x, y] of [[11, 3], [12, 3], [10, 4], [13, 4], [10, 5], [13, 5], [9, 6], [14, 6], [9, 7], [14, 7], [9, 8], [10, 8], [11, 8], [12, 8], [13, 8], [14, 8]]) r(x + bx, y + by, 1, 1, SYM);
+    r(9 + bx, 8 + by, 1, 1, SYD); r(14 + bx, 8 + by, 1, 1, SYD);   // base shading
+    if (gun) {   // black submachine gun held across the chest (strap over the shoulder)
+      for (let i = 0; i < 7; i++) r(6 + i + bx, 13 + i + by, 1, 1, BLK);
+      r(8 + bx, 17 + by, 5, 3, STOCK); r(8 + bx, 17 + by, 5, 1, BLKH); r(13 + bx, 16 + by, 8, 3, GUN); r(13 + bx, 16 + by, 8, 1, GUNH); r(15 + bx, 19 + by, 2, 3, GUN); r(21 + bx, 16 + by, 3, 2, GUN); r(21 + bx, 16 + by, 3, 1, GUNH); r(17 + bx, 14 + by, 3, 2, GUNH);
       r(13 + bx, 14 + by, 3, 4, ARM); r(14 + bx, 18 + by, 2, 2, GLV); r(19 + bx, 17 + by, 2, 2, GLV);
-    } else if (sw && f === 0) { r(15 + bx, 7, 2, 6, ARM); r(15 + bx, 5, 3, 2, GLV); r(16 + bx, 1, 1, 4, HND); r(15 + bx, -3, 4, 5, STEEL); r(18 + bx, -3, 1, 5, EDGE); }   // wind-up: knife overhead
+    } else if (sw && f === 0) { r(15 + bx, 7, 2, 6, ARM); r(15 + bx, 5, 3, 2, GLV); r(16 + bx, 1, 1, 4, BLK); r(15 + bx, -3, 4, 5, STEEL); r(18 + bx, -3, 1, 5, EDGE); }   // wind-up: knife overhead
     else if (sw) { r(15 + bx, 13, 4, 3, ARM); r(19 + bx, 13, 2, 3, GLV); r(20 + bx, 9, 3, 10, STEEL); r(22 + bx, 9, 1, 10, EDGE); if (mon) r(21 + bx, 14, 1, 4, BLOOD); }   // strike: blade forward
-    else { r(15 + bx, 13 + by + aR, 2, 7, ARM); r(16 + bx, 13 + by + aR, 1, 7, ARMD); r(15 + bx, 19 + by + aR, 3, 2, GLV); r(16 + bx, 21 + by + aR, 1, 2, HND); r(16 + bx, 23 + aR, 3, 4, STEEL); r(18 + bx, 23 + aR, 1, 4, EDGE); if (mon) r(17 + bx, 24 + aR, 1, 2, BLOOD); }   // knife hanging at her side
+    else { r(15 + bx, 13 + by + aR, 2, 7, ARM); r(16 + bx, 13 + by + aR, 1, 7, ARMD); r(15 + bx, 19 + by + aR, 3, 2, GLV); r(16 + bx, 21 + by + aR, 1, 2, BLK); r(16 + bx, 23 + aR, 3, 4, STEEL); r(18 + bx, 23 + aR, 1, 4, EDGE); if (mon) r(17 + bx, 24 + aR, 1, 2, BLOOD); }   // knife hanging at his side
   })));
 }
 function drawK7World(on, now, role) {   // the lockers (under the darkness: only where light reaches)
@@ -5211,7 +5224,7 @@ function drawK7World(on, now, role) {   // the lockers (under the darkness: only
     const sp = hz ? Math.round(w / 6) : Math.round(h / 6);   // vent slot spacing
     if (oa > 0) {   // opening: the dark inside shows, and the door swings away from its hinge (left / top edge)
       ctx.fillStyle = '#07090c'; ctx.fillRect(d[0], d[1], d[2], d[3]);
-      ctx.fillStyle = `rgba(46,230,197,${(.25 + .45 * oa).toFixed(2)})`;
+      ctx.fillStyle = `rgba(255,79,168,${(.25 + .45 * oa).toFixed(2)})`;
       if (!en) { if (hz) { for (let i = 0; i < 3; i++) ctx.fillRect(d[0] + 4 + i * sp, d[1] + 3, 3, 5); } else { for (let i = 0; i < 3; i++) ctx.fillRect(d[0] + 3, d[1] + 4 + i * sp, 5, 3); } }
       const sw = 1 - .82 * oa; ctx.fillStyle = '#6f7f8d';
       if (hz) { ctx.fillRect(d[0], d[1], Math.max(2, Math.round(d[2] * sw)), d[3]); ctx.fillStyle = '#8fa0ae'; ctx.fillRect(d[0], d[1], Math.max(2, Math.round(d[2] * sw)), 1); }
@@ -5220,7 +5233,7 @@ function drawK7World(on, now, role) {   // the lockers (under the darkness: only
     }
     ctx.fillStyle = '#6f7f8d'; ctx.fillRect(d[0], d[1], d[2], d[3]); ctx.fillStyle = '#8fa0ae'; if (hz) ctx.fillRect(d[0], l.ny < 0 ? d[1] : d[1] + d[3] - 1, d[2], 1); else ctx.fillRect(l.nx < 0 ? d[0] : d[0] + d[2] - 1, d[1], 1, d[3]);
     ctx.fillStyle = '#1d242c'; if (hz) for (let i = 0; i < 3; i++) ctx.fillRect(d[0] + 5 + i * sp, d[1] + 3, 4, Math.max(5, DW - 6)); else for (let i = 0; i < 3; i++) ctx.fillRect(d[0] + 3, d[1] + 5 + i * sp, Math.max(5, DW - 6), 4);
-    ctx.fillStyle = '#2ee6c5'; if (hz) ctx.fillRect(d[0] + d[2] - 6, d[1] + Math.round(DW / 2) - 1, 3, 4); else ctx.fillRect(d[0] + Math.round(DW / 2) - 1, d[1] + d[3] - 6, 4, 3);
+    ctx.fillStyle = '#ff4fa8'; if (hz) ctx.fillRect(d[0] + d[2] - 6, d[1] + Math.round(DW / 2) - 1, 3, 4); else ctx.fillRect(d[0] + Math.round(DW / 2) - 1, d[1] + d[3] - 6, 4, 3);
   }
 }
 const DDO = {};   // player id -> end time of the red ritual oval under them (Demonic Deal went dark)
@@ -5242,7 +5255,7 @@ function drawK7Over(me, k, W, H, now) {   // above the darkness: bullet tracers 
   const F = K7C.fx; for (let i = F.length - 1; i >= 0; i--) if (now >= F[i].end) F.splice(i, 1);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   for (const e of F) { const u = Math.min(1, (now - e.t0) / (e.end - e.t0)), a = 1 - u;
-    ctx.strokeStyle = `rgba(46,230,197,${a.toFixed(3)})`; ctx.lineWidth = 3 * a + 1; ctx.beginPath(); ctx.moveTo(e.x0, e.y0); ctx.lineTo(e.x1, e.y1); ctx.stroke(); ctx.strokeStyle = `rgba(230,255,250,${a.toFixed(3)})`; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = `rgba(255,79,168,${a.toFixed(3)})`; ctx.lineWidth = 3 * a + 1; ctx.beginPath(); ctx.moveTo(e.x0, e.y0); ctx.lineTo(e.x1, e.y1); ctx.stroke(); ctx.strokeStyle = `rgba(255,225,242,${a.toFixed(3)})`; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = `rgba(255,200,140,${a.toFixed(3)})`; ctx.beginPath(); ctx.arc(e.x0, e.y0, 14 * a + 3, 0, TAU); ctx.fill(); ctx.fillStyle = e.hit ? `rgba(255,47,70,${a.toFixed(3)})` : `rgba(255,200,160,${(a * .6).toFixed(3)})`; ctx.beginPath(); ctx.arc(e.x1, e.y1, (e.hit ? 18 : 8) * a + 3, 0, TAU); ctx.fill(); }
   { ctx.save(); ctx.globalCompositeOperation = 'source-over'; const V0 = pickView(), J0 = S.wo.k7;   // the killer sees a small health bar over every survivor whose bar is below 100%
     if (J0 && S.phase === 'hunt' && V0.role === 'killer') for (const p of S.players) {
@@ -5282,7 +5295,7 @@ function k7Ui(now) {   // survivors: my hearts (top right of the minimap) + the 
   const hid = k7Hid(S.me); if (hid && !K7C.inAt) K7C.inAt = now; if (!hid) K7C.inAt = 0;
   if (hd) { hd.style.display = hid ? 'block' : 'none'; if (hid && K7C.hs !== 'h') { K7C.hs = 'h'; hd.firstChild.textContent = 'HIDING'; } }
 }
-function k7BulUi(now) {   // the Participant: his bullet count as little bullets right under the minimap
+function k7BulUi(now) {   // the Game Guard: his bullet count as little bullets right under the minimap
   const J = S.wo.k7, on = !!J && inGame && S.phase === 'hunt' && myRole() === 'killer' && isK7(S.me);
   let el = $('k7b'); if (!on) { if (el) el.style.display = 'none'; return; }
   k7Css(); if (!el) { el = document.createElement('div'); el.id = 'k7b'; document.body.appendChild(el); }
@@ -5872,6 +5885,7 @@ function clientMsg2(m) {
     case 'pst': S.perk.stage = 'perk'; S.perk.stEnd = performance.now() + (+m.ms || 0); break;   // survivors: character stage -> perk stage
     case 'pkp': applyPerkSel(m); break;                  // perk pick {id, p, l}
     case 'pkf': for (const e of m.f || []) if (perkById(e[1])) S.perk.fin[e[0]] = e[1]; break;   // final perks [[id, perk]]
+    case 'chm': S.chm = +m.id; S.chmC = +m.c || 0; break;                    // chase music: id of the chased survivor (-1 = none)
     case 'eyes': S.eyesStart = performance.now(); S.eyesMs = +m.ms || CFG.EYES_DURATION_MS; eyesSound(); break;
     case 'st': applyStatus(m); break;                    // {t:'st', id, s, hit?, hk?, ms?, prot?, by?}
     case 'rp': applyRp(m); break;                        // rescue progress of a hooked survivor {id, p, on}
@@ -5917,7 +5931,7 @@ function applyStatus(m) {
   if (m.id === S.me && TK) closeTask('');   // any state change of mine (hit, downed, carried...) ends my task
   if (m.id === S.me && ctxHeld && ctxHeldKind !== 'rescue') ctxRelease();   // ...and my REPAIR / KICK hold
   const now = performance.now(), prev = S.st[m.id];
-  S.st[m.id] = { s: m.s, by: m.by == null ? -1 : m.by, hk: m.hk == null ? -1 : m.hk, hookEnd: m.s === 'hooked' ? now + (+m.ms || 0) : 0, udEnd: m.s === 'sent' ? now + (+m.ms || 0) : 0, udTot: m.s === 'sent' ? (+m.tot || CFG.UD_MS) : 0, protEnd: m.prot > 0 ? now + m.prot : 0,
+  S.st[m.id] = { s: m.s, by: m.by == null ? -1 : m.by, hk: m.hk == null ? -1 : m.hk, hookEnd: m.s === 'hooked' ? now + (+m.ms || 0) : 0, autoEnd: m.s === 'hooked' && !m.ro ? now + (m.ai != null ? +m.ai : CFG.HOOK_AUTO_MS) : 0, udEnd: m.s === 'sent' ? now + (+m.ms || 0) : 0, udTot: m.s === 'sent' ? (+m.tot || CFG.UD_MS) : 0, protEnd: m.prot > 0 ? now + m.prot : 0,
     flashAt: m.hit ? now : 0, recEnd: m.s === 'downed' && m.rec > 0 ? now + m.rec : 0, recTot: +m.rt || CFG.DOWN_RECOVER_MS, rp: +m.rp || 0, rpAt: now, rpOn: !!m.ro, holdAt: m.ro ? now : 0, rr: +m.rr || 1, esc: !!m.esc };
   if (!bulkApply && inGame && S.map && m.s !== (prev ? prev.s : 'healthy')) { try { stateSound(m, prev); } catch (e) {} }
   if (m.id === S.me && m.s === 'dead' && (!prev || prev.s !== 'dead')) S.sacAt = now;   // (an escape shows 'You escaped!' in the same overlay)
@@ -5970,7 +5984,7 @@ function applyEg(m, quiet) {   // endgame state from the host: gates open + dawn
   if (!quiet && (S.eg.final || S.eg.solo) && !(was.final || was.solo)) { S.monAt = now; try { metalHit(.9, 70, 3.2); sfxTone(60, 38, 1.4, .8, 'sine'); } catch (e) {} }
 }
 function hookRemain(st, now) { return st.hookEnd - (st.rpOn && st.holdAt ? st.holdAt : now); }   // ms left on the hook timer; frozen while a rescue is in progress
-function applyRp(m) { const o = S.st[m.id]; if (!o) return; const nw = performance.now(); if (m.on && !o.rpOn) o.holdAt = nw; else if (!m.on && o.rpOn && o.holdAt) { o.hookEnd += nw - o.holdAt; o.holdAt = 0; } o.rp = +m.p || 0; o.rpAt = performance.now(); o.rpOn = !!m.on; o.rr = +m.r || 1; }
+function applyRp(m) { const o = S.st[m.id]; if (!o) return; const nw = performance.now(); if (m.on && !o.rpOn) { o.holdAt = nw; o.autoEnd = 0; } else if (!m.on && o.rpOn && o.holdAt) { o.hookEnd += nw - o.holdAt; o.holdAt = 0; o.autoEnd = nw + CFG.HOOK_AUTO_MS; } o.rp = +m.p || 0; o.rpAt = performance.now(); o.rpOn = !!m.on; o.rr = +m.r || 1; }
 function setCd(ms) { S.cdEnd = performance.now() + ms; S.cdTot = ms; }
 function clearRoundState() { S.pot = {}; POT.sig = ''; POT.at = 0; S.pick = {}; S.perk = perkEmpty(); S.ts = tsEmpty(); S.gs = gcEmpty(); S.ds = dcEmpty(); S.gping = {}; S.powAt = 0; S.monAt = 0; S.pannAt = 0; S.lsAt = 0; S.sightAt = 0; S.itemRrAt = 0; S.eg = { on: false, final: false, endAt: 0, solo: false, soloAt: 0 }; S.res = null; S.gateT0 = 0; EG = egEmpty(); genHumStopAll(); closeTask(''); S.st = {}; S.spec = -1; S.sacAt = 0; S.cdEnd = S.cdTot = 0; TRAIL.clear(); TERROR.clear(); FX.length = 0; BOND.length = 0; for (const k in AN) delete AN[k]; for (const k in LAUGH) delete LAUGH[k]; S.item = null; S.itemC = 0; S.wo = woEmpty(); S.smokeW = []; S.smSig = ''; S.fx2 = {}; S.blindEnd = 0; IFX.length = 0; ALERTS.length = 0; ctxRelease(); try { k1Reset(); } catch (e) {} try { K2C.fx = {}; k2ArrowsHide(); } catch (e) {} try { K3FX.length = 0; K3UI.open = false; k3UiClose(); } catch (e) {} try { k6Reset(); } catch (e) {} try { k5Reset(); } catch (e) {}
   try { k0PickClose(); scClose(); K0PH = 0; K0PW = 0; K5AIM = { t: 0, x: 0, y: 0, f: 9, P: null }; K3MF = {}; } catch (e) { diagErr('cleanup', e); }   // killer overlays / aim state of the previous round
@@ -6079,7 +6093,7 @@ const INFO_KILLERS = [   // [KILLERS index, [[kind, title, text, optional sprite
     ['Ability', 'The wishes', 'Wishes can link her with a survivor, call other killers for help, throw someone into the Upside Down or lag everyone. Others teleport her, hide the generators, give her a gun or turn survivors into frogs.']]],
   [4, [
     ['Passive', 'Blood Lust', 'Near an injured survivor\'s blood trail he gets faster and recovers his lunges quicker. He also turns into his monster form and his terror radius goes silent, until shortly after he leaves the trail.'],
-    ['Ability', 'Lunge', 'Tap for a short dash, or hold to charge a longer lunge that slows survivors in its path. Lunge charges come back one by one, and his normal attack is a plain swing.']]],
+    ['Ability', 'Lunge', 'Tap for a short dash, or hold to charge a longer lunge (10% slower while charging; if a wall is in the way he still lunges and just stops at the wall) that slows survivors in its path and shoves them to the far end of the dash. Lunge charges come back one by one, and his normal attack is a plain swing.']]],
   [5, [
     ['Passive', 'Thorns', 'Thorns burst out around hooked survivors and kicked generators, slowing anyone standing in them. Thorns and condemned survivors fill a condemn bar, and a full bar condemns you: you glow and spread it to anyone close. Stay clear of both to get clean.'],
     ['Ability', 'Trail', 'Switch a thorn trail on or off behind it. The trail drains its torment while on, and the torment refills while it is off.'],
@@ -6437,6 +6451,35 @@ addEventListener('keydown', e => {   // desktop testing: Space = primary/attack,
 });
 addEventListener('keyup', e => { if ((e.code === 'KeyE' || e.code === 'KeyF') && keyRescue) ctxRelease(); });
 
+/* ---- MOUSE: LEFT CLICK = ATTACK (killer) + the context / interact button (repair, unhook, kick ...); killer_7 in rifle form: the mouse steers the flashlight ---- */
+const MOUSE = { x: 0, y: 0, used: false, ctx: false, aimAt: 0 };
+function mouseCtxDown() {   // same rules as pressing the yellow context button
+  if (!ctxKind) return;
+  if (ctxKind === 'reform' && reformLeft(performance.now()) > 0) return;
+  if (ctxKind === 'sab' && (sabCd(performance.now()) > 0 || sbEnt(ctxSbI))) return;
+  if (ctxKind === 'hookdis') { sendAct('hookdis', true); return; }
+  if (ctxKind === 'task') { requestTask(); return; }
+  if (HOLD_KINDS[ctxKind]) { ctxHeld = true; ctxHeldKind = ctxKind; MOUSE.ctx = true; $('ctx').classList.add('hold'); }
+  sendAct(ctxKind, true);
+}
+function mouseAimSend(force) {   // killer_7 in rifle form: tell the host which way the mouse points (the killer is always the centre of the screen)
+  if (!inGame || !MOUSE.used || S.phase !== 'hunt' || myRole() !== 'killer' || !isK7(S.me) || !k7Gun()) return;
+  const now = performance.now(); if (!force && now - MOUSE.aimAt < 40) return; MOUSE.aimAt = now;
+  const r = cv.getBoundingClientRect(), a = Math.atan2(MOUSE.y - (r.top + r.height / 2), MOUSE.x - (r.left + r.width / 2));
+  if (S.role === 'host') { const p = HP.get(S.me); if (p) { p.aimA = a; p.aimT = now; } }
+  else if (S.inRoom && !S.reconnecting) { const m = { t: 'aim', a: +a.toFixed(3) }; if (!T.sendFast(m)) T.send(m); }
+}
+addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') return; MOUSE.x = e.clientX; MOUSE.y = e.clientY; MOUSE.used = true; mouseAimSend(false); });
+setInterval(() => mouseAimSend(true), 200);   // keeps the aim alive on the host while the mouse is still
+addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'mouse' || e.button !== 0 || !inGame || TK || SC || (e.target !== cv && e.target !== zone)) return;   // only clicks on the game picture, never on menus / buttons / mini-games
+  MOUSE.x = e.clientX; MOUSE.y = e.clientY; MOUSE.used = true;
+  if (!(S.phase === 'hunt' || S.phase === 'headstart') || myState() === 'dead') return;
+  if (myRole() === 'killer' && S.phase === 'hunt') atkDown();
+  mouseCtxDown();
+}, true);
+addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && e.button === 0 && MOUSE.ctx) { MOUSE.ctx = false; ctxRelease(); } }, true);
+
 /* ---- floating joystick: appears under the first touch in the bottom-left zone ---- */
 const zone = $('zone'), base = $('base'), knob = $('knob'), hint = $('hint');
 let joyLast = 0, joyTimer = 0;
@@ -6457,6 +6500,7 @@ function joyMove(e) {
   joyPush();
 }
 zone.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') return;   // desktop: the mouse is for clicking / aiming (WASD walks)
   if (joy.active) return; joy.active = true; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
   try { zone.setPointerCapture(e.pointerId); } catch (x) {}
   base.style.transition = 'none'; base.style.transform = `translate(${joy.ox - CFG.JOY_BASE / 2}px,${joy.oy - CFG.JOY_BASE / 2}px)`; base.style.opacity = '1'; knob.style.transform = '';
@@ -7082,7 +7126,7 @@ function stepStatusAudio(now) {   // per frame: rescue ticks while a teammate is
   for (const id in S.st) { const st = S.st[id]; if (st.s !== 'hooked') continue; const h = hooks[st.hk]; if (!h) continue;
     const fk6 = k6Fake(+id, now), fakeOn = fk6 >= 0 && !!S.wo.k6 && S.wo.k6.fo;   // killer_6: a fake unhook ticks like a real one
     if ((st.rpOn || fakeOn) && now - (st.tickAt || 0) > 220) { st.tickAt = now; sfxRescueTick(evVol(h[0], h[1]), Math.min(1, (st.rpOn ? st.rp + (now - st.rpAt) * (st.rr || 1) : fk6) / rescueMs())); }
-    if (!st.warned && st.hookEnd && hookRemain(st, now) <= hookGraceMs() * CFG.HOOK_WARN_FRAC) { st.warned = true; sfxWarn(evVol(h[0], h[1], 1000)); } }
+    if (!st.warned && st.hookEnd && !viewerKiller() && hookRemain(st, now) <= hookGraceMs() * CFG.HOOK_WARN_FRAC) { st.warned = true; sfxWarn(evVol(h[0], h[1], 1000)); } }
 }
 /* ---------- generator sounds (synthesized with the helpers above; all respect mute via sfxOn) ---------- */
 function sfxBarricade(v) { sfxTone(120, 55, .22, v * .9, 'square'); sfxNoise(.14, v * .55, 'lowpass', 1000, 260); sfxTone(220, 90, .12, v * .35, 'square', .09); }   // planks slammed into place
@@ -7313,7 +7357,60 @@ function musTick() {
   }
 }
 function musRefresh() { const b = $('musBtn'); if (!b) return; const on = MUS.enabled && !muted; b.textContent = on ? '🎵' : '🔇'; b.setAttribute('aria-label', on ? 'Music on (tap to turn off)' : 'Music off (tap to turn on)'); b.style.opacity = on ? '1' : '.65'; }
-setInterval(() => { try { musTick(); } catch (e) { MUS.broken = true; console.warn('[music] disabled:', e); } }, 250);   // audio must never be able to break the game
+setInterval(() => { try { musTick(); } catch (e) { MUS.broken = true; console.warn('[music] disabled:', e); } }, 250);
+/* ---------- CHASE MUSIC: starts when the chase speed meter has been fuelling for 1.5 s, and only the chased survivor and the killer hear it. A driving loop (158 BPM, Am-F-Dm-E: kick, snare, hats, pulsing bass, a 16th-note arp and a pad)
+   with a layer of eerie HIGH notes on top (glassy bell notes that ring out, a thin violin whine, and a clashing minor second on the E bar). The meter level (S.chmC, 0..1, sent by the host) makes the high notes brighter and louder as the boost fills.
+   Tunables: CFG.CHASE_MUSIC_MS, CHASE_VOLUME; the music button switches it off too. ---------- */
+const CHM_C = { g: null, ctx: null, step: 0, next: 0 }, CHM_SD = 60 / 158 / 4;   // one 16th note
+const CHM_PROG = [[110, [220, 261.63, 329.63]], [87.31, [174.61, 220, 261.63]], [73.42, [146.83, 174.61, 220]], [82.41, [164.81, 207.65, 246.94]]];   // [bass, chord tones]: Am F Dm E
+const CHM_ARP = [0, -1, 2, 1, 2, -1, 1, 0, 2, 1, -1, 2, 1, 0, 2, -1];
+const CHM_HI = [   // the high notes per bar: [16th step, frequency]
+  [[0, 1318.51], [8, 1046.5], [12, 987.77]],       // Am: E6 C6 B5
+  [[0, 1046.5], [8, 880], [12, 1046.5]],           // F:  C6 A5 C6
+  [[0, 1174.66], [8, 1396.91], [12, 1318.51]],     // Dm: D6 F6 E6
+  [[0, 1975.53], [8, 1661.22], [12, 1396.91]]];    // E:  B6 G#6 and F6 grinding against the E
+function chmNoise(t, dur, v, ftype, f) { const n = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain(); n.buffer = noiseBuf(); n.loop = true; fl.type = ftype; fl.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + dur); n.connect(fl); fl.connect(g); g.connect(CHM_C.g); n.start(t, Math.random() * .2); n.stop(t + dur + .02); }
+function chmOsc(t, type, f, len, v, lp, atk) { const o = AC.createOscillator(), g = AC.createGain(), fl = AC.createBiquadFilter(); o.type = type; o.frequency.value = f; fl.type = 'lowpass'; fl.frequency.value = lp; g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(v, t + (atk || .008)); g.gain.exponentialRampToValueAtTime(.001, t + len); o.connect(fl); fl.connect(g); g.connect(CHM_C.g); o.start(t); o.stop(t + len + .03); }
+function chmBell(t, f, len, v) {   // a glassy high note: a pure sine with a bright inharmonic partial and a slow shimmer, ringing out
+  const o = AC.createOscillator(), o2 = AC.createOscillator(), l = AC.createOscillator(), lg = AC.createGain(), g = AC.createGain(), g2 = AC.createGain();
+  o.type = o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 2.76; l.frequency.value = 5.2; lg.gain.value = f * .004; l.connect(lg); lg.connect(o.frequency);
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(v, t + .008); g.gain.exponentialRampToValueAtTime(.0001, t + len);
+  g2.gain.setValueAtTime(.0001, t); g2.gain.linearRampToValueAtTime(v * .3, t + .004); g2.gain.exponentialRampToValueAtTime(.0001, t + len * .3);
+  o.connect(g); o2.connect(g2); g.connect(CHM_C.g); g2.connect(CHM_C.g); o.start(t); l.start(t); o2.start(t); o.stop(t + len + .05); l.stop(t + len + .05); o2.stop(t + len * .3 + .05);
+}
+function chmWhine(t, f, len, v) {   // a thin high violin: saw + vibrato through a band-pass, swelling in and fading
+  const o = AC.createOscillator(), l = AC.createOscillator(), lg = AC.createGain(), bp = AC.createBiquadFilter(), g = AC.createGain();
+  o.type = 'sawtooth'; o.frequency.value = f; l.frequency.value = 5.5; lg.gain.value = f * .01; l.connect(lg); lg.connect(o.frequency); bp.type = 'bandpass'; bp.frequency.value = 2800; bp.Q.value = .9;
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(v, t + len * .35); g.gain.exponentialRampToValueAtTime(.001, t + len);
+  o.connect(bp); bp.connect(g); g.connect(CHM_C.g); o.start(t); l.start(t); o.stop(t + len + .05); l.stop(t + len + .05);
+}
+function chmStep(t, n) {
+  const bar = (n >> 4) & 3, ch = CHM_PROG[bar], s = n & 15, c = Math.max(0, Math.min(1, S.chmC || 0));
+  if (s % 4 === 0 || s === 10) { const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(135, t); o.frequency.exponentialRampToValueAtTime(42, t + .13); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(s === 10 ? .5 : .85, t + .006); g.gain.exponentialRampToValueAtTime(.001, t + .22); o.connect(g); g.connect(CHM_C.g); o.start(t); o.stop(t + .25); }   // kick
+  if (s === 4 || s === 12) chmNoise(t, .14, .32, 'bandpass', 1900);   // snare
+  chmNoise(t, .04, s & 1 ? .05 : .1, 'highpass', 7500);   // hi-hat
+  if (s % 2 === 0) chmOsc(t, 'sawtooth', s % 8 === 6 ? ch[0] * 2 : ch[0], CHM_SD * 1.7, .2, 480, .004);   // pulsing bass
+  const a = CHM_ARP[s]; if (a >= 0) chmOsc(t, 'square', ch[1][a] * 2, CHM_SD * .9, .045, 2400, .004);   // arp stab
+  if (s === 0) { ch[1].forEach(f => [-8, 8].forEach(d => { const o = AC.createOscillator(), g = AC.createGain(), fl = AC.createBiquadFilter(), L = CHM_SD * 16; o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; fl.type = 'lowpass'; fl.frequency.setValueAtTime(500, t); fl.frequency.linearRampToValueAtTime(1500, t + L * .8); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.022, t + .05); g.gain.linearRampToValueAtTime(.0001, t + L); o.connect(fl); fl.connect(g); g.connect(CHM_C.g); o.start(t); o.stop(t + L + .05); })); }   // tense pad, one chord per bar
+  for (const [st, f] of CHM_HI[bar]) if (s === st) { chmBell(t, f, 1.5, .05 + .05 * c); if (c > .5) chmBell(t + CHM_SD * 3, f, .9, .02 * c); }   // the high notes (and a soft echo of each once the boost is nearly full)
+  if ((n >> 4) % 2 === 0 && s === 0) chmWhine(t, ch[1][2] * 4, CHM_SD * 32, .018 + .02 * c);   // a thin violin whine held over two bars, on the chord's top note
+}
+function chmWant() {
+  if (!AC || !inGame || document.hidden || AC.state !== 'running' || !MUS.enabled || muted || S.phase !== 'hunt') return false;
+  const id = S.chm == null ? -1 : S.chm; if (id < 0) return false;
+  const r = myRole(); if (r === 'killer') return true;
+  const st = myState(); return r === 'survivor' && S.me === id && (st === 'healthy' || st === 'injured');
+}
+function chmTick() {
+  if (!AC) return; const want = chmWant(), t = AC.currentTime;
+  if (!CHM_C.g || CHM_C.ctx !== AC) { if (!want) return; const g = AC.createGain(); g.gain.value = 0; g.connect(outNode()); CHM_C.g = g; CHM_C.ctx = AC; CHM_C.next = 0; CHM_C.step = 0; }
+  CHM_C.g.gain.setTargetAtTime(want ? CFG.CHASE_VOLUME : 0, t, want ? .12 : .3);   // quick fade in, a short fade out
+  if (!want) { CHM_C.next = 0; CHM_C.step = 0; return; }
+  if (!CHM_C.next || CHM_C.next < t) { CHM_C.next = t + .05; CHM_C.step = 0; }
+  while (CHM_C.next < t + .4) { chmStep(CHM_C.next, CHM_C.step++); CHM_C.next += CHM_SD; }
+}
+setInterval(() => { try { chmTick(); } catch (e) { console.warn('[chase music]', e); } }, 80);   // audio must never be able to break the game
+   // audio must never be able to break the game
 ['pointerdown', 'keydown', 'touchend'].forEach(ev => addEventListener(ev, () => { audioInit(); musRefresh(); try { musTick(); } catch (e) {} }, true));   // the first tap on the page unlocks audio and starts the music
 /* UI tap sound: a short click when a button is pressed on the home menu, the room (lobby) screen and the settings / guide panels they open. Runs after the audio-unlock listener above (same capture phase, registered later);
    plays through the normal sfx bus, so the Sound toggle mutes it. Disabled buttons stay silent; secondary buttons (class "sec": back, close, copy...) click a little lower. */
@@ -7470,8 +7567,8 @@ function drawSlashSkin(ki, e, kp, now) {
     if (span > .02) { arc(R - 16 * K, tail, lead, 'rgba(47,107,255,.35)', 40 * K, fade); arc(R - 16 * K, tail, lead, 'rgba(140,175,255,.6)', 18 * K, fade); }
     for (let j = 0; j < 4; j++) { const an = lead + (j - 1.5) * .08, [xa, ya] = pt(an, R - 34 * K), [xb, yb] = pt(an, R + 2 * K); ctx.globalAlpha = vis; ctx.strokeStyle = '#7a5200'; ctx.lineWidth = 10 * K; ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke(); ctx.strokeStyle = '#ffc21a'; ctx.lineWidth = 7 * K; ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke(); }
     if (prog > .3) for (let j = 0; j < 5; j++) { const [x, y] = pt(lead - j * .13, R * (.74 + (j % 3) * .08)), sz = (4 + 8 * cl((prog - .3) * 2.5)) * K; ctx.globalAlpha = 1 - prog; ctx.strokeStyle = j & 1 ? '#fff0a0' : '#ffe36a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x - sz, y); ctx.lineTo(x + sz, y); ctx.moveTo(x, y - sz); ctx.lineTo(x, y + sz); ctx.moveTo(x - sz * .6, y - sz * .6); ctx.lineTo(x + sz * .6, y + sz * .6); ctx.moveTo(x - sz * .6, y + sz * .6); ctx.lineTo(x + sz * .6, y - sz * .6); ctx.stroke(); }
-  } else if (ki === 7) {   // PARTICIPANT: a clean neon-teal knife cut
-    cres('46,230,197', '220,255,248', 40, 12);
+  } else if (ki === 7) {   // PARTICIPANT: a clean neon-pink knife cut
+    cres('255,79,168', '255,225,242', 40, 12);
   } else if (ki === 6) {   // SKINWALKER: a pale bone-white rake. Five long thin claw lines of uneven length trail the arc, snapping out one after another, with fine tooth-like shards flung off the tips
     cres('230,226,214', '255,253,246', 44, 13);
     for (let i = 0; i < 5; i++) { const l2 = lead - i * .045, t2 = tail + span * (.12 + i * .03), r = R - (4 + i * 11) * K - (i & 1) * 6 * K; if (l2 - t2 < .02) continue;
@@ -7598,7 +7695,7 @@ function drawMeterBars(now, me, vw, vh, role, vId) {
   const J5 = S.wo.k5, ce = J5 && J5.cond ? J5.cond.find(e => e[0] === S.me) : null;
   if (ce && ce[1] > 0) { f = Math.min(1, ce[1] / 100); col = ce[2] ? '#ff2a2a' : '#ff6a3d'; tick = K5_COND / 100; }   // condemn bar (white tick = where 'condemned' starts)
   else if (S.wo.k1 && k1Is()) { const v = k1Fear(S.me); if (v > .5) { f = Math.min(1, v / 100); col = K1_TCOL[k1Tier(v)]; } }   // fear meter (colour follows its tier)
-  if (!(f > 0) && S.wo.k7) {   // Participant: my health bar, shown under my feet while it is below 100%; when it is full again it fades away
+  if (!(f > 0) && S.wo.k7) {   // Game Guard: my health bar, shown under my feet while it is below 100%; when it is full again it fades away
     const hv = S.wo.k7.h[S.me] == null ? K7_HP : S.wo.k7.h[S.me];
     if (hv < K7_HP) { K7C.hfT = 0; K7C.hvL = hv; f = Math.max(.02, hv / K7_HP); col = hv > 60 ? '#4cd964' : hv > 30 ? '#ffb020' : '#ff3b3b'; }
     else { if (K7C.hvL != null && !K7C.hfT) { K7C.hfT = now; K7C.hvL = null; } if (K7C.hfT && now - K7C.hfT < 1200) { f = 1; col = '#4cd964'; kal = 1 - (now - K7C.hfT) / 1200; } }
@@ -9046,12 +9143,14 @@ function drawCarried(e) {   // limp over the killer's shoulder (position comes f
   const ka = AN[killerId()], face = ka ? ka.face : 1;
   blit(downBmp(charIdx(e.p.id), 4, 1), e.x, e.y + 8, face, PS * .92 * (CHARS[charIdx(e.p.id)].sc || 1), e.flash);
 }
+function viewerKiller() { try { const v = pickView(), q = v && S.players.find(x => x.id === v.id); return !!q && q.role === 'killer'; } catch (er) { return false; } }   // the killer never sees hook time (ring, 'limp' look, warning knock)
 function drawHooked(e) {   // hanging from the hook: struggles at first, goes limp once the timer passes the halfway mark (killer_2: held half-sunk in the Upside Down portal)
   const PT = k2On();
-  const ci = charIdx(e.p.id), limp = e.hookLeft <= CFG.HOOK_WARN_FRAC, f = limp ? 4 + ((((e.now / 520) | 0)) & 1) : (((e.now + e.p.id * 70) / 130) | 0) & 3;
+  const ci = charIdx(e.p.id), hideT = viewerKiller(), limp = !hideT && e.hookLeft <= CFG.HOOK_WARN_FRAC, f = limp ? 4 + ((((e.now / 520) | 0)) & 1) : (((e.now + e.p.id * 70) / 130) | 0) & 3;
   const b = hangBmp(ci, f, 1), sc = 2.2 * (CHARS[ci].sc || 1), hf = HFX[sfNm(ci)] || [1, 1], nmH = sfNm(ci); let sway = Math.sin(e.now / (limp ? 650 : 210 / hf[0]) + e.p.id) * (limp ? .06 : .16 * hf[1]); if (nmH === 'Michael Afton' && !limp) sway = Math.round(sway * 10) / 10; const spin = nmH === 'Crewmate'; if (spin) sway = e.now / (limp ? 7000 : 3500) * TAU;   // each survivor struggles at their own pace; the Crewmate just floats and tumbles head over toes, like in space
   const jit = limp || spin ? 0 : (f & 1 ? 1 : -1), oy = spin ? b.height * sc / 2 : 0;   // oy: the Crewmate pivots about its middle, not the hook
-  ctx.globalAlpha = e.alpha * .95; const T0 = ctx.getTransform(); let hw = null;
+  const aeL = e.st && e.st.autoEnd ? e.st.autoEnd - e.now : -1, blinkOff = aeL > 0 && aeL <= CFG.HOOK_BLINK_MS && (((e.now / 140) | 0) & 1);   // AUTO-RELEASE: the model blinks for the last 3 s before it drops off the hook
+  ctx.globalAlpha = e.alpha * .95 * (blinkOff ? .18 : 1); const T0 = ctx.getTransform(); let hw = null;
   ctx.save(); if (PT) { ctx.beginPath(); ctx.rect(e.x - 150, e.y - 400, 300, 420); ctx.clip(); }   // portal: everything below the middle of the rift is swallowed
   ctx.translate(PT ? e.x + jit : e.x - 9 + jit, PT ? e.y - b.height * sc * .8 - 4 + Math.sin(e.now / 420 + e.p.id) * 3 + oy : e.y - 63 + oy); ctx.rotate(PT ? sway * .5 : sway); ctx.imageSmoothingEnabled = false; ctx.drawImage(b, -b.width * sc / 2, -oy, b.width * sc, b.height * sc);
   if (e.flash > 0) { ctx.globalAlpha *= .9 * e.flash; ctx.drawImage(whiteOf(b), -b.width * sc / 2, -oy, b.width * sc, b.height * sc); }
@@ -9062,7 +9161,7 @@ function drawHooked(e) {   // hanging from the hook: struggles at first, goes li
   ctx.restore(); ctx.globalAlpha = e.alpha; if (PT) portalFront(ctx, e.x, e.y, e.now); hookFlair(e, ci);
   if (!PT) for (let j = 0; j < 2; j++) { const u = ((e.now / 1100 + j * .5) % 1); ctx.fillStyle = `rgba(150,10,20,${(.9 * (1 - u)).toFixed(3)})`; ctx.fillRect(e.x - 9 + (j ? 7 : -8), e.y - 5 + u * 24, 2, 3); }   // blood drips
   const ry = e.y - 33; ringAt(e.x, ry, CFG.RADIUS + 14, 'rgba(255,82,82,.22)', 4, 1);
-  if (e.hookLeft > 0) ringAt(e.x, ry, CFG.RADIUS + 14, e.hookLeft <= CFG.HOOK_WARN_FRAC ? '#ffd740' : '#ff5252', 4, e.hookLeft);   // changes colour at the halfway point
+  if (!hideT && e.hookLeft > 0) ringAt(e.x, ry, CFG.RADIUS + 14, e.hookLeft <= CFG.HOOK_WARN_FRAC ? '#ffd740' : '#ff5252', 4, e.hookLeft);   // changes colour at the halfway point
   if (e.resProg > 0) ringAt(e.x, ry, CFG.RADIUS + 22, '#69f0ae', 4, e.resProg);
   nameTag(e, 100);
 }
@@ -9092,7 +9191,7 @@ function atkAnim(ki, el) {
     case 3: return { dx: 9 * out, dy: 4 * Math.sin(Math.PI * s), rot: -.16 * back + .12 * out, sx: 1 - .3 * Math.sin(Math.PI * cl(s * 1.3)), sy: 1, ech: 0 };   // Nikki: leans back, then a quick hopping twist-slash
     case 4: return { dx: 13 * out - 2 * back, dy: 0, rot: -.07 * back + .24 * out, sx: 1 + .2 * out, sy: 1 + .12 * back - .1 * out, ech: 0 };   // Huggy: stretches tall, then slams down in a big grab
     case 5: return { dx: -5 * back + 19 * out + (s > 0 ? Math.sin(el / 13) * 1.5 * (1 - s) : 0), dy: 0, rot: -.22 * back + .26 * out, sx: 1, sy: 1 - .05 * out, ech: 2 };   // Boiled One: whiplash snap with a jittering recoil
-    case 7: return { dx: -3 * back + 13 * out, dy: 0, rot: -.08 * back + .14 * out, sx: 1, sy: 1, ech: 0 };   // Participant: a short, tight knife lunge
+    case 7: return { dx: -3 * back + 13 * out, dy: 0, rot: -.08 * back + .14 * out, sx: 1, sy: 1, ech: 0 };   // Game Guard: a short, tight knife lunge
     case 6: return { dx: -4 * back + 21 * out, dy: 2 * back, rot: -.1 * back + .14 * out, sx: 1 - .1 * out, sy: 1 + .16 * back + .1 * out, ech: 2 };   // Skinwalker: draws itself up unnaturally tall, then stretches far out and snaps back
   }
   return null;
@@ -9230,7 +9329,7 @@ const TRAIL = new Map();   // id -> [{x,y,t}]
 const effSt = id => { const s = (S.st[id] || {}).s || 'healthy'; return s === 'sent' && S.wo.um && (S.wo.um.hits[id] | 0) >= 1 ? 'injured' : s; };   // in the Upside Down, one hit from Vecna = injured (look + blood trail)
 function stepTrails(now) {
   for (const p of S.players) {
-    const inj = effSt(p.id) === 'injured', bl7 = !inj && k7Bleed(p.id, now);   // bl7: bleeding from Participant bullets (only while the bleed lasts)
+    const inj = effSt(p.id) === 'injured', bl7 = !inj && k7Bleed(p.id, now);   // bl7: bleeding from Game Guard bullets (only while the bleed lasts)
     if (!inj && !bl7) { const t0 = TRAIL.get(p.id); if (t0 && t0.k7) { while (t0.length && now - t0[0].t > CFG.BLOOD_LIFE_MS) t0.shift(); if (!t0.length) TRAIL.delete(p.id); } else TRAIL.delete(p.id); continue; }   // a bullet trail just fades out
     const q = posOf(p.id); if (!q) continue; let t = TRAIL.get(p.id); if (!t) { TRAIL.set(p.id, t = []); t.since = now; t.k7 = bl7; }
     while (t.length && now - t[0].t > CFG.BLOOD_LIFE_MS) t.shift();
@@ -9815,9 +9914,9 @@ function mmFrame(now, V, me) { if(inUD(me[0],me[1])){$('mm').classList.add('hidd
   const gg = S.map.gens || [], sz = Math.max(3, Math.round(4 * dpr));   // generators: grey = locked, yellow = open, green = fixed
   for (let i = 0; i < gg.length; i++) { const e = S.gs.g[i] || { st: 0 }; g.fillStyle = e.st === 2 ? '#5dff9a' : e.st === 1 ? '#ffd93a' : '#8a93a8'; g.fillRect(Math.round(gg[i][0] * k - sz / 2), Math.round(gg[i][1] * k - sz / 2), sz, sz); }
   if (S.wo.dd && myRole() === 'survivor') for (const e of S.wo.dd) if (e.id === S.me) { const v = ddVal(e, now), r = Math.max(3.2, 3.6 * dpr), x = e.x * k, y = e.y * k, low = v <= CFG.PK_DD_THRESH; g.fillStyle = low ? '#ff4a3a' : '#ff9a2a'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr); g.beginPath(); g.moveTo(x, y - r - 1); g.lineTo(x + r + 1, y); g.lineTo(x, y + r + 1); g.lineTo(x - r - 1, y); g.closePath(); g.fill(); g.stroke(); }   // Demonic Deal: my totem (orange diamond, red when the bar is low)
-  if (myRole() === 'killer' && isK7(S.me) && S.wo.k7) for (const l of S.wo.k7.L) {   // Participant: his lockers (reload points) as small teal locker icons
+  if (myRole() === 'killer' && isK7(S.me) && S.wo.k7) for (const l of S.wo.k7.L) {   // Game Guard: his lockers (reload points) as small pink locker icons
     const hz = l.ny !== 0, lw = Math.max(3, Math.round((hz ? 5 : 3.4) * dpr)), lh = Math.max(3, Math.round((hz ? 3.4 : 5) * dpr)), x = Math.round(l.x * k - lw / 2), y = Math.round(l.y * k - lh / 2);
-    g.fillStyle = '#2ee6c5'; g.fillRect(x, y, lw, lh); g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr * .7); g.strokeRect(x + .5, y + .5, lw - 1, lh - 1); g.fillStyle = '#06201c'; if (hz) g.fillRect(x + 1, y + (l.ny < 0 ? 1 : lh - 2), lw - 2, 1); else g.fillRect(x + (l.nx < 0 ? 1 : lw - 2), y + 1, 1, lh - 2); }
+    g.fillStyle = '#ff4fa8'; g.fillRect(x, y, lw, lh); g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr * .7); g.strokeRect(x + .5, y + .5, lw - 1, lh - 1); g.fillStyle = '#2a0a1a'; if (hz) g.fillRect(x + 1, y + (l.ny < 0 ? 1 : lh - 2), lw - 2, 1); else g.fillRect(x + (l.nx < 0 ? 1 : lw - 2), y + 1, 1, lh - 2); }
   g.fillStyle = '#fff'; g.strokeStyle = '#ff3b45'; g.lineWidth = Math.max(1, dpr); g.beginPath(); g.arc(me[0] * k, me[1] * k, Math.max(2.5, 2.8 * dpr), 0, TAU); g.fill(); g.stroke();
 }
 /* ---------- auras: hooked teammates glow through the darkness; off-screen ones get an edge-pinned arrow (survivors only) ---------- */
@@ -10537,9 +10636,9 @@ function perkActiveNow(id, now) {   // the perk icon glows while the perk is doi
     if (ctxHeldKind === 'rescue') { const mp = posOf(S.me); if (!mp) return false; for (const k in S.st) { const e = S.st[k]; if (e.s === 'hooked' && e.rpOn && +k !== S.me) { const h = S.map.hooks[e.hk]; if (h && Math.hypot(h[0] - mp[0], h[1] - mp[1]) <= CFG.RESCUE_R * pkRangeMul(S.me) + CFG.ACT_SLACK) return true; } } }
     return false; }
   if (id === 'demonicdeal') { const f = S.fx2[S.me]; return !!f && f.ddg > now; }   // just after a tap
-  if (id === 'reforming') { const f = S.fx2[S.me]; return !!f && f.reformg > now; }   // 3 s after rebuilding a barricade
+  if (id === 'reforming') return S.phase === 'hunt' && (st === 'healthy' || st === 'injured') && reformLeft(now) <= 0;   // glows while Reforming is READY (off cooldown and I can act)
   if (id === 'longlasttwin') return S.phase === 'hunt' && twinNearC(S.me) >= 0;   // while my twin is close (the bonus is on)
-  if (id === 'sabotage') { const f = S.fx2[S.me]; return !!f && f.sabg > now; }   // 3 s after a hook goes down
+  if (id === 'sabotage') return S.phase === 'hunt' && (st === 'healthy' || st === 'injured') && sabCd(now) <= 0;   // glows while Sabotage is READY (off cooldown and I can act)
   if (id === 'bonded') { const f = S.fx2[S.me]; return !!f && f.bondg > now; }   // 1 s before the reveal and during it
   if (id === 'banesberry') { const f = S.fx2[S.me]; return !!f && f.bbfx > now; }   // while a Banesberry effect is active
   if (id === 'reaction') { const f = S.fx2[S.me]; return !!f && f.react > now; }   // while the yellow streaks are showing
