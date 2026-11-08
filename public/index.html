@@ -622,7 +622,7 @@ const CFG = {
   JOIN_ATTEMPT_TIMEOUT: 60000, JOIN_ATTEMPTS: 3, JOIN_RETRY_GAP: 1000,
   UNAVAILABLE_RETRY: 8000,            // keep retrying 'peer-unavailable' this long
   HEARTBEAT: 2000, DEAD_AFTER: 90000, HANDSHAKE_TIMEOUT: 60000, RECONNECT_WINDOW: 600000,
-  TICK_HZ: 30, MAX_PLAYERS: 10, RADIUS: 22, VIEW: 650, INTERP_MS: 66, INTERP_MAX: 140,   /* INTERP_MS = minimum render delay; it grows on its own (up to INTERP_MAX) when snapshots arrive unevenly */
+  TICK_HZ: 30, MAX_PLAYERS: 10, RADIUS: 22, VIEW: 650, INTERP_MS: 50, INTERP_MAX: 140,   /* INTERP_MS = minimum render delay; it grows on its own (up to INTERP_MAX) when snapshots arrive unevenly */
   FAST_CHANNEL: true, FAST_MAX: 12000,   // second WebRTC data channel (unordered, no retransmits) for snapshots + movement input; messages larger than FAST_MAX bytes use the normal channel
   AUTO_QUALITY: true,                    // lower the visibility-ray count / darkness-mask size / pixel ratio by itself when the frame rate drops
   SNAPSHOT_HZ_LARGE: 20, LARGE_ROOM_PLAYERS: 7,   // snapshot rate used when >= 7 players are in the room (sim stays at TICK_HZ)
@@ -1230,7 +1230,7 @@ const Timers = (() => {
  Relay frames (text): host gets "R" (attached), "J<id>" (player joined), "L<id>" (player left), "M<id>\n<payload>" (message from a player);
  host sends "B<payload>" (to everyone), "T<id>\n<payload>" (to one player), "K<id>" (kick). A player gets "R" once, then raw game messages. */
 const RELAY_HOST = '';   // '' = the Worker that serves this page is also the relay. If the page is hosted somewhere else, put the Worker's address here, e.g. 'death-by-dawn.yourname.workers.dev'
-const NET_CFG = { CONNECT_TIMEOUT: 10000, ATTEMPTS: 3, RETRY_GAP: 1200, HOST_RETRY_GAP: 2000, MAX_BUF_SNAP: 65536, MAX_BUF_IN: 16384 };
+const NET_CFG = { CONNECT_TIMEOUT: 10000, ATTEMPTS: 3, WAKE_MS: 75000, RETRY_GAP: 1200, HOST_RETRY_GAP: 2000, MAX_BUF_SNAP: 65536, MAX_BUF_IN: 16384 };
 const T = (() => {
   const X = { onReady() {}, onPeerJoin() {}, onPeerLeave() {}, onMessage() {}, onStatus() {}, onError() {} };
   let run = 0, ws = null, hostWs = null, warmAt = 0; const ids = new Set();
@@ -1248,7 +1248,7 @@ const T = (() => {
     try { const h = where(); if (h) fetch((secure() ? 'https://' : 'http://') + h + '/ping', { mode: 'no-cors', cache: 'no-store' }).catch(() => {}); } catch (e) {}
   };
   X.host = code => {
-    closeAll(); const my = run; let ready = false, tries = 0;
+    closeAll(); const my = run; let ready = false, tries = 0; const t0 = Date.now();
     const hk = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => (b % 36).toString(36)).join('');   // proves it is the same host when the link drops and comes back
     const open = () => {
       if (run !== my) return;
@@ -1266,18 +1266,19 @@ const T = (() => {
         clearTimeout(timer); if (run !== my || hostWs !== w) return; hostWs = null;   // a stale socket (already replaced by a newer one) is ignored, so two sockets can never fight over the room
         if (ev.code === 4009) return X.onError({ type: ready ? 'taken' : 'unavailable-id' });   // somebody else already owns this room code
         if (ready) return setTimeout(open, NET_CFG.HOST_RETRY_GAP);                              // dropped mid-game: keep coming back (the relay holds the players for a while)
-        if (++tries >= NET_CFG.ATTEMPTS) return X.onError({ type: 'network' });
-        setTimeout(open, NET_CFG.RETRY_GAP);
+        if (Date.now() - t0 > NET_CFG.WAKE_MS) return X.onError({ type: 'network' });   // free servers sleep: keep trying for about a minute
+        tries++; X.onStatus('Waking up the server… ' + Math.round((Date.now() - t0) / 1000) + ' s (the first game after a quiet spell can take up to a minute)');
+        setTimeout(open, Math.min(3000, NET_CFG.RETRY_GAP * (1 + tries * .4)));
       };
       w.onerror = () => {};   // onclose always follows
     };
     open();
   };
   X.join = code => {
-    closeAll(); const my = run; let attempt = 0;
+    closeAll(); const my = run; let attempt = 0; const t0 = Date.now();
     const go = () => {
       if (run !== my) return; attempt++;
-      X.onStatus(attempt === 1 ? 'Contacting server…' : `Connecting… (attempt ${attempt}/${NET_CFG.ATTEMPTS})`);
+      X.onStatus(attempt === 1 ? 'Contacting server…' : `Waking up the server… ${Math.round((Date.now() - t0) / 1000)} s (the first join after a quiet spell can take up to a minute)`);
       const u = wsUrl(code, ''); if (!u) return X.onError({ type: 'norelay' });
       let w; try { w = new WebSocket(u); } catch (e) { return X.onError({ type: 'network' }); }
       ws = w; let up = false; const timer = setTimeout(() => { if (!up) try { w.close(); } catch (e) {} }, NET_CFG.CONNECT_TIMEOUT);
@@ -1291,8 +1292,8 @@ const T = (() => {
         if (up) return X.onPeerLeave('host');                         // an established link dropped (host left / network): the game's own reconnect takes over
         if (ev.code === 4004) return X.onError({ type: 'noroom' });
         if (ev.code === 4010) return X.onError({ type: 'full' });
-        if (attempt >= NET_CFG.ATTEMPTS) return X.onError({ type: 'conn' });
-        setTimeout(go, NET_CFG.RETRY_GAP);
+        if (Date.now() - t0 > NET_CFG.WAKE_MS) return X.onError({ type: 'conn' });
+        setTimeout(go, Math.min(3000, NET_CFG.RETRY_GAP * (1 + attempt * .4)));
       };
       w.onerror = () => {};
     };
@@ -6630,12 +6631,18 @@ function onResize() { resize(); try { toastPlace(); } catch (e) {} }
 try { new ResizeObserver(onResize).observe(cv); } catch (e) {} addEventListener('resize', onResize);
 addEventListener('orientationchange', () => { resetInput(); setTimeout(onResize, 120); setTimeout(onResize, 450); });   // iOS reports stale sizes right after rotating
 try { if (window.visualViewport) visualViewport.addEventListener('resize', onResize); } catch (e) {}
-const NET = { interp: CFG.INTERP_MS, last: 0, ema: 33, jit: 4, off: null };   // client: how far in the past the world is drawn; follows how evenly snapshots arrive
+const NET = { interp: CFG.INTERP_MS, last: 0, ema: 33, jit: 4, off: null, pk: 0, hc: false };   // pk: how late snapshots run against their slot on the host's timeline (fast up, slow down); hc: host-clock stamps are in use
+const INTERP_PIN = (() => { const m = /[?&]interp=(\d+)(&|$)/.exec(location.search); return m ? Math.max(20, Math.min(250, +m[1])) : 0; })();   // ?interp=50 pins the draw delay at exactly 50 ms (for A/B testing); without it the delay adapts
+if (INTERP_PIN) NET.interp = INTERP_PIN;   // client: how far in the past the world is drawn; follows how evenly snapshots arrive
 function netSample() {
   const t = performance.now();
   if (NET.last) { const dt = t - NET.last; if (dt < 1000) { NET.ema += (dt - NET.ema) * .05; NET.jit += (Math.abs(dt - NET.ema) - NET.jit) * .05; } }
   NET.last = t;
-  const want = Math.max(CFG.INTERP_MS, Math.min(CFG.INTERP_MAX, NET.ema * 1.5 + NET.jit * 3)); NET.interp += (want - NET.interp) * .02;
+  if (INTERP_PIN) { NET.interp = INTERP_PIN; return; }
+  // with host-clock stamps the delay only has to cover how LATE snapshots run (NET.pk) plus one snapshot gap to interpolate across; old hosts keep the raw-arrival rule
+  const want = NET.hc ? Math.max(CFG.INTERP_MS, Math.min(CFG.INTERP_MAX, NET.ema + NET.pk * 1.2 + 6))
+                      : Math.max(CFG.INTERP_MS, Math.min(CFG.INTERP_MAX, NET.ema * 1.5 + NET.jit * 3));
+  NET.interp += (want - NET.interp) * (want > NET.interp ? .1 : .02);   // rise quickly when the link gets rough, settle back slowly
 }
 /* SMOOTH REMOTE MOTION: a snapshot used to be stamped with the moment it ARRIVED, so every bit of network jitter (and bursts after a stall) turned straight
    into judder: other players sped up and slowed down from frame to frame. Now each snapshot is placed on the HOST's own timeline (h) and only the
@@ -6647,8 +6654,10 @@ function pushSnap(d, f, h) {   // f = killer facing 0..255 (optional), h = host 
     if (!snaps.length) NET.off = null;   // fresh start (join, new round, reconnect): estimate the offset again
     const s = a - h;
     if (NET.off === null || Math.abs(s - NET.off) > 1500) NET.off = s; else if (s < NET.off) NET.off += (s - NET.off) * .5; else NET.off += (s - NET.off) * .01;
-    t = h + NET.off; const l = snaps[snaps.length - 1]; if (l && t < l.t + .5) t = l.t + .5;   // never out of order
+    t = h + NET.off; NET.hc = true; const late = a - t; if (late < 500) { const lt = Math.max(0, late); NET.pk = lt > NET.pk ? lt : NET.pk + (lt - NET.pk) * .02; }
+    const l = snaps[snaps.length - 1]; if (l && t < l.t + .5) t = l.t + .5;   // never out of order
   }
+  if (h === undefined) NET.hc = false;
   snaps.push({ t, d, f }); if (snaps.length > 12) snaps.shift();
 }
 /* ---------- CLIENT-SIDE PREDICTION (non-host players) ----------
@@ -6726,7 +6735,7 @@ function netDbg(now) {
   if (now - nd.at < 250) return; nd.at = now;
   const D = PR.dbg, hs = PR.hs !== undefined && now - PR.hsT < 1500;
   nd.el.textContent = 'role   ' + (S.role === 'host' ? 'host' : 'client') + '\nroute  ' + nd.route + '\npred   ' + PR.mode +
-    '\nrtt    ' + (PR.n ? Math.round(PR.rtt) + ' ms' : '-') + '   snap ' + Math.round(NET.ema) + ' ms   draw-delay ' + Math.round(NET.interp) + ' ms' +
+    '\nrtt    ' + (PR.n ? Math.round(PR.rtt) + ' ms' : '-') + '   snap ' + Math.round(NET.ema) + ' ms   draw-delay ' + Math.round(NET.interp) + ' ms' + (INTERP_PIN ? ' (pinned)' : '') +
     '\nspeed  ' + (hs ? 'host says ' + PR.hs : 'learned ' + Math.round(PR.spd)) + (PR.hd ? '  [host-driven]' : '') +
     '\nfix    last ' + D.e.toFixed(1) + ' px  avg ' + (D.n ? (D.sum / D.n).toFixed(1) : '0') + '  max ' + D.max.toFixed(0) + '  ' + D.hits.length + '/s' +
     '\ntiming ' + (S.role === 'host' ? 'n/a (I am the host)' : NET.off !== null ? 'host clock (smooth)' : 'arrival time (old)');
