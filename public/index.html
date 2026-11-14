@@ -879,7 +879,7 @@ const TUNE = (() => {
 /* ==== TUNE ENGINE: END ==== */
 /* ==== TUNE CORE HELPERS: START ==== per-killer base multipliers (kb.N.stat) + the central attack / terror helpers; all return exactly 1 / the plain CFG value while nothing is changed */
 const KB_STATS = ['speed', 'flashrange', 'flashangle', 'ambient', 'terror', 'reach', 'hitcd', 'misscd'];
-const KB = Array.from({ length: 8 }, () => ({ speed: 1, flashrange: 1, flashangle: 1, ambient: 1, terror: 1, reach: 1, hitcd: 1, misscd: 1 }));
+const KB = Array.from({ length: 9 }, () => ({ speed: 1, flashrange: 1, flashangle: 1, ambient: 1, terror: 1, reach: 1, hitcd: 1, misscd: 1 }));
 let KB_ON = false;   // true only while some kb.* value differs from 1 (fast path: kbMul() is then a plain 1)
 function kbMul(id, stat) { if (!KB_ON || id == null || id < 0) return 1; let n; try { n = kIdx(id); } catch (e) { return 1; } const t = KB[n]; return t ? t[stat] : 1; }
 const kbRecalc = () => { KB_ON = KB.some(t => KB_STATS.some(s => t[s] !== 1)); };
@@ -1798,7 +1798,7 @@ function botKillerThink(p, B, now) {
   for (const q of HP.values()) {
     if (q.role !== 'survivor' || !q.on) continue; if (isK2(p.id) && k2Lk(q.id)) continue; if (hatHid(q, now)) continue;   // Magician's Hat: invisible to a bot killer too (not during its blink)
     const dd = Math.hypot(q.x - p.x, q.y - p.y);   // (killer_2 bot: only sees / chases his target)
-    if (!((EG.final && L.kdawn) || dd < 110 || (dd < L.ksight * kRangeMul(p.id) && losClear(p.x, p.y, q.x, q.y) && botFogClear(p.x,p.y,q.x,q.y,now)) || (botKSees(p, q, now) && botFogClear(p.x,p.y,q.x,q.y,now)))) continue;
+    if (isK8(p.id) ? !(dd < 110 || K8.rev[q.id] > now || (K8.mk[q.id] > now && dd < L.ksight * kRangeMul(p.id) && losClear(p.x, p.y, q.x, q.y))) : !((EG.final && L.kdawn) || dd < 110 || (dd < L.ksight * kRangeMul(p.id) && losClear(p.x, p.y, q.x, q.y) && botFogClear(p.x,p.y,q.x,q.y,now)) || (botKSees(p, q, now) && botFogClear(p.x,p.y,q.x,q.y,now)))) continue;
     if (q.st === 'healthy' || q.st === 'injured') { const sc = dd - (q.st === 'injured' ? 80 : 0) - (B.tid === q.id ? 120 : 0); if (sc < bs) { bs = sc; tgt = q; } }
     else if (q.st === 'downed' && now >= q.pickupImmuneUntil && dd < dd2) { dd2 = dd; down = q; }
     if (q.st === 'healthy' || q.st === 'injured' || q.st === 'downed') B.last = { x: q.x, y: q.y, t: now };
@@ -1968,7 +1968,7 @@ function botK3Roam(p, B, now) {   // go and pick up a willow: Easy only when it 
 /* ---------- killer_4: charge + release the Lunge (ability button) ---------- */
 function botK4(p, B, now, tgt) {
   const A = BA(); if (p.carry != null || p.wind || K4.lg || B.k4Rel) return;
-  if (tgt && k4Ready(now) > 0 && !k4Slowed(p, now) && !K4.ch && !B.k4Rel) {   // lunge: close the last gap to a runner (the dash is 75..158 long; survivors it touches are slowed)
+  if (tgt && k4Ready(now) > 0 && !k4Slowed(p, now) && !K4.ch && !B.k4Rel) {   // lunge: close the last gap to a runner (the dash is 75..158 long; survivors it touches are shoved, not slowed)
     const d = abDist(tgt, p), a = Math.atan2(tgt.y - p.y, tgt.x - p.x);
     if (d >= 105 && d <= 190 && losClear(p.x, p.y, tgt.x, tgt.y) && Math.abs(angDiff(S.face, a)) < .45 && Math.random() < (A.wise === 0 ? .15 : A.wise === 1 ? .45 : .8)) {
       const q = Math.max(0, Math.min(1, (d + 25 - K4_LG_MIN) / (K4_LG_MAX - K4_LG_MIN))); hostAct(p, 'k4chg', true);
@@ -2054,6 +2054,43 @@ function botK7(p, B, now, L, tgt, down) {   // true = it decided the movement / 
   B.tgt = tgt; B.tid = tgt.id; B.direct = d < 260; B.arrive = 10; return true;   // too far / no clear line: close the distance
 }
 
+/* killer_8 (Alternate) bot: blind, so it plays the camera. Raise the camera, wait a moment, snap a picture where survivors probably are (busy generators, its last sighting; Hard even knows where a survivor really is), then chase whoever the picture revealed and go and swing at the afterimages (each one forms a Spawn). Everything goes through hostAct like a human's buttons. */
+function botK8Point(p, B, now) {   // where to point the camera: busy spots, plus the last sighting; the lower the level, the bigger the aim error
+  const A = BA(), c = abHot().map(h => [h[0], h[1], h[2]]);
+  if (B.last && now - B.last.t < 15000) c.push([B.last.x, B.last.y, 3]);
+  if (A.wise >= 2) for (const q of abSurvs()) if (!hatHid(q, now)) c.push([q.x, q.y, 2.5]);   // Hard: has a feeling for where they really are
+  if (!c.length) return [MAP.w / 2, MAP.h / 2];
+  let tot = 0; for (const e of c) tot += e[2] / (200 + Math.hypot(e[0] - p.x, e[1] - p.y) * .3);
+  let r = Math.random() * tot, pick = c[0]; for (const e of c) { r -= e[2] / (200 + Math.hypot(e[0] - p.x, e[1] - p.y) * .3); if (r <= 0) { pick = e; break; } }
+  const err = (2 - A.wise) * 180 + 40;
+  return [Math.max(0, Math.min(MAP.w, pick[0] + (Math.random() - .5) * err)), Math.max(0, Math.min(MAP.h, pick[1] + (Math.random() - .5) * err))];
+}
+function botK8(p, B, now, L, tgt, down) {   // true = it decided the movement / action for this think
+  if (!K8.on || p !== k8Player() || p.carry != null) return false;
+  const A = BA(), T = B.k8 || (B.k8 = { t: 0, cx: 0, cy: 0 });
+  if (K8.cam) {   // camera up: his body stands still; wait a beat, then snap
+    if (p.kick) hostAct(p, 'kick', false);
+    B.still = true; B.tgt = null; B.goal = null; B.tid = -1;
+    if (tgt && Math.hypot(tgt.x - p.x, tgt.y - p.y) < 110 && now - T.t > 400 && abRate(B, 'k8x', 500)) { hostAct(p, 'k8ab', true); abLog('k8.cancel'); return false; }   // someone is right next to him: put the camera down and swing
+    if (now - T.t >= A.delay + 500 && now >= K8.shotCd && abRate(B, 'k8s', 300)) { hostAct(p, 'k8shot', true, Math.round(T.cx) * 8192 + Math.round(T.cy)); abLog('k8.shot'); }
+    else if (now - T.t > 6000 && abRate(B, 'k8x', 500)) { hostAct(p, 'k8ab', true); abLog('k8.cancel'); }   // never leave it up
+    return true; }
+  if (tgt || down) return false;   // someone is in sight (revealed / right next to him) or downed: the normal chase / pickup
+  // afterimages: walk up and swing at the nearest one (each hit forms a Spawn)
+  let ai = null, bd = 1e9; for (const a of K8.ai) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < bd) { bd = d; ai = a; } }
+  if (ai) {
+    if (p.kick) hostAct(p, 'kick', false);
+    if (bd < CFG.ATTACK_REACH * .85) { B.still = true; B.goal = null; S.faceTarget = Math.atan2(ai.y - p.y, ai.x - p.x); if (now >= p.cd && !p.wind && Math.abs(angDiff(S.face, S.faceTarget)) < .3 && inSector(p.x, p.y, S.face, ai.x, ai.y, p.id)) { hostAct(p, 'attack', true); abLog('k8.aihit'); } }
+    else { B.goal = [ai.x, ai.y]; B.arrive = 30; }
+    return true; }
+  // nothing to chase: raise the camera now and then (rate-limited so it also patrols between pictures)
+  if (now >= K8.shotCd && !p.wind && abRate(B, 'k8f', A.wise === 0 ? 9000 : A.wise === 1 ? 6000 : 4000) && Math.random() < A.use) {
+    const pt = botK8Point(p, B, now); T.cx = pt[0]; T.cy = pt[1]; T.t = now;
+    if (p.kick) hostAct(p, 'kick', false);
+    hostAct(p, 'k8ab', true); abLog('k8.cam'); return true; }
+  return false;
+}
+
 /* ---------- the dispatcher the killer think calls ---------- */
 function botKAb(p, B, now, L, tgt, down) {   // true = it decided the movement / action for this think
   if (p.st === 'dead') return false; const ki = kAbIdx(p.id);
@@ -2065,6 +2102,7 @@ function botKAb(p, B, now, L, tgt, down) {   // true = it decided the movement /
   else if (ki === 5) botK5(p, B, now, tgt);
   else if (ki === 6) { if (botK6(p, B, now, L, tgt, down)) return true; }
   else if (ki === 7) { if (botK7(p, B, now, L, tgt, down)) return true; }
+  else if (ki === 8) { if (botK8(p, B, now, L, tgt, down)) return true; }
   return false;
 }
 function botKRoam(p, B, now) {   // nobody in sight: ability errands (willows, scents, guards) instead of the plain patrol
@@ -2173,7 +2211,7 @@ const canMove = p => (S.phase === 'hunt' && !(p.role === 'killer' && K4.lg)) || 
 /* ---- CHARACTER SELECT (cosmetic, host-authoritative). S.pick[id] = { c, locked } on the host and on every client; an id with no entry is implicitly { c: id % CHARS.length, locked: false }.
    The final choice is written to p.ch (roster 'ch') when select ends. Wire: c->h {t:'pick',c} {t:'lock'}; h->all {t:'ch',id,c,locked}; late joiners get pk:[[id,c,locked]] in welcome/start. ---- */
 const dfltCh = id => ((id % CHARS.length) + CHARS.length) % CHARS.length;
-const KILLERS = [{ name: 'Jigsaw', flavor: 'Find them. Hang them. Before dawn.', col: '#ff4f57' }, { name: 'The Banshee', flavor: 'You will hear her before you see her.', col: '#3affd0' }, { name: 'The Demogorgon', flavor: 'It opens. It hungers. It always finds you.', col: '#d1454f' }, { name: 'Freaky Nikki', flavor: 'She quit hiding it. Smile back.', col: '#e0264a' }, { name: 'Huggy Wuggy', flavor: 'Come here. Give me a big, big hug.', col: '#2f6bff' }, { name: 'The Boiled One', flavor: 'Skin like a scalded wound. It never stops screaming.', col: '#ff3b30' }, { name: 'The Skinwalker', flavor: 'It knows your voice. It never needed a face.', col: '#e9e6dc' }, { name: 'Game Guard', flavor: 'Rule one: nobody leaves the game.', col: '#ff4fa8' }];   // cosmetic only: same stats
+const KILLERS = [{ name: 'Jigsaw', flavor: 'Find them. Hang them. Before dawn.', col: '#ff4f57' }, { name: 'The Banshee', flavor: 'You will hear her before you see her.', col: '#3affd0' }, { name: 'The Demogorgon', flavor: 'It opens. It hungers. It always finds you.', col: '#d1454f' }, { name: 'Freaky Nikki', flavor: 'She quit hiding it. Smile back.', col: '#e0264a' }, { name: 'Huggy Wuggy', flavor: 'Come here. Give me a big, big hug.', col: '#2f6bff' }, { name: 'The Boiled One', flavor: 'Skin like a scalded wound. It never stops screaming.', col: '#ff3b30' }, { name: 'The Skinwalker', flavor: 'It knows your voice. It never needed a face.', col: '#e9e6dc' }, { name: 'Game Guard', flavor: 'Rule one: nobody leaves the game.', col: '#ff4fa8' }, { name: 'Alternate', flavor: 'It can\u2019t see you. It just heard you say come outside.', col: '#d8dbe8' }];   // cosmetic only: same stats
 let testKiller = -1;   // test room, you as survivor: which killer the bot plays (-1 = random, else an index into KILLERS)
 const isKiller = id => { const q = S.players.find(x => x.id === id); return !!q && q.role === 'killer'; };
 const pickOf = id => S.pick[id] || { c: isKiller(id) ? 0 : dfltCh(id), locked: false };
@@ -2351,6 +2389,7 @@ function soloSlowMult(now) { return CFG.ATTACK_SLOW_MULT + (CFG.SOLO_SLOW_MULT -
 function speedOf(p, now) {   // world units / second for this player's role + state
   if (p.role === 'survivor' && p.lk >= 0) return 0;   // killer_7: hiding in a locker
   if (p.role === 'killer' && isK2(p.id) && K2.tv >= 0) return 0;   // inside a TV: he does not walk
+  if (p.role === 'killer' && isK8(p.id) && K8.cam) return 0;   // killer_8: he stands still while the camera is up
   let base;
   if (p.role === 'killer') { base = p.carry != null ? CFG.CARRY_SPEED : CFG.KILLER_SPEED; if (EG.final) base *= CFG.MONSTER_SPEED_MULT; else if (EG.solo) base *= 1 + (CFG.SOLO_SPEED_MULT - 1) * soloFrac(now); if (p.carry != null && (EG.final || EG.solo)) base *= EG.final ? CFG.CARRY_BOOST_MULT : 1 + (CFG.SOLO_CARRY_BOOST_MULT - 1) * soloFrac(now); if (p.carry == null) base *= 1 + CFG.CHASE_MAX_BONUS * chaseMulOf(p) * (S.chase || 0); if (k6Disg(p)) base = CFG.SURVIVOR_SPEED; if (isK5(p.id)) { base *= K5_BASE; if (K5.act) base *= K5_SLOW + (1 - K5_SLOW) * Math.max(0, Math.min(1, (now - K5.actAt) / K5_SLOW_DECAY_MS)); else if (K5.onTrail) base *= K5_TRAIL_BOOST; } }   // killer_5: TRAIL slows him by 30% at the moment it is switched on, easing back to normal over K5_SLOW_DECAY_MS; TRAIL off while standing in his own trail = +40%   // dawn has broken: the killer speeds up; chase momentum (S.chase 0..1) adds up to CHASE_MAX_BONUS while he keeps a survivor in his beam
   else switch (p.st) { case 'downed': base = CFG.CRAWL_SPEED; break; case 'carried': case 'hooked': case 'dead': return 0; default: base = CFG.SURVIVOR_SPEED * (k3FrogOn(p, now) ? K3_FROG_SPEED : 1); }
@@ -2957,7 +2996,7 @@ function hitSurvivor(v, now, minion) {   // minion = 1: hit by one of killer_3's
   if (k3FrogOn(v, now)) k3FrogEnd(v, false);   // command 7: a frog that gets hit turns back at once; the hit below still deals its normal damage
   if (!minion) { k6ChaosEnd();   // killer_6: CHAOS ends with his first landed hit
     k3Reveal(); }   // (killer_3 only) a landed hit ends the post-teleport invisibility
-  if (!K0.x && v.role === 'survivor' && K0.stock < K0_MAX_STOCK && k0Player()) { K0.stock = Math.min(K0_MAX_STOCK, K0.stock + 1); woSend('k0'); }   // killer_0: a landed hit adds a trap charge (max 9; a reverse bear trap's own blast does not add one). The 20 s charge timer is not touched
+  if (!K0.x && v.role === 'survivor' && K0.stock < K0_MAX_STOCK && k0Player()) { K0.stock = Math.min(K0_MAX_STOCK, K0.stock + 1); woSend('k0'); }   // killer_0: a landed hit adds a trap charge (max 7; a reverse bear trap's own blast does not add one). The 20 s charge timer is not touched
   v.gateT = 0;   // a hit resets the 2 s escape bar
   for (const h of HP.values()) if (h.st === 'hooked' && v.hold && h.hookIdx >= 0 && h.prog > 0) {   // the rescuer got hit: progress resets
     const hp = MAP.hooks[h.hookIdx]; if (Math.hypot(v.x - hp[0], v.y - hp[1]) <= CFG.RESCUE_R * pkRangeMul(v.id) + CFG.ACT_SLACK) { h.prog = 0; sendRp(h); } }
@@ -2999,19 +3038,21 @@ function resolveAttack(k, now) {
     if (rew) useFace = snap.f;
     hit = true; TW.extra = []; hitSurvivor(v, now); hits.push([v.id, v.st]); for (const e of TW.extra) hits.push(e); TW.extra = [];   // v.st = 'injured' | 'downed' after the hit
   }
+  let k8Aih = false;
+  if (isK8(k.id) && K8.ai.length) for (const a of K8.ai.slice()) { if (!inSector(k.x, k.y, S.face, a.x, a.y, k.id)) continue; K8.ai = K8.ai.filter(x => x !== a); k8Aih = true; k8AiHit(a, now); woSend('k8'); }   // killer_8: hitting an afterimage removes it (no damage; the swing still has its cooldown, but NO slow). It forms a SPAWN on that survivor and halves his swing cooldown
   for (const c of DCY.slice()) {   // phantoms (survivor-made) can be hit: they pop in a 0.7 s holy light that blinds the killer and disables his ability for 3 s
     if (c.role !== 'survivor' || (isK2(k.id) && k2Lk(c.owner)) || !inSector(k.x, k.y, S.face, c.x, c.y, k.id)) continue;
     DCY = DCY.filter(x => x !== c); woSend('dc'); evSend({ k: 'puff', x: c.x, y: c.y, ti: 2 });
     evSend({ k: 'bang', x: c.x, y: c.y, by: c.owner, r: 0, only: k.id, ms: CFG.PH_BLIND_MS, ab: CFG.PH_AB_MS });
   }
   if (doorBreakCheck(k)) hit = true;   // breaking a barricade counts like a connected swing (same cooldown as any swing)
-  const ms = hit ? cdHitOf(k.id) : cdMissOf(k.id); k.cd = now + ms; notifyCd(k, ms); addMod(k, 'attackSlow', EG.final ? CFG.MONSTER_SLOW_MULT : EG.solo ? soloSlowMult(now) : CFG.ATTACK_SLOW_MULT, k3SlowMs(k.id, hit ? ms : Math.round(ms * 0.65)), now);   // a miss slows 35% shorter than its cooldown
+  const ms = hit ? cdHitOf(k.id) : k8Aih ? Math.round(cdMissOf(k.id) * K8_AI_CD_MULT) : cdMissOf(k.id); k.cd = now + ms; notifyCd(k, ms); if (!(k8Aih && !hit)) addMod(k, 'attackSlow', EG.final ? CFG.MONSTER_SLOW_MULT : EG.solo ? soloSlowMult(now) : CFG.ATTACK_SLOW_MULT, k3SlowMs(k.id, hit ? ms : Math.round(ms * 0.65)), now);   // a miss slows 35% shorter than its cooldown (killer_8: hitting only an afterimage = no slow)
   const am = { t: 'atk', k: k.id, a: Math.round(useFace * 100) / 100, h: hits };   // swing result for everyone's effects (empty h = miss)
   T.broadcast(am); try { onAtk(am); } catch (e) {}   // the host is a player too; cosmetic code can never break the simulation
 }
-const ACTS = ['k2hop', 'attack', 'pickup', 'hook', 'rescue', 'repair', 'kick', 'barricade', 'breakdoor', 'reform', 'sab', 'sabrep', 'sabfail', 'sabdone', 'sabcancel', 'item', 'shopbuy', 'k0place', 'k0cancel', 'scdone', 'rbtoff', 'rbdone', 'rbfail', 'rbcancel', 'disarm', 'disdone', 'disfail', 'discancel', 'drop', 'k1ab', 'k3wish', 'k3target', 'k3cancel', 'k6ab', 'k6scr', 'k5ab', 'k2ab', 'k4chg', 'k4rel', 'abx', 'enchant', 'k7ab', 'lkin', 'lkout', 'lkopen', 'k7rldone', 'k7rlfail'];
-const ABIL_ONLY_ACTS = ['k2hop', 'reform', 'shopbuy', 'k0place', 'k0cancel', 'scdone', 'rbtoff', 'rbdone', 'rbfail', 'rbcancel', 'disarm', 'disdone', 'disfail', 'discancel', 'k1ab', 'k3wish', 'k3target', 'k3cancel', 'k6ab', 'k6scr', 'k5ab', 'k2ab', 'k4chg', 'k4rel', 'abx', 'sab', 'sabrep', 'sabfail', 'sabdone', 'sabcancel', 'enchant', 'k7ab', 'lkin', 'lkout', 'lkopen', 'k7rldone', 'k7rlfail'];   // everything that only exists with killer abilities ON (host rejects them when OFF)
-const AB_ACTS = ['shopbuy', 'k0place', 'k1ab', 'k2ab', 'k4chg', 'k5ab', 'k6ab', 'k6scr', 'k3wish', 'k3target', 'k7ab'];   // every killer ability press (the swing, kick, pickup and hook are NOT abilities)
+const ACTS = ['k2hop', 'attack', 'pickup', 'hook', 'rescue', 'repair', 'kick', 'barricade', 'breakdoor', 'reform', 'sab', 'sabrep', 'sabfail', 'sabdone', 'sabcancel', 'item', 'shopbuy', 'k0place', 'k0cancel', 'scdone', 'rbtoff', 'rbdone', 'rbfail', 'rbcancel', 'disarm', 'disdone', 'disfail', 'discancel', 'drop', 'k1ab', 'k3wish', 'k3target', 'k3cancel', 'k6ab', 'k6scr', 'k5ab', 'k2ab', 'k4chg', 'k4rel', 'abx', 'enchant', 'k7ab', 'lkin', 'lkout', 'lkopen', 'k7rldone', 'k7rlfail', 'k8ab', 'k8shot', 'cleanse'];
+const ABIL_ONLY_ACTS = ['k2hop', 'reform', 'shopbuy', 'k0place', 'k0cancel', 'scdone', 'rbtoff', 'rbdone', 'rbfail', 'rbcancel', 'disarm', 'disdone', 'disfail', 'discancel', 'k1ab', 'k3wish', 'k3target', 'k3cancel', 'k6ab', 'k6scr', 'k5ab', 'k2ab', 'k4chg', 'k4rel', 'abx', 'sab', 'sabrep', 'sabfail', 'sabdone', 'sabcancel', 'enchant', 'k7ab', 'lkin', 'lkout', 'lkopen', 'k7rldone', 'k7rlfail', 'k8ab', 'k8shot', 'cleanse'];   // everything that only exists with killer abilities ON (host rejects them when OFF)
+const AB_ACTS = ['shopbuy', 'k0place', 'k1ab', 'k2ab', 'k4chg', 'k5ab', 'k6ab', 'k6scr', 'k3wish', 'k3target', 'k7ab', 'k8ab', 'k8shot'];   // every killer ability press (the swing, kick, pickup and hook are NOT abilities)
 function abLockSet(p, ms, now) { if (!abilitiesOn() || !p || p.role !== 'killer') return; p.abLock = Math.max(p.abLock || 0, now + ms); sxSend(p.id, 'ablock', ms); }   // the killer's ability button is disabled for ms (the client greys the button out)
 function hostAct(p, a, down, n) {   // validates range, state and cooldowns; clients only ever REQUEST
   if (!S.started || S.phase !== 'hunt' || ACTS.indexOf(a) < 0 || p.st==='sent' || inUD(p.x,p.y)) return;
@@ -3022,8 +3063,9 @@ function hostAct(p, a, down, n) {   // validates range, state and cooldowns; cli
   if (down && p.role === 'survivor' && K3_FROG_BLOCK.indexOf(a) >= 0 && k3FrogOn(p)) { const t = performance.now(); if (!(p.frogMsgAt > t)) { p.frogMsgAt = t + 1500; msgTo(p, "Frogs can't do that"); } return; }   // command 7: a frog can't START an interaction (letting go of a held button still goes through)
   if (down && p.role === 'killer' && isK2(p.id) && K2.tv >= 0) { if (a === 'attack') { k2Ability(p, performance.now()); return; } if (a !== 'k2ab' && a !== 'k2hop' && a !== 'abx') return; }   // inside a TV the ATTACK button leaves the rift (same as the ability button); he can do NOTHING else (no pickup, hook, kick, barricade)
   if (p.role === 'survivor' && p.lk >= 0 && a !== 'lkout') { if (!down) { p.rep = p.hold = false; } return; }   // killer_7: hiding in a locker: nothing else works
+  if (down && p.role === 'killer' && isK8(p.id) && K8.cam && a !== 'k8ab' && a !== 'k8shot' && a !== 'abx') return;   // killer_8: while he films through the camera he can do NOTHING else (no swing, pickup, hook, kick, barricade)
   if (a === 'abx') { if (down && p.role === 'killer') abLockSet(p, Math.max(0, Math.min(CFG.FB_AB_MS, n | 0)), performance.now()); return; }   // the killer's client reports it was blinded by a Holy Light / phantom flash: ability disabled
-  if (down && p.role === 'killer' && (p.abLock || 0) > performance.now() && AB_ACTS.indexOf(a) >= 0 && !(isK2(p.id) && K2.tv >= 0)) { msgTo(p, 'Ability disabled'); return; }
+  if (down && p.role === 'killer' && (p.abLock || 0) > performance.now() && AB_ACTS.indexOf(a) >= 0 && !(isK2(p.id) && K2.tv >= 0) && !(isK8(p.id) && K8.cam && a === 'k8ab')) { msgTo(p, 'Ability disabled'); return; }
   if (a === 'rescue') { p.hold = !!down && (p.role === 'survivor' || k6Disg(p)); return; }   // held flag; progress is stepped in stepCombat
   if (a === 'repair') { p.rep = !!down && (p.role === 'survivor' || k6Disg(p)); return; }     // held flag; the survivor is counted as a repairer in genStep (range / state checked there)
   if (a === 'kick') { p.kick = !!down && p.role === 'killer' && !K6.form; p.kickT = 0; p.kickGen = -1; return; }
@@ -3037,6 +3079,9 @@ function hostAct(p, a, down, n) {   // validates range, state and cooldowns; cli
   if (a === 'sabcancel') { if (down && p.sbSC) { p.sbSC = 0; p.sbBlk = true; } return; }
   if (a === 'enchant') { if (down) ddTap(p); return; }   // DEMONIC DEAL: a single tap
   if (a === 'k7rldone' || a === 'k7rlfail') { if (down) k7RlAnswer(p, a === 'k7rldone', performance.now()); return; }   // a survivor answered the RED LIGHT skill check
+  if (a === 'cleanse') { p.cl = !!down && p.role === 'survivor'; if (!p.cl) p.clT = 0; return; }   // killer_8: a survivor HOLDS cleanse next to the cross of the spawn that hunts them for K8_CLN_MS (progress is stepped in k8Step)
+  if (a === 'k8ab') { if (down) k8Ability(p, performance.now()); return; }   // killer_8: camera on / off
+  if (a === 'k8shot') { if (down) k8Shot(p, n, performance.now()); return; }   // killer_8: take a picture (n = the camera position packed by k8Pack)
   if (a === 'k7ab') { if (down) k7Ability(p, performance.now()); return; }   // killer_7: swap knife / rifle
   if (a === 'lkin') { if (down) k7Enter(p, performance.now()); return; }   // killer_7: a survivor hides in a locker
   if (a === 'lkout') { if (down) k7Exit(p); return; }
@@ -3247,7 +3292,7 @@ const isK2 = id => kAbIdx(id) === 2;
    the clients kept it for the whole match (drawHookAt / k2Blind only tested that S.wo.k2 EXISTED).
    Fixes: syncChars() right after the roster is rebuilt; woList() refuses killer-exclusive channels unless the owner is the real, finalised killer;
    woSanitize() (client AND host) drops any killer-exclusive channel whose owner is not the active killer; k2On() = "the TVs / blind rules are live". */
-const WO_OWNER = { k0: 0, k1: 1, k2: 2, k3: 3, k3x: 3, k3m: 3, k4: 4, k5: 5, k6: 6, k7: 7 };   // world-object channel -> the KILLERS index that owns it
+const WO_OWNER = { k0: 0, k1: 1, k2: 2, k3: 3, k3x: 3, k3m: 3, k4: 4, k5: 5, k6: 6, k7: 7, k8: 8 };   // world-object channel -> the KILLERS index that owns it
 function syncChars() { S.chars = {}; for (const p of S.players) S.chars[p.id] = p.ch; }   // final characters straight from the CURRENT roster
 const charsFinal = () => S.started && S.phase !== 'reveal' && S.phase !== 'select' && S.phase !== 'lobby';   // before the select phase ends nobody's killer character is final
 function woSanitize() {
@@ -3350,7 +3395,7 @@ function k2Hop(p, now, dir) {   // the travel arrow: slide to the ONE next TV of
    He can't charge or lunge while the slow of a swing (missed or landed, mod 'attackSlow') is running.
    LUNGE (ability button, 3 charges): TAP the ability = a short dash (K4_LG_MIN units); HOLD it = charge a long lunge (he walks at x0.9 meanwhile, a 10% penalty; full charge after K4_CH_FULL ms,
    K4_LG_MIN..K4_LG_MAX units by charge), letting go fires it straight ahead - or it fires by itself once the hold reaches K4_CH_MAX_MS - (his input is ignored while it flies).
-   Every survivor the path touches is slowed to x0.3 for 3 s. He has K4_CHARGES charges (K4.cds[i] = the time charge i is ready again); used charges come back ONE AFTER ANOTHER: only one recharge runs at a time and each takes K4_LG_CD (12 s) (a charge that is spent while others are recharging is queued behind them).
+   Every survivor the path touches is shoved along in front of him (no slow). He has K4_CHARGES charges (K4.cds[i] = the time charge i is ready again); used charges come back ONE AFTER ANOTHER: only one recharge runs at a time and each takes K4_LG_CD (12 s) (a charge that is spent while others are recharging is queued behind them).
    Acts 'k4chg' (ability pressed) / 'k4rel' (ability released, n = 1 fire, 0 cancel), host k4Charge / k4Release / k4Fire / k4Lunge, client abilityPress / abUp, k4LungeFx, event 'k4l'.
    WHERE: K4 state, k4Player, k4Step (host, called from the main tick during headstart AND hunt), state sync WO_KINDS 'k4' (woList case 'k4', applyWo, woEmpty, itemsInit);
    client: K4_PAL (sprite colours, used by huggyBmp), drawK4World (the charge tell + lunge streaks), k4Icon (button face), updateControls (J4).
@@ -3411,7 +3456,7 @@ function k4Lunge(B, now) {   // LUNGE: charging slows him; a lunge in flight dri
     if (v.role !== 'survivor' || !v.on || L.hit[v.id] || (GOD && v.host) || (v.st !== 'healthy' && v.st !== 'injured' && v.st !== 'downed')) continue;
     const t = sl > 1e-6 ? Math.max(0, Math.min(1, ((v.x - px) * sx + (v.y - py) * sy) / sl)) : 0;   // closest point of this tick's piece of the path
     if (Math.hypot(v.x - (px + sx * t), v.y - (py + sy * t)) > K4_LG_W / 2 + CFG.RADIUS) continue;
-    L.hit[v.id] = 1; addMod(v, 'k4lg', K4_LG_SLOW, K4_LG_SLOW_MS, now); msgTo(v, 'Caught in the lunge!');
+    L.hit[v.id] = 1;   // caught: shoved along by the dash (below), no slow
   }
   { const off = CFG.RADIUS * 2;   // everyone he has caught is shoved along in front of him, so they end up at the far edge of the dash (walls still stop them)
     for (const id in L.hit) { const v = HP.get(+id); if (!v || !v.on || (v.st !== 'healthy' && v.st !== 'injured' && v.st !== 'downed')) continue;
@@ -3443,8 +3488,8 @@ function k4Fire(B, t, now) {   // the lunge itself for a charge that lasted t ms
   evSend({ k: 'k4l', x0: Math.round(B.x), y0: Math.round(B.y), a: Math.round(a * 100) / 100, d: Math.round(d) });
   woSend('k4');
 }
-const WO_KINDS = ['ud', 'dr', 'tr', 'sl', 'fl', 'fb', 'sm', 'dc', 'ne', 'k0', 'k1', 'k3x', 'k6', 'k5', 'k2', 'k4', 'um', 'k3m', 'tw', 'sb', 'k7'];
-function itemsInit() { fogNextAt = 0; DR = { list: [], next: 0, nid: 1 }; TRP = []; SLK = []; FLR = []; FBG = []; SMK = []; DCY = []; ITN = 1; DCN = 0; DRN = []; NE = { k: 0, s: {} }; K0 = k0Empty(); K1 = k1Empty(); K3 = k3Empty(); K6 = k6Empty(); K7 = k7Empty(); K5 = k5Empty(); K2 = k2Empty(); K4 = k4Empty(); UM = umEmpty(); for (const q of HP.values()) { q.rm = false; q.rmSC = 0; q.rmBlk = false; q.dm = false; q.dsSC = 0; q.dmBlk = false; } }
+const WO_KINDS = ['ud', 'dr', 'tr', 'sl', 'fl', 'fb', 'sm', 'dc', 'ne', 'k0', 'k1', 'k3x', 'k6', 'k5', 'k2', 'k4', 'um', 'k3m', 'tw', 'sb', 'k7', 'k8'];
+function itemsInit() { fogNextAt = 0; DR = { list: [], next: 0, nid: 1 }; TRP = []; SLK = []; FLR = []; FBG = []; SMK = []; DCY = []; ITN = 1; DCN = 0; DRN = []; NE = { k: 0, s: {} }; K0 = k0Empty(); K1 = k1Empty(); K3 = k3Empty(); K6 = k6Empty(); K7 = k7Empty(); K8 = k8Empty(); K5 = k5Empty(); K2 = k2Empty(); K4 = k4Empty(); UM = umEmpty(); for (const q of HP.values()) { q.rm = false; q.rmSC = 0; q.rmBlk = false; q.dm = false; q.dsSC = 0; q.dmBlk = false; } }
 function woList(k, now) {
   const left = t => Math.max(0, Math.round(t - now));
   { const ow = WO_OWNER[k]; if (ow !== undefined && (!charsFinal() || kAbIdx(killerIdRaw()) !== ow)) return []; }   // killer-exclusive channel: only the real, finalised owner may ship it
@@ -3462,6 +3507,7 @@ function woList(k, now) {
     case 'k1': { if (!k1Player()) return []; const r = v => Math.round(v); return [left(K1.wailAt), left(K1.gdAt), Object.keys(K1.f).map(id => [+id, Math.round(K1.f[id] * 10) / 10]), K1.clones.map(c => [c.id, r(c.x), r(c.y), r(c.vx), r(c.vy), left(c.end), c.tk, c.ti]), Object.keys(K1.brk).concat(Object.keys(K1.imm).filter(id => !(id in K1.brk))).map(id => [+id, left(K1.brk[id] || 0), left(K1.imm[id] || 0)]).filter(e => e[1] || e[2])]; }   // killer_1 (see the KILLER_1 section)
     case 'k5': { if (!k5Player()) return []; return [K5.act ? 1 : 0, Math.round(K5.torm * 10) / 10, left(K5.cd), K5.rings.map(r => [r.id, r.k, r.i, r.x, r.y, r.end ? Math.max(1, left(r.end)) : 0, Math.round(now - r.t0)]), K5.mv ? 1 : 0, K5.chg ? 1 : 0, Object.keys(K5.cond).map(id => [+id, Math.round(K5.cond[id].b), K5.cond[id].c]), Object.keys(K5.ping).map(id => [+id, Math.max(1, left(K5.ping[id]))])]; }   // killer_5 (see the KILLER_5 section)
     case 'k6': { if (!k6Player()) return []; return [K6.form, K6.tid, left(K6.tfEnd), left(K6.chEnd), left(K6.cd), left(K6.chAt), K6.fh, Math.round(K6.fp), K6.fo ? 1 : 0]; }   // killer_6 (see the KILLER_6 section)
+    case 'k8': { if (!k8Player()) return []; return [K8.cam ? 1 : 0, left(K8.shotCd), K8.sn, Object.keys(K8.rev).map(id => [+id, left(K8.rev[id])]), K8.ai.map(a => [a.id, a.v, a.x, a.y, a.dk ? 1 : 0]), K8.sh.map(h => [h.id, h.v, Math.round(h.x), Math.round(h.y), h.st, Math.round(now - h.born), Math.round(h.ix * 100), Math.round(h.iy * 100), Math.round(h.cx), Math.round(h.cy), h.cp | 0]), Object.keys(K8.mk).map(id => [+id, left(K8.mk[id])]), Object.keys(K8.mad).map(id => [+id, K8.mad[id].map(t => left(t))])]; }   // killer_8 (see the KILLER_8 section)
     case 'k7': { if (!k7Player()) return []; return [K7.form, K7.bul, left(K7.swEnd), K7.L.map(l => [Math.round(l.x), Math.round(l.y), l.nx, l.ny, l.occ]), Object.keys(K7.h).map(id => [+id, K7.h[id]]), Object.keys(K7.w).filter(id => K7.w[id].rev > now).map(id => [+id, left(K7.w[id].rev), left(K7.w[id].bl), K7.w[id].n]), Object.keys(K7.dolls).map(gi => { const D = K7.dolls[gi]; return [Math.round(D.x), Math.round(D.y), D.st, left(D.stEnd), D.gi]; })]; }   // killer_7 (see the KILLER_7 section)
     case 'k4': { if (!k4Player()) return []; return [K4.cds.map(left), K4.ch ? Math.round(now - K4.ch) : -1, K4.lg ? 1 : 0, left(K4.slU), K4.bl > now ? 1 : 0]; }   // killer_4 (see the KILLER_4 section)
     case 'k2': { if (!k2Player()) return []; return [K2.tid, K2.n, K2.sc.map(q => [q.id, q.x, q.y, Math.round(now - q.t0)]), K2.tv, left(K2.tx), left(K2.tcd), K2.pt, left(K2.pe), left(K2.cd)]; }
@@ -3551,11 +3597,11 @@ function throwPt(p, d) {   // where a thrown grenade lands: ahead of the thrower
    ################################################################################################
 
    WHAT HE DOES
-   - Trap charges: he carries up to 9 (K0_MAX_STOCK) and starts with K0_START_STOCK. One new charge every 20 s (K0_CHARGE_MS), the next one starts charging right away;
+   - Trap charges: he carries up to 7 (K0_MAX_STOCK) and starts with K0_START_STOCK. One new charge every 20 s (K0_CHARGE_MS), the next one starts charging right away;
      a landed hit adds a charge too (it does not reset the timer). A sprung trap gives nothing.
    - The ability button is TRAPS ("Traps xN", or just "Ns" at x0). Tapping it opens the PLACEMENT SCREEN (the mini map): every placement uses up 1 trap charge, he can tap
      several spots in a row until his charges run out (the screen then closes; tap Traps again later).
-       1 Trap         (1 charge each) place anywhere on the map. Keeps up to 9 traps on the map at once; placing a 10th removes the oldest (first placed) trap.
+       1 Trap         (1 charge each) place anywhere on the map. Keeps up to 7 traps on the map at once; placing an 8th removes the oldest (first placed) trap.
                       ONE trap type, drawn as his bear trap. PERMANENT: it is never used up, it re-arms 1.5 s after it springs.
                       When a survivor steps on it: (1) they are SLOWED 100% (speed x0) for 0.5 s (K0_STOP_MS), then the slow wears off linearly over 4 s (K0_SLOW_MS);
                       the killer gets a 2 s live ping on them. (2) AND a 50 s REVERSE BEAR TRAP clamps onto them: a teammate must remove it (4 circular skill checks, each miss costs 2.5 s
@@ -3585,14 +3631,14 @@ function throwPt(p, d) {   // where a thrown grenade lands: ahead of the thrower
       - the button:         itemPress -> abilityPress
    ################################################################################################ */
 /* ================= KILLER_0: trap charges =================
-   Up to 9 trap charges (+1 every 20 s, +1 per landed hit). Each placement uses 1 charge: one permanent trap type (0.5 s full stop, then a slow wearing off over 4 s + 50 s reverse bear trap, up to 9 on the map; the next placement replaces the oldest). One IR Scanner is planted for free at the start of the hunt (K0.free). */
+   Up to 7 trap charges (+1 every 20 s, +1 per landed hit). Each placement uses 1 charge: one permanent trap type (0.5 s full stop, then a slow wearing off over 4 s + 50 s reverse bear trap, up to 7 on the map; the next placement replaces the oldest). One IR Scanner is planted for free at the start of the hunt (K0.free). */
 let K0_COST = [0, 1, 0, 0], K0_NAME = ['', 'Trap', 'IR Scanner', 'Reverse Trap'],   // the IR Scanner is no longer in the shop: he places ONE for free at the start (cost 0)
    
-    K0_W = 2.4, K0_TRAP_R = 32.4, K0_SPOT_R = 84 * .7 * 1.2 * .97 * 1.3, K0_DIS_R = K0_SPOT_R, K0_DIS_MS = 1500, K0_R = 290, K0_HA = .09, K0_RBT_MS = 50000, K0_RBT_PEN = 2500;   // each failed removal skill check takes 2.5 s off the reverse trap's timer
+    K0_W = 2.4, K0_TRAP_R = 32.4, K0_SPOT_R = 84 * .7 * 1.2 * .97 * 1.3 * 1.5, K0_DIS_R = K0_SPOT_R,   /* traps are seen from 50% further away, and the disarm reach matches it */ K0_DIS_MS = 1500, K0_R = 290, K0_HA = .09, K0_RBT_MS = 50000, K0_RBT_PEN = 2500;   // each failed removal skill check takes 2.5 s off the reverse trap's timer
 let K0_TRAP_PAY = 0, K0_PAY_CD = 6000, K0_TRACK_MS = 2000, K0_STOP_MS = 0, K0_SLOW_MS = 2000;   // trap payoff: coins per sprung trap (same as a landed hit) / min gap between payouts / tracking time after the last refresh / how long the trap's slow takes to wear off (starts at a 100% slow)
 let K0_ARM_MS = 800, K0_REARM_MS = 1500, K0_IMM_EXTRA_MS = 1000, K0_RB_REACH = 90, K0_RB_MIN_SURV = 2, K0_BLAST_PING_MS = 1000, K0_RBT_CHECKS = 4, K0_RBT_ZONE = 1.1, K0_RBT_SPEED = 2.6;   // TUNE: promoted magic numbers - a new trap arms after K0_ARM_MS / a sprung trap re-arms after K0_REARM_MS / the victim cannot spring another for this long after the slow / a teammate must stand within K0_RB_REACH to remove a reverse trap / survivors that must be up for one to clamp / the blast pings the victim this long / removal skill check: checks, green zone (rad), needle speed (rad/s)
-let K0_MAX_STOCK = 9, K0_CHARGE_MS = 20000, K0_START_STOCK = 0, K0_MAX_TRAPS = 9, K0_SCAN_DELAY = 3000, K0_SCAN_REVEAL_MS = 6000;   // trap charges he can carry (8) / ms to charge one trap (20 s) / charges he starts with / max traps kept on the map; placing beyond the cap replaces the oldest / the scanner wakes this long after it is placed
-const K0_DESC = ['', '100% slow that fades over 2s, pings, 50s reverse trap. Up to 9; permanent, but survivors can disarm it.', 'Pings movers and repairers. Starts in 3s.', ''];
+let K0_MAX_STOCK = 7, K0_CHARGE_MS = 20000, K0_START_STOCK = 0, K0_MAX_TRAPS = 7, K0_SCAN_DELAY = 3000, K0_SCAN_REVEAL_MS = 6000;   // trap charges he can carry (8) / ms to charge one trap (20 s) / charges he starts with / max traps kept on the map; placing beyond the cap replaces the oldest / the scanner wakes this long after it is placed
+const K0_DESC = ['', '100% slow that fades over 2s, pings, 50s reverse trap. Up to 7; permanent, but survivors can disarm it.', 'Pings movers and repairers. Starts in 3s.', ''];
 function k0Empty() { return { stock: Math.min(K0_START_STOCK, K0_MAX_STOCK), nx: 0, held: 0, free: 1, traps: [], scans: [], rb: {}, ping: {}, n: 1, x: 0, q: [] }; }   // free = starting IR scanners he may still place for free (1: the placement screen opens when the hunt begins)
 let K0 = k0Empty();
 let K0_SCAN_SLOW = .7, K0_SCAN_SLOW_MS = 4000;   // a survivor the scanner caught in the last 4 s repairs generators at 70% speed
@@ -3853,7 +3899,7 @@ let K0P = null, K0PW = 0;   // K0P: the open placement screen; K0PW: when a trap
 @media (max-height:480px){#k0map .box{gap:4px;padding:6px}#k0map .tt{font-size:15px}#k0map .hd img{width:28px;height:28px}#k0map .sb{font-size:9px}#k0map .x{height:36px;min-height:36px}#k0map .ft{font-size:9px}}`;
   document.head.appendChild(st);
 })();
-const K0_PICK = { 1: ['Set the traps', 'Tap bare floor · uses 1 trap · permanent · max 9'], 2: ['Plant your IR scanner', 'Tap open floor · free · wakes after 3s'] };
+const K0_PICK = { 1: ['Set the traps', 'Tap bare floor · uses 1 trap · permanent · max 7'], 2: ['Plant your IR scanner', 'Tap open floor · free · wakes after 3s'] };
 function k0SpotFree(x, y) { const M = S.map; if (!M || x < 60 || y < 60 || x > M.w - 60 || y > M.h - 60) return false; for (const w of M.walls) { const dx = x - Math.max(w[0], Math.min(x, w[0] + w[2])), dy = y - Math.max(w[1], Math.min(y, w[1] + w[3])); if (dx * dx + dy * dy < 26 * 26) return false; } return true; }   // client-side preview of the host's k0SpotOK
 let K0PH = 0;   // the last `held` value seen: a switch to 2 during the headstart = the free scanner screen just opened (it opens by itself)
 const k0Me = () => myRole() === 'killer' && isK0(S.me);   // the placement screen belongs to killer_0's own client only
@@ -3924,7 +3970,7 @@ function k0PickDraw(g, P, M) {
 addEventListener('keydown', e => { if (e.code === 'Escape' && K0P) k0PickCancel(); });
 let k0Rz = 0;
 addEventListener('resize', () => { if (!K0P) return; clearTimeout(k0Rz); k0Rz = setTimeout(() => { if (K0P) { k0PickClose(); k0PickOpen(); } }, 150); });   // phone rotated: rebuild at the new size (this is not a cancel, nothing is refunded)
-function abilityPress() { if (!abilitiesOn()) return; if (isK0(S.me) && S.wo.k0) { if (S.wo.k0.held) k0PickOpen(); else if (S.wo.k0.free > 0) { K0PW = performance.now(); sendAct('shopbuy', true, 2); } else if (S.phase === 'headstart') { } else if (S.wo.k0.stock > 0) { K0PW = performance.now(); sendAct('shopbuy', true, 1); } else toast('No traps yet - next in ' + Math.max(1, Math.ceil((S.wo.k0.nx - performance.now()) / 1000)) + 's'); } else if (isK1(S.me) && S.wo.k1) sendAct('k1ab', true); else if (isK3(S.me)) k3AbilityPress(); else if (isK6(S.me) && S.wo.k6) k6AbilityPress(); else if (isK5(S.me) && S.wo.k5) sendAct('k5ab', true); else if (isK2(S.me) && S.wo.k2) sendAct('k2ab', true); else if (isK4(S.me) && S.wo.k4) k4AbDown(); else if (isK7(S.me) && S.wo.k7) sendAct('k7ab', true); }   // killer's ABILITY button / Q: killer_0 = TRAPS (opens the trap placement map)
+function abilityPress() { if (!abilitiesOn()) return; if (isK0(S.me) && S.wo.k0) { if (S.wo.k0.held) k0PickOpen(); else if (S.wo.k0.free > 0) { K0PW = performance.now(); sendAct('shopbuy', true, 2); } else if (S.phase === 'headstart') { } else if (S.wo.k0.stock > 0) { K0PW = performance.now(); sendAct('shopbuy', true, 1); } else toast('No traps yet - next in ' + Math.max(1, Math.ceil((S.wo.k0.nx - performance.now()) / 1000)) + 's'); } else if (isK1(S.me) && S.wo.k1) sendAct('k1ab', true); else if (isK3(S.me)) k3AbilityPress(); else if (isK6(S.me) && S.wo.k6) k6AbilityPress(); else if (isK5(S.me) && S.wo.k5) sendAct('k5ab', true); else if (isK2(S.me) && S.wo.k2) sendAct('k2ab', true); else if (isK4(S.me) && S.wo.k4) k4AbDown(); else if (isK7(S.me) && S.wo.k7) sendAct('k7ab', true); else if (isK8(S.me) && S.wo.k8) sendAct('k8ab', true); }   // killer's ABILITY button / Q: killer_0 = TRAPS (opens the trap placement map)
 /* ################################################################################################
    ##   END OF KILLER_0 ABILITY SET  (see the hook-point list in the big comment at the top)     ##
    ################################################################################################ */
@@ -4959,7 +5005,7 @@ let K3_FROG_R = 300;          // world units: every survivor within this distanc
 let K3_FROG_MS = 30000;       // how long a frog stays a frog before it reverts by itself (ms)
 let K3_FROG_SPEED = .85;      // frog movement speed multiplier (0.85 = 15% slower than a normal survivor)
 let K3_FROG_WIND_MS = 300;    // cast time: the ritual circle on the ground before the spell lands (ms)
-const K3_FROG_BLOCK = ['rescue', 'repair', 'barricade', 'breakdoor', 'reform', 'sab', 'item', 'rbtoff', 'disarm', 'enchant'];   // survivor actions a frog may not START (checked in hostAct; the effect sites in genStep / stepCombat / tsStart / useItem / egStep check it too)
+const K3_FROG_BLOCK = ['rescue', 'repair', 'barricade', 'breakdoor', 'reform', 'sab', 'item', 'rbtoff', 'disarm', 'enchant', 'cleanse'];   // survivor actions a frog may not START (checked in hostAct; the effect sites in genStep / stepCombat / tsStart / useItem / egStep check it too)
 const K3_POOL_ALL = [0, 1, 2, 3, 4, 5, 6, 7];   // every command id: the pool starts as this, and goes back to this when only two are left to make
 function k3Empty() { return { w: [], n: Math.min(K3_START_WILLOWS, K3_STORE_MAX), nid: 1, next: 0, on: false, sync: 0, full: 0, pool: K3_POOL_ALL.slice(), gc: 0, offer: [], aw: -1, gun: 0, love: null, gone: 0, tp: null, tpb: 0, tpv: 0, inv: 0, min: [], mid: 9101, mT: 0, fg: null }; }
 let K3 = k3Empty();   // pool = commands not used yet; offer = the 3 she is currently being shown (kept until she uses one or closes the picker, which rolls a fresh 3); aw = a command waiting for its target / destination (nothing is spent until that arrives)
@@ -5251,7 +5297,7 @@ function drawK3Glints(me, vw, vh, now, role) {
        KNIFE = a normal killer.
        RIFLE = ambient circle unchanged, flashlight cone only K7_ANGLE degrees but K7_RANGE x longer (that is also the bullet's range). ATTACK fires a hitscan bullet
                (like Freaky Nikki's gun): it only hits a survivor inside the narrow cone with a clear line. Every shot costs 1 of K7_BULLETS, has a 0.1 s cooldown (HOLD left click = continuous fire) and slows him by 50% while he fires (K7_SLOW_MS = 0.3 s tail, hit or miss).
-   - HEALTH BAR: every survivor has a K7_HP bar (shown under THEIR minimap, nobody else's). A bullet that hits removes K7_DMG (6%; 17 bullets = a hit) and also reveals the survivor to the killer (event 'bond'), slows them 2% per stacked bullet for 0.2 s and, from the 2nd bullet, makes them bleed (k7Wound; 0.4 s reveal per bullet). At 0 the survivor takes a NORMAL hit
+   - HEALTH BAR: every survivor has a K7_HP bar (shown under THEIR minimap, nobody else's). A bullet that hits removes K7_DMG (7%; 15 bullets = a hit) and also reveals the survivor to the killer (event 'bond'), slows them 2% per stacked bullet for 0.2 s and, from the 2nd bullet, makes them bleed (k7Wound; 0.4 s reveal per bullet). At 0 the survivor takes a NORMAL hit
        (healthy -> injured, injured -> downed), the bar goes back to 100% and he laughs / is slowed like after a swing. Any real hit refills the bar too. No passive regen (only 4 s in a locker heals 50%).
    - LOCKERS: when he is picked, K7_LK_PAIRS pairs (10 lockers, the two of a pair always side by side) are placed against the walls. The killer opens one (OPEN) = his bullets go back to
        K7_BULLETS. A survivor can HIDE in a free one (invisible, cannot move, EXIT button): every second inside heals K7_HEAL_RATE (12.5%) of the bar, so 4 s = 50%. If the killer opens an occupied locker the
@@ -5271,12 +5317,334 @@ function drawK3Glints(me, vw, vh, now, role) {
       - buttons: ctxFor (HIDE / EXIT / OPEN), abilityPress, updateControls (ability + attack labels), CTX_LABEL
       - drawing: killerBmp -> guardBmp, drawKiller (rifle flag), atkAnim, drawSlashSkin, drawItemsWorld -> drawK7World, draw loop -> drawK7Over, INFO_KILLERS (guide)
    ################################################################################################ */
-let K7_TERROR = 1, K7_ANGLE = 8, K7_RANGE = 1.36, K7_BULLETS = 30, K7_HP = 100, K7_DMG = 6, K7_HEAL_RATE = 12.5, K7_W_SLOW = .02, K7_W_SLOW_MS = 200, K7_W_MS = 400, K7_BLEED_MS = 400, K7_SW_MS = 500, K7_SHOT_MS = 100, K7_SHOT_SLOW = .5, K7_SLOW_MS = 300, K7_OPEN_ANIM = 325;   // terror (distance divisor) / rifle cone (degrees) / rifle beam + bullet range (x) / magazine / health bar (percent) / health one bullet takes / swap time / shot cooldown / slow multiplier (50% slower) / how long the shot slow lasts / locker-open animation length
+let K7_TERROR = 1, K7_ANGLE = 8, K7_RANGE = 1.36, K7_BULLETS = 30, K7_HP = 100, K7_DMG = 7, K7_HEAL_RATE = 12.5, K7_W_SLOW = .02, K7_W_SLOW_MS = 200, K7_W_MS = 400, K7_BLEED_MS = 400, K7_SW_MS = 500, K7_SHOT_MS = 100, K7_SHOT_SLOW = .5, K7_SLOW_MS = 300, K7_OPEN_ANIM = 325;   // terror (distance divisor) / rifle cone (degrees) / rifle beam + bullet range (x) / magazine / health bar (percent) / health one bullet takes / swap time / shot cooldown / slow multiplier (50% slower) / how long the shot slow lasts / locker-open animation length
 let K7_LK_PAIRS = 5, K7_LK_W = 60, K7_LK_D = 40, K7_ENTER_ANIM = 375, K7_LK_R = 70, K7_KICK_SLOW = .3, K7_KICK_MS = 1500, K7_OPEN_CD = 700, K7_SEND_MS = 100;   // locker pairs / one locker's width along the wall / depth / interaction reach / kicked-out slow / its length / killer's locker cooldown / resend gap
 let K7_DOLL_FIRST_MIN = 3000, K7_DOLL_FIRST_MAX = 7000, K7_DOLL_CALM_MIN = 2000, K7_DOLL_CALM_MAX = 4000, K7_DOLL_NEXT_MIN = 5000, K7_DOLL_NEXT_MAX = 10000, K7_EMPTY_CD = 500;   // (TUNE) doll: repair time before the FIRST scream (min/max ms) / wait after the doll calmed down / wait after a scream;  attack cooldown with an empty magazine
 let K7_DOLL_WARN_MS = 500, K7_DOLL_SCREAM_MS = 1200, K7_DOLL_CHK_MS = 6000, K7_DOLL_BLOCK_MS = 5000, K7_DOLL_PING_R = 450, K7_DOLL_PING_MS = 3000, K7_DOLL_OFF = 46;   // A GAME: cooldown (from the moment the doll is set) / how long the doll stays / the 'hands come off' delay / how long it screams / time a survivor has to answer the skill check / generator block after a miss / 'nearby' radius for the ping / ping length / distance of the doll from its generator
 function k7Empty() { return { on: false, init: false, form: 0, swEnd: 0, bul: K7_BULLETS, L: [], h: {}, w: {}, dirty: false, sendAt: 0, dolls: {} }; }   // dolls = { generatorIndex: doll } (one on EVERY generator); form: 0 knife, 1 rifle; L = lockers [{x, y, nx, ny, occ}] (nx,ny = the way the door faces); h = hearts per survivor id
 let K7 = k7Empty();
+const isK8 = id => kAbIdx(id) === 8;   // killer_8 = the ninth KILLERS entry (Alternate): PASSIVE = it is blind to survivors (canSee, drawTrails, drawTerror, bot sight). Its ability (the VHS camera) is in the KILLER_8 section below.
+const kirBlind = () => myRole() === 'killer' && isK8(S.me);   // client: I am Alternate, so no survivor sprites, blood or terror trails are drawn for me
+
+/* ################################################################################################
+   ##                                                                                            ##
+   ##   KILLER_8  --  ALTERNATE  (BLIND PASSIVE + VHS CAMERA)                                    ##
+   ##   killer_8 = the NINTH entry of KILLERS. Every function / constant / state object here     ##
+   ##   starts with K8 / k8.                                                                     ##
+   ##                                                                                            ##
+   ################################################################################################
+
+   LATEST RULES (these override anything below that mentions black-static afterimages, monochrome, downing or K8_DK_HITS):
+   - Afterimages are plain only. EVERY hit on one forms a SPAWN on that survivor (k8AiHit): slow (K8_SH_SPD x survivor speed), ONE per survivor, no overall limit; a survivor with a spawn after them leaves no new afterimage and is drawn MONOCHROME (k8Pursued). The swing cooldown after hitting an afterimage is K8_AI_CD_MULT (half) of the normal one, still no slow.
+   - A spawn that touches its survivor is a HIT (hitSurvivor), fades away, PINGS them to the killer (K8.rev / K8.mk) and (K8_MAD_ON) adds one MADDENED stack (k8Madden, K8.mad): vision x(1 - K8_MAD_STEP per stack), fading linearly over K8_MAD_MS; to a Maddened survivor the killer flickers invisible (k8MadHide) but his terror radius stays.
+
+   WHAT HE DOES
+   - PASSIVE: blind. He never sees survivor sprites, blood or terror trails (canSee -> k8Sees, drawTrails, drawTerror, bot sight) ... except through his camera.
+   - ABILITY BUTTON (or Q / Left Shift): CAMERA ON / OFF (K8_TOG_MS debounce).
+       ON  = a VHS camera interface (REC dot, scan lines, noise, time code) covers ONE ROOM: a K8_FW x K8_FH frame (world units). Everything outside the frame is dark.
+             His body stands still (speedOf = 0, no other action works). The movement stick / keys steer the CAMERA (K8_CAM_SPD units/s, never further than K8_CAM_R from his body).
+             Every survivor inside the frame is drawn live on his screen.
+       OFF = back to the normal (blind) view.
+   - ATTACK in camera mode = SNAP (no swing): a picture. K8_SHOT_CD cooldown. Every survivor inside the frame at that moment is visible to him for K8_REV_MS (1 s, the last 0.3 s flickers); the camera closes by itself when the picture is taken,
+       also after he leaves the camera. Hidden survivors (locker, Magician's Hat) are never caught.
+   - AFTERIMAGES: every survivor caught (healthy / injured / downed) also leaves a flickering, see-through, MONOCHROME copy of themselves where they stood. At most K8_AI_MAX (3) exist at once: a new
+       picture pushes the oldest out. Only the killer sees them. A swing that touches one removes it and does nothing else (resolveAttack, K8.ai). Code: k8Shot (host), k8AiSprite / drawK8Images (client).
+
+   - CROSS + CLEANSE: hitting an afterimage also plants a CROSS where it stood (spawn.cx / cy, synced as e[8] / e[9]); only that survivor draws it (drawK8Crosses, under the darkness). Standing within K8_CLN_R of it shows the CLEANSE button (ctxFor -> 'cleanse'); HOLDING it for K8_CLN_MS (5 s, host: the cleanse loop in k8Step, progress synced as spawn.cp = e[10]) removes the spawn at once, and the cross's glow fades with the progress. Letting go / walking off resets it. The cross lives exactly as long as its spawn.
+   - NO SLOW: a swing that only touches afterimages has its normal cooldown but no attackSlow (resolveAttack, k8Aih).
+   - BLACK-STATIC AFTERIMAGE: hits on one survivor's afterimages are counted per survivor (K8.hits). After K8_DK_HITS (2) the next afterimage of that survivor has black, more aggressive static (a.dk).
+       Hitting it forms a SHADE (k8AiHit -> K8.sh): a pitch-black, white-eyed copy of that survivor. It forms for K8_SH_FORM_MS (a tearing animation), then hunts that survivor at survivor speed (same A* walk as the bots, botMove),
+       blinking in and out. The hunted survivor sees it (under the darkness: only where lit). Alternate sees it through the dark for the first K8_SH_SEE_MS (2 s) and inside his live camera frame, and otherwise through his normal vision (lit areas / flashlight).
+   - REVEAL: a survivor caught by a picture (or a shade) is visible to him even in the dark for K8_REV_MS (2 s); for K8_SEE_MS (10 s) after the reveal his NORMAL vision (flashlight / lit areas) works on that survivor (K8.mk, k8Sees returns null = use normal vision).
+       Every catch reveals the survivor to the killer for K8_REV_MS (same as a picture: red frame + timer, flash + static for the survivor). The FIRST catch on a survivor turns his sprite monochrome for the rest of the game (K8.mono, drawMono) and the shade clings on for K8_SH_HOLD_MS, then is gone. Every catch after that DOWNS him (k8ShDown) and the shade is used up. A downed / carried survivor cannot be caught.
+       It dissolves after K8_SH_LIFE_MS (40 s) if it never catches, or as soon as its target is hooked / dead / sent. At most K8_SH_MAX (2) exist; while 2 are out no new afterimages form. Code: k8ShStep (host), drawK8Shades / k8ShSprite (client).
+
+   WHERE EVERYTHING IS (search for the names)
+   A) HOST SIDE:   K8_* constants, k8Empty / K8, k8Player, k8Ability, k8Shot, k8AiHit, k8ShStep, k8Step.
+   B) CLIENT SIDE: k8Apply, k8Cam, k8Sees, k8Raw, k8Pack, k8CamStep (camera movement), drawK8Over (caught survivors above the darkness), drawK8Cam (the VHS interface), k8Icon.
+   C) SMALL HOOKS ELSEWHERE (search these strings):
+      - hostAct: 'k8ab', 'k8shot' (+ the "camera up = nothing else works" line, the abLock exception); ACTS / ABIL_ONLY_ACTS / AB_ACTS; speedOf (0 while filming)
+      - state sync: WO_KINDS 'k8' (woList case 'k8'), WO_OWNER, applyWo -> k8Apply, woEmpty, itemsInit, itemStep -> k8Step
+      - input / buttons: readInput (-> k8Raw), sendAct (attack -> 'k8shot'), abilityPress, ctxFor, updateControls (ability + attack labels, cooldown ring)
+      - drawing: draw() (view centred on the camera), buildVis (no flashlight), renderDarkness (the frame is lit), canSee, INFO_KILLERS (guide), TUNE panel ("Killer 8")
+   ################################################################################################ */
+let K8_CLN_R = 90, K8_CLN_MS = 5000;   // CLEANSE: how close the hunted survivor must stand to the planted cross (world units) / how long they must HOLD the button (like disarming a killer_0 trap)
+let K8_SH_ALWAYS = false;   // true: Alternate always sees the spawns (drawn above the darkness, anywhere); false: only for K8_SH_SEE_MS, inside his camera frame, or where his normal vision reaches
+let K8_SH_SPD = .6, K8_MAD_ON = false, K8_SH_FORM_MS = 900, K8_SH_LIFE_MS = 40000, K8_SH_SEE_MS = 2000, K8_AI_CD_MULT = .5;   // SPAWNS (a spawn forms every time he hits an afterimage): speed as a share of survivor speed (slow) / Maddened on-off / forming animation / lifetime if it never catches / how long the killer sees one / swing cooldown multiplier after hitting an afterimage
+let K8_MAD_MS = 20000, K8_MAD_STEP = .2, K8_MAD_MIN = .3, K8_MAD_FLK = .45, K8_MAD_MAX = 6;   // MADDENED: how long one stack lasts (it fades out linearly) / vision lost per stack / vision never goes below this share / share of the time the killer is invisible per stack (capped at 90%) / most stacks   // SHADES: afterimage hits of one survivor before the next one is a black-static one / most shades out at once / forming animation / lifetime if it never catches / how long the killer sees one / how long it clings to a survivor after its first catch
+let K8_FW = 720, K8_FH = 480, K8_CAM_SPD = 336, K8_CAM_R = 3600, K8_SHOT_CD = 3000, K8_REV_MS = 2000, K8_SEE_MS = 10000, K8_TOG_MS = 350, K8_AI_MAX = 3;   // camera frame (world units, about one room) / camera speed (units per second) / how far from his body the camera may go / picture cooldown / how long a caught survivor stays visible / on-off debounce
+function k8Empty() { return { on: false, init: false, cam: false, tog: 0, shotCd: 0, sn: 0, rev: {}, mk: {}, ai: [], ain: 1, mad: {}, sh: [], shn: 1, shT: 0 }; }   // hits = { survivor id: afterimages of his the killer has hit (reset when his black-static one forms) }; sh = the SHADES (black white-eyed copies that hunt one survivor)   // ai = the AFTERIMAGES [{ id, v (survivor id), x, y }] (max K8_AI_MAX, oldest goes first); cam = camera up; shotCd = when the next picture is allowed; sn = pictures taken (the client flashes when it changes); rev = { survivor id: visible until }
+let K8 = k8Empty();
+function k8Player() { for (const p of HP.values()) if (p.role === 'killer' && p.on && isK8(p.id)) return p; return null; }
+function k8Ability(p, now) {   // camera on / off
+  if (!K8.on || p !== k8Player() || now < K8.tog) return;
+  if (!K8.cam && (p.carry != null || p.wind)) return;
+  K8.tog = now + K8_TOG_MS; K8.cam = !K8.cam; p.ix = p.iy = 0; p.kick = false; p.kickT = 0; p.kickGen = -1; woSend('k8');
+}
+function k8Shot(p, n, now) {   // a picture: every survivor inside the frame (centred on the camera position the client sent) stays visible for K8_REV_MS
+  if (!K8.on || p !== k8Player() || !K8.cam || now < K8.shotCd) return;
+  n = Math.max(0, Math.floor(+n || 0)); let cx = Math.floor(n / 8192), cy = n % 8192;
+  const dx = cx - p.x, dy = cy - p.y, d = Math.hypot(dx, dy), lim = K8_CAM_R + 60; if (d > lim) { cx = p.x + dx / d * lim; cy = p.y + dy / d * lim; }   // the camera can never be further away than its range
+  K8.shotCd = now + K8_SHOT_CD; K8.sn++; const caught = [];
+  for (const v of HP.values()) {
+    if (v.role !== 'survivor' || !v.on || v.st === 'dead' || v.st === 'sent' || v.lk >= 0 || inUD(v.x, v.y) || hatHid(v, now)) continue;
+    if (Math.abs(v.x - cx) <= K8_FW / 2 && Math.abs(v.y - cy) <= K8_FH / 2) { K8.rev[v.id] = now + K8_REV_MS; K8.mk[v.id] = now + K8_SEE_MS; if (v.st === 'healthy' || v.st === 'injured') caught.push(v); }   // (a DOWNED survivor is revealed but leaves no afterimage)
+  }
+  caught.sort((a, b) => Math.hypot(b.x - cx, b.y - cy) - Math.hypot(a.x - cx, a.y - cy));   // the ones nearest the centre of the frame are pushed last, so they survive the cap
+  for (const v of caught) { if (K8.sh.some(h => h.v === v.id)) continue; K8.ai.push({ id: K8.ain++, v: v.id, x: Math.round(v.x), y: Math.round(v.y), dk: 0 }); }   // (a survivor with a spawn already after them leaves no afterimage)   // AFTERIMAGE: a frozen copy is left where the survivor stood (plain ones only; hitting one forms a spawn)
+  while (K8.ai.length > K8_AI_MAX) K8.ai.shift();   // never more than K8_AI_MAX at once: the oldest fades first
+  K8.cam = false; K8.tog = now + K8_TOG_MS; p.ix = p.iy = 0; p.kick = false; p.kickT = 0; p.kickGen = -1;   // CAPTURE closes the camera (he can raise it again once the picture cooldown allows a new shot)
+  woSend('k8');
+}
+function k8AiHit(a, now) {   // host: the killer's swing touched an afterimage -> a SPAWN forms where it stood and hunts that survivor
+  const v = HP.get(a.v); if (!v || v.role !== 'survivor' || !v.on || (v.st !== 'healthy' && v.st !== 'injured') || inUD(v.x, v.y) || K8.sh.some(h => h.v === v.id)) return;   // no limit on spawns overall, but ONE per survivor
+  K8.sh.push({ id: K8.shn++, v: v.id, x: a.x, y: a.y, cx: a.x, cy: a.y, ix: 0, iy: 0, st: 0, born: now, exp: now + K8_SH_LIFE_MS, mn: true, role: 'shade', lv: { jit: .2, smooth: .85, err: .05, pause: 0 },
+    B: { next: 0, goal: null, tgt: v, direct: true, still: false, arrive: 24, path: null, pi: 0, rp: 0, gx: 0, gy: 0, fixed: false, sx: a.x, sy: a.y, sT: now, stuck: 0, nudge: 0, nx: 0, ny: 0, tried: {}, noPathAt: 0, seed: Math.random() * 1e9 | 0, hn: 0, hnT: 0, hnAt: 0, smooth: true } });
+  try { msgTo(v, 'A cross was planted. Find it to Cleanse'); } catch (e) {}
+}
+function k8Madden(v, now) {
+  return;   // Maddened removed   // host: a spawn touched this survivor: one more stack of MADDENED (each stack lasts K8_MAD_MS and fades out)
+  if (!K8_MAD_ON) return;
+  const a = K8.mad[v.id] || (K8.mad[v.id] = []); a.push(now + K8_MAD_MS); while (a.length > K8_MAD_MAX) a.shift();
+  try { msgTo(v, 'Maddened' + (a.length > 1 ? ' x' + a.length : '')); } catch (e) {}
+}
+function k8ShStep(now, dtMs) {   // host: the spawns. st 0 = forming, 1 = hunting (survivor speed, same A* walk as the bots). Touching its survivor = one stack of Maddened and the spawn is used up. Returns true when something changed
+  if (!K8.sh.length) return false; const dt = Math.min(.1, Math.max(0, dtMs / 1000)); let ch = false;
+  for (const s of K8.sh.slice()) {
+    const v = HP.get(s.v), bad = !v || !v.on || v.role !== 'survivor' || v.st === 'hooked' || v.st === 'downed' || v.st === 'carried' || v.st === 'dead' || v.st === 'sent' || inUD(v.x, v.y);   // hooked / downed / carried / dead / sent: it dissolves
+    if (bad || now >= s.exp) { K8.sh = K8.sh.filter(x => x !== s); ch = true; continue; }
+    if (s.st === 0) { if (now - s.born >= K8_SH_FORM_MS) { s.st = 1; ch = true; } continue; }
+    s.B.tgt = v; botMove(s, s.B, now);
+    if (s.ix || s.iy) moveCircle(s, s.ix * CFG.SURVIVOR_SPEED * K8_SH_SPD * dt, s.iy * CFG.SURVIVOR_SPEED * K8_SH_SPD * dt);
+    if ((v.st === 'healthy' || v.st === 'injured') && v.lk < 0 && Math.hypot(v.x - s.x, v.y - s.y) <= CFG.RADIUS * 2 + 6) {   // caught
+      if (!(GOD && v.host)) { TW.extra = []; hitSurvivor(v, now, 1); TW.extra = []; }   // the touch is a real HIT (healthy -> injured, injured -> downed); the spawn fades away
+      if (!hatHid(v, now)) { K8.rev[v.id] = now + K8_REV_MS; K8.mk[v.id] = now + K8_SEE_MS; }   // PING: their location is shown to the killer for K8_REV_MS (red frame + timer, even in the dark), then his normal vision works on them for K8_SEE_MS
+      k8Madden(v, now); K8.sh = K8.sh.filter(x => x !== s); ch = true; }
+  }
+  return ch;
+}
+function k8Step(now, dtMs) {   // host, every tick
+  const B = k8Player(); K8.on = !!B; if (!B) return; let ch = false;
+  if (!K8.init) { K8.init = true; ch = true; }
+  if (K8.cam && (B.st === 'sent' || B.st === 'dead' || B.carry != null)) { K8.cam = false; ch = true; }
+  for (const id in K8.rev) if (now >= K8.rev[id]) { delete K8.rev[id]; ch = true; }
+  for (const id in K8.mk) if (now >= K8.mk[id]) { delete K8.mk[id]; ch = true; }
+  for (const id in K8.mad) { const a = K8.mad[id].filter(t => t > now); if (a.length !== K8.mad[id].length) { ch = true; if (a.length) K8.mad[id] = a; else delete K8.mad[id]; } }   // Maddened stacks run out
+  if (S.phase !== 'hunt') { if (K8.sh.length || Object.keys(K8.mad).length) { K8.sh = []; K8.mad = {}; ch = true; } } else if (k8ShStep(now, dtMs)) ch = true;
+  for (const s of K8.sh.slice()) {   // CLEANSE: the hunted survivor HOLDS the button within K8_CLN_R of their cross for K8_CLN_MS and the spawn (and its cross) expire; letting go / walking off / going down resets the progress
+    const v = HP.get(s.v), ok = !!v && v.on && v.cl && (v.st === 'healthy' || v.st === 'injured') && v.lk < 0 && !inUD(v.x, v.y) && s.cx != null && Math.hypot(v.x - s.cx, v.y - s.cy) <= K8_CLN_R + 8;
+    if (!ok) { if (v) v.clT = 0; if (s.cp) { s.cp = 0; ch = true; } continue; }
+    v.clT = (v.clT || 0) + dtMs; s.cp = Math.min(100, Math.round(v.clT / K8_CLN_MS * 100));
+    if (v.clT >= K8_CLN_MS) { v.clT = 0; K8.sh = K8.sh.filter(h => h !== s); try { msgTo(v, 'Cleansed'); } catch (e) {} ch = true; } }
+  if (K8.sh.some(s => s.st === 1 || s.cp > 0) && now - K8.shT >= 100) { K8.shT = now; ch = true; }   // the hunting shades' positions go out 10x a second (clients extrapolate in between)
+  if (ch) woSend('k8');
+}
+/* ---- client ---- */
+const K8C = { x: 0, y: 0, was: false, t0: 0, sn: -1, flashAt: -1e9, holdUntil: 0, spr: {}, pops: [], shv: {}, shc: {}, cfx: [] };   // x / y = where the camera is now; t0 = when it went up (time code); sn = last picture count seen; flashAt = last picture (white flash)
+function k8Apply(a, now) {
+  const old = S.wo.k8;
+  if (!a || !a.length) { S.wo.k8 = null; K8C.spr = {}; K8C.pops = []; K8C.holdUntil = 0; K8C.shv = {}; K8C.shc = {}; K8C.cfx = []; return; }
+  const rev = {}; for (const e of a[3] || []) rev[e[0]] = now + e[1];
+  const mad = {}; for (const e of a[7] || []) mad[e[0]] = (e[1] || []).map(ms => now + ms);   // mad = Maddened stacks per survivor (when each one runs out)
+  const mk = {}; for (const e of a[6] || []) mk[e[0]] = now + e[1];   // mk = until when a revealed survivor stays visible to his NORMAL vision (K8_SEE_MS after the reveal)
+  const ai = (a[4] || []).map(e => ({ id: e[0], v: e[1], x: e[2], y: e[3], dk: !!e[4] }));
+  const sh = (a[5] || []).map(e => ({ id: e[0], v: e[1], x: e[2], y: e[3], st: e[4], born: now - e[5], ix: e[6], iy: e[7], cx: e[8], cy: e[9], cp: e[10] | 0, at: now }));   // the shades: [id, survivor, x, y, state, age ms, heading x100, heading y100]
+  if (old && old.sh) for (const o of old.sh) if (!sh.some(n => n.id === o.id) && S.me === o.v && o.cx != null) { K8C.cfx.push({ x: o.cx, y: o.cy, t: now }); const mq = posOf(S.me); if (mq && Math.hypot(mq[0] - o.cx, mq[1] - o.cy) <= K8_CLN_R + 40) { try { sfxTone(880, 1320, .3, .22, 'sine', 0); sfxTone(1320, 1760, .4, .12, 'sine', .08); } catch (e) {} } }   // the cross went away (cleansed, or its spawn ended): a pale ring + chime for its survivor
+  if (old && old.sh) for (const o of old.sh) if (!sh.some(n => n.id === o.id)) { const pv = K8C.shv[o.id]; if (pv && (S.me === o.v || (isK8(S.me) && now - o.born < K8_SH_SEE_MS))) K8C.pops.push({ x: pv.x, y: pv.y, t: now }); delete K8C.shv[o.id]; delete K8C.shc[o.id]; }   // a shade went away: a glitch burst for whoever could see it
+  if (old && old.ai) for (const o of old.ai) if (!ai.some(n => n.id === o.id)) { K8C.pops.push({ x: o.x, y: o.y, t: now }); delete K8C.spr[o.id]; if (isK8(S.me)) { try { sfxTone(560, 80, .14, .2, 'sawtooth', 0); sfxNoise(.12, .16, 'highpass', 2500, 900, 0, .01); } catch (e) {} } }   // an afterimage went away (hit, or pushed out by a newer one): a glitch burst
+  if (isK8(S.me)) {
+    if (a[0]) K8C.holdUntil = 0;   // camera raised again: no photo on hold any more
+    else if (old && old.cam && a[2] !== old.sn) { K8C.holdUntil = 0; K8C.flashAt = now; K8C.sn = a[2]; try { k8ShutterSfx(); } catch (e) {} }   // the picture was taken and the camera closed: flash, and keep the view parked on the photo while the caught survivors show
+  }
+  S.wo.k8 = { cam: !!a[0], cd: now + a[1], sn: a[2], rev, mk, mad, ai, sh };
+}
+const k8MadEff = id => { const J = S.wo && S.wo.k8, a = J && J.mad && J.mad[id]; if (!a) return 0; const now = performance.now(); let e = 0; for (const t of a) e += Math.max(0, Math.min(1, (t - now) / K8_MAD_MS)); return e; };   // MADDENED strength of a survivor: every stack counts 1 and fades out linearly
+const k8MadVis = () => myRole() === 'survivor' && S.phase === 'hunt' ? Math.max(K8_MAD_MIN, 1 - K8_MAD_STEP * k8MadEff(S.me)) : 1;   // my vision multiplier (Maddened shrinks it)
+function k8MadHide(id) {   // I am Maddened and Alternate is in a 'flicker off' moment: he is invisible to me like the Banshee (no sprite, no red eyes, no beam, no eyes sound), but his TERROR RADIUS stays
+  if (myRole() !== 'survivor' || S.phase !== 'hunt' || !isK8(id) || killerIdRaw() !== id) return false;
+  const e = k8MadEff(S.me); if (e <= .02) return false;
+  return sfRnd(Math.floor(performance.now() / 260) * 3.7 + S.me) < Math.min(.9, K8_MAD_FLK * e);
+}
+const k8Pursued = id => { const J = S.wo && S.wo.k8; return !!(J && J.sh && J.sh.length && J.sh.some(h => h.v === id)); };   // a spawn is after this survivor (forming or hunting): their sprite turns monochrome
+const k8Hold = () => myRole() === 'killer' && isK8(S.me) && S.phase === 'hunt' && !!(S.wo && S.wo.k8) && performance.now() < K8C.holdUntil;   // the camera just closed after a picture: the view stays on the photo for a moment
+const k8Cam = () => myRole() === 'killer' && isK8(S.me) && S.phase === 'hunt' && !!(S.wo && S.wo.k8 && S.wo.k8.cam);   // I am Alternate and my camera is up
+const k8Pack = () => Math.round(Math.max(0, Math.min(8191, K8C.x))) * 8192 + Math.round(Math.max(0, Math.min(8191, K8C.y)));   // the camera position in ONE number (sendAct only carries one)
+function k8Sees(id) {   // can Alternate see this survivor right now? only if he is caught in a picture, or inside the live camera frame
+  if (hatOn(id) || k7Hid(id)) return false;
+  { const s0 = effSt(id); if (s0 === 'hooked' || s0 === 'carried') return true; }   // he can always see a survivor on a hook and the one he is carrying
+  const now = performance.now(), J = S.wo && S.wo.k8; if (J && J.rev[id] > now) return true;
+  if (k8Cam()) { const q = posOf(id); if (q && Math.abs(q[0] - K8C.x) <= K8_FW / 2 && Math.abs(q[1] - K8C.y) <= K8_FH / 2) return true; }
+  if (J && J.mk && J.mk[id] > now) return null;   // revealed in the last K8_SEE_MS: his NORMAL vision (flashlight / lit areas) works on this survivor
+  return false;
+}
+function k8ShutterSfx() { try { sfxTone(2200, 900, .05, .22, 'square', 0); sfxTone(700, 300, .09, .18, 'square', .06); sfxNoise(.08, .18, 'highpass', 2500, 1500, 0, .01); } catch (e) {} }
+function k8CamStep(now, dtF, me0, on) {   // every frame: steer the camera with the stick / keys, keep it on the map and within range, flash when a picture was taken
+  if (!on) { K8C.was = false; return; }
+  const J = S.wo.k8;
+  if (!K8C.was) { K8C.was = true; K8C.x = me0[0]; K8C.y = me0[1]; K8C.t0 = now; K8C.sn = J.sn; }
+  const v = k8Raw(); K8C.x += v[0] * K8_CAM_SPD * dtF; K8C.y += v[1] * K8_CAM_SPD * dtF;
+  const M = S.map; K8C.x = Math.max(0, Math.min(M.w, K8C.x)); K8C.y = Math.max(0, Math.min(M.h, K8C.y));
+  const dx = K8C.x - me0[0], dy = K8C.y - me0[1], d = Math.hypot(dx, dy); if (d > K8_CAM_R) { K8C.x = me0[0] + dx / d * K8_CAM_R; K8C.y = me0[1] + dy / d * K8_CAM_R; }
+  if (J.sn !== K8C.sn) { K8C.sn = J.sn; K8C.flashAt = now; k8ShutterSfx(); }
+}
+function k8AiSprite(a, vId, now) {   // the survivor's pose at the moment of the picture, rendered ONCE with the game's own sprite code into an offscreen canvas, then turned monochrome
+  const p = S.players.find(x => x.id === a.v); if (!p) return null;
+  const W0 = 192, H0 = 224, oc = document.createElement('canvas'); oc.width = W0; oc.height = H0; const o = oc.getContext('2d');
+  o.setTransform(2, 0, 0, 2, W0 / 2 - a.x * 2, 160 - a.y * 2);   // world (a.x, a.y) -> pixel (96, 160), 2 px per world unit
+  const an = AN[p.id], s0 = effSt(p.id), s = s0 === 'healthy' || s0 === 'injured' || s0 === 'downed' ? s0 : 'healthy', ge = entityOf(p, [a.x, a.y], vId, an ? an.t - 1 : now), prev = ctx;   // (a clock before animFor's last update leaves the live animation alone, like the Snake Oil ghosts)
+  ge.x = a.x; ge.y = a.y; ge.flash = 0; ge.me = false; ge.hat = false; ge.hook = null; ge.hookLeft = 0; ge.resProg = 0; ge.prot = 0; ge.recLeft = 0;
+  ctx = o; GHOSTING = true;
+  try { drawPlayer(ge, s); } finally { GHOSTING = false; ctx = prev; }
+  try { const im = o.getImageData(0, 0, W0, H0), d = im.data; for (let i = 0; i < d.length; i += 4) { if (!d[i + 3]) continue; const l = Math.min(255, (d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11) * 1.1 + 45) * (a.dk ? .4 : 1); d[i] = l * .92; d[i + 1] = l * .96; d[i + 2] = l; } o.putImageData(im, 0, 0); } catch (e) {}   // monochrome (cool grey-white), alpha untouched
+  return oc;
+}
+function drawK8Images(now, vId) {   // the AFTERIMAGES: flickering, see-through, monochrome copies left where the survivors stood (only the killer draws them); plus the glitch bursts of the ones that just went away
+  const J = S.wo.k8; if (!J) return;
+  for (const a of J.ai || []) {
+    let sp = K8C.spr[a.id]; if (sp === undefined) { try { sp = K8C.spr[a.id] = k8AiSprite(a, vId, now); } catch (e) { sp = K8C.spr[a.id] = null; } }
+    const dk = !!a.dk, sd = a.id * 7.13, fl = .5 + .5 * Math.sin(now / 61 + sd) * Math.sin(now / 173 + sd * 2), drop = ((now / (dk ? 55 : 90 + (a.id % 3) * 40)) | 0) % (dk ? 4 : 9) === 0, al = drop ? (dk ? .12 : .07) : (dk ? .3 : .2) + (dk ? .4 : .32) * fl;   // flicker: a fast shimmer plus short drop-outs (a black-static one drops out far more often)
+    const jx = ((((now / 130) | 0) + a.id) % (dk ? 3 : 11) === 0) ? (((now / 40) | 0) & 1 ? (dk ? 4 : 2) : (dk ? -4 : -2)) : 0;   // now and then it glitches sideways
+    ctx.save(); ctx.globalAlpha = al; ctx.imageSmoothingEnabled = false;
+    if (sp) ctx.drawImage(sp, a.x - 48 + jx, a.y - 80, 96, 112);
+    else { ctx.fillStyle = 'rgba(220,226,240,.8)'; ctx.beginPath(); ctx.ellipse(a.x, a.y, 14, 24, 0, 0, TAU); ctx.fill(); }
+    ctx.restore();
+    if (dk) { ctx.save(); const n = (now / 70) | 0; ctx.fillStyle = 'rgba(3,3,7,.9)'; for (let i = 0; i < 18; i++) ctx.fillRect(a.x + (sfRnd(n * 17 + i + a.id) - .5) * 60 + jx, a.y - 34 + sfRnd(n * 31 + i * 7 + a.id) * 76, 2 + ((sfRnd(n + i * 3) * 6) | 0), 2 + (i % 3)); ctx.restore(); }   // BLACK STATIC: dark specks tearing across it
+  }
+  for (let i = K8C.pops.length - 1; i >= 0; i--) {
+    const q = K8C.pops[i], age = now - q.t; if (age > 420) { K8C.pops.splice(i, 1); continue; }
+    ctx.save(); ctx.fillStyle = 'rgba(225,230,245,' + (.85 * (1 - age / 420)).toFixed(3) + ')';
+    for (let j = 0; j < 9; j++) { const an = j * TAU / 9 + q.t, r = 6 + age * .08 * (1 + (j % 3) * .35); ctx.fillRect(q.x + Math.cos(an) * r - 2, q.y - 12 + Math.sin(an) * r * 1.3 - 2, 4, ((now / 50 + j) | 0) % 2 ? 4 : 2); }
+    ctx.restore();
+  }
+}
+function k8ShPos(sh, now) {   // where a shade is drawn: the last synced position, carried on at survivor speed along its heading, eased so the 10 Hz updates do not jerk
+  const dtx = Math.min(160, now - sh.at) / 1000, k = sh.st === 1 ? CFG.SURVIVOR_SPEED * K8_SH_SPD * dtx / 100 : 0, tx = sh.x + sh.ix * k, ty = sh.y + sh.iy * k;
+  let v = K8C.shv[sh.id]; if (!v || Math.hypot(tx - v.x, ty - v.y) > 160) v = K8C.shv[sh.id] = { x: tx, y: ty }; else { v.x += (tx - v.x) * .35; v.y += (ty - v.y) * .35; }
+  return v;
+}
+function k8ShSprite(sh, q, vId, now) {   // the hunted survivor's pose, redrawn ~11x a second with the game's own sprite code (own walk cycle: a stand-in player id), then turned pitch black with two white eyes
+  let c = K8C.shc[sh.id]; if (c && now - c.t < 90) return c.cv;
+  const p = S.players.find(x => x.id === sh.v); if (!p) return null;
+  const W0 = 192, H0 = 224, cv = c ? c.cv : document.createElement('canvas'); cv.width = W0; cv.height = H0; const o = cv.getContext('2d', { willReadFrequently: true });
+  const sid = 30000 + (sh.id | 0), pp = Object.assign({}, p, { id: sid }); S.chars[sid] = charIdx(sh.v);   /* a NUMERIC stand-in id that wears the hunted survivor's character (a text id made charOf() fail and the sprite came out empty) */
+  const an = animFor(pp.id, q.x, q.y, now), prev = ctx;
+  o.setTransform(2, 0, 0, 2, W0 / 2 - q.x * 2, 160 - q.y * 2);
+  const ge = entityOf(pp, [q.x, q.y], vId, now); ge.x = q.x; ge.y = q.y; ge.flash = 0; ge.me = false; ge.hat = false; ge.hook = null; ge.hookLeft = 0; ge.resProg = 0; ge.prot = 0; ge.recLeft = 0; ge.st = {};
+  ctx = o; GHOSTING = true;
+  try { drawPlayer(ge, 'healthy'); } catch (e) {} finally { GHOSTING = false; ctx = prev; delete S.chars[sid]; }
+  try {
+    const im = o.getImageData(0, 0, W0, H0), d = im.data; let top = -1, sx = 0, sn = 0;
+    for (let y = 0; y < H0 && top < 0; y++) for (let x = 0; x < W0; x++) if (d[(y * W0 + x) * 4 + 3] > 40) { top = y; break; }
+    if (top >= 0) for (let y = top; y < top + 8; y++) for (let x = 0; x < W0; x++) if (d[(y * W0 + x) * 4 + 3] > 40) { sx += x; sn++; }
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] > 40) { d[i] = 8; d[i + 1] = 8; d[i + 2] = 12; d[i + 3] = 255; } else d[i + 3] = 0; }
+    o.putImageData(im, 0, 0);
+    if (top >= 0) { const ex = sn ? sx / sn : W0 / 2, ey = top + 14, f = an && an.face ? an.face : 1; o.setTransform(1, 0, 0, 1, 0, 0); o.fillStyle = '#fff'; o.fillRect(ex - 11 + f * 3, ey, 6, 8); o.fillRect(ex + 5 + f * 3, ey, 6, 8); }   // two white eyes, nudged the way it faces
+  } catch (e) {}
+  K8C.shc[sh.id] = { cv, t: now }; return cv;
+}
+function drawK8Shades(now, vId, mode) {   // the SHADES. mode 'world' = the hunted survivor's own view (under the darkness: only where it is lit); mode 'killer' = Alternate: only the first K8_SH_SEE_MS after it forms, or inside the live camera frame
+  const J = S.wo.k8; if (!J || !J.sh || !J.sh.length) return;
+  for (const sh of J.sh) {
+    if (mode === 'world' && sh.v !== vId) continue;
+    const q = k8ShPos(sh, now), age = now - sh.born;
+    if (mode === 'lit' && (K8_SH_ALWAYS || age < K8_SH_SEE_MS || (k8Cam() && Math.abs(q.x - K8C.x) <= K8_FW / 2 && Math.abs(q.y - K8C.y) <= K8_FH / 2))) continue;   // (already drawn above the darkness by the 'killer' mode)
+    if (mode === 'killer' && !(K8_SH_ALWAYS || age < K8_SH_SEE_MS || (k8Cam() && Math.abs(q.x - K8C.x) <= K8_FW / 2 && Math.abs(q.y - K8C.y) <= K8_FH / 2))) continue;
+    const form = sh.st === 0, u = form ? Math.min(1, age / K8_SH_FORM_MS) : 1;
+    let al; if (form) al = (.2 + .8 * u) * (((now / 60) | 0) % 5 === 0 ? .3 : 1); else if (sh.st === 2) al = .95;
+    else { const gap = ((now / 1000 + sh.id * .37) % 2.2) < .45, fk = ((now / 85 + sh.id * 13) | 0) % 6 === 0; al = gap ? .06 : fk ? .35 : .9; }   // hunting: it blinks in and out to confuse its target (a long gap now and then, plus quick flickers)
+    let sp = null; try { sp = k8ShSprite(sh, q, vId, now); } catch (e) { sp = null; }
+    ctx.save(); ctx.globalAlpha = al; ctx.imageSmoothingEnabled = false;
+    const py = q.y + 24, sy = form ? .12 + .88 * u : 1; ctx.translate(q.x, py); ctx.scale(1, sy); ctx.translate(-q.x, -py);
+    if (sp) {
+      if (form) { for (let i = 0; i < 8; i++) { const j = (((now / 50) | 0) + i + sh.id) % 4 === 0 ? (i & 1 ? 5 : -5) : 0, y0 = i * 28; ctx.drawImage(sp, 0, y0, 192, 28, q.x - 48 + j, q.y - 80 + y0 / 2, 96, 14); } }   // forming: it tears into horizontal slices that settle
+      else ctx.drawImage(sp, q.x - 48, q.y - 80, 96, 112);
+    } else { ctx.fillStyle = '#08080c'; ctx.beginPath(); ctx.ellipse(q.x, q.y, 14, 24, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(q.x - 6, q.y - 20, 4, 5); ctx.fillRect(q.x + 2, q.y - 20, 4, 5); }
+    ctx.restore();
+    ctx.save(); ctx.fillStyle = 'rgba(3,3,7,.85)'; const n = (now / 70) | 0, cnt = form ? 26 : 8; for (let i = 0; i < cnt; i++) ctx.fillRect(q.x + (sfRnd(n * 13 + i + sh.id) - .5) * (form ? 70 : 44), q.y - 38 + sfRnd(n * 29 + i * 5 + sh.id) * 80, 2 + ((sfRnd(n + i) * 5) | 0), 2); ctx.restore();   // black static around it (heavy while forming)
+  }
+}
+function drawK8Crosses(now, vId) {   // CROSS: planted where an afterimage was hit; ONLY the hunted survivor sees it (world layer = under the darkness, so only where it is lit). Walk up and CLEANSE to dissolve the spawn
+  const J = S.wo.k8; if (!J) return;
+  for (const sh of J.sh || []) {
+    if (sh.v !== vId || sh.cx == null) continue;
+    const x = sh.cx, y = sh.cy, pu = .5 + .5 * Math.sin(now / 420 + sh.id), u = Math.min(1, (now - sh.born) / 500), gw = 1 - Math.min(1, (sh.cp | 0) / 100);   // gw: the glow weakens as the survivor cleanses it
+    ctx.save(); ctx.globalAlpha = u; ctx.imageSmoothingEnabled = false;
+    const gr = 18 + 46 * gw, g = ctx.createRadialGradient(x, y, 4, x, y, gr); g.addColorStop(0, 'rgba(255,240,170,' + ((.26 + .14 * pu) * gw).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,240,170,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, gr, 0, TAU); ctx.fill();   // soft glow: shrinks and dims while it is being cleansed
+    ctx.fillStyle = '#17120e'; ctx.beginPath(); ctx.ellipse(x, y + 14, 17, 5, 0, 0, TAU); ctx.fill();   // the mound it stands in
+    ctx.fillStyle = '#2a1d12'; ctx.fillRect(x - 5, y - 26, 10, 40); ctx.fillRect(x - 14, y - 16, 28, 10);   // dark outline
+    ctx.fillStyle = gw < .5 ? '#b9ad8a' : '#e9dcb4'; ctx.fillRect(x - 3, y - 24, 6, 36); ctx.fillRect(x - 12, y - 14, 24, 6);   // the cross itself
+    ctx.fillStyle = 'rgba(255,255,255,' + ((.35 + .4 * pu) * gw).toFixed(3) + ')'; ctx.fillRect(x - 1, y - 23, 2, 34); ctx.fillRect(x - 11, y - 13, 22, 2);   // pulsing highlight
+    ctx.restore();
+  }
+  for (let i = K8C.cfx.length - 1; i >= 0; i--) {   // a pale ring that spreads where a cross just went away
+    const f = K8C.cfx[i], t = (now - f.t) / 700; if (t >= 1) { K8C.cfx.splice(i, 1); continue; }
+    ctx.save(); ctx.globalAlpha = 1 - t; ctx.strokeStyle = '#fff3b0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, 10 + t * 70, 0, TAU); ctx.stroke(); ctx.restore();
+  }
+}
+function drawK8Over(now, vId) {   // the survivors a picture caught: drawn above the darkness (so he sees them even in the dark) with red tracking brackets; the last second flickers
+  const J = S.wo.k8; if (!J) return;
+  // (the afterimages are drawn in the world layer, under the darkness, for everyone: see draw())
+  try { drawK8Shades(now, vId, 'killer'); } catch (e) {}   // the shades: only for their first K8_SH_SEE_MS, or inside the live camera frame
+  for (const id in J.rev) {
+    const left = J.rev[id] - now; if (left <= 0) continue;
+    const p = S.players.find(x => x.id === +id); if (!p || p.role !== 'survivor' || hatOn(p.id) || k7Hid(p.id)) continue;
+    const q = posOf(p.id); if (!q) continue; const s = effSt(p.id); if (s === 'dead') continue;
+    const fl = left < 300 ? (Math.floor(now / 90) % 2 ? .35 : 1) : 1, fe = entityOf(p, q, vId, now);
+    ctx.save(); ctx.globalAlpha = fl; animFor(p.id, q[0], q[1], now); drawStatusFx(fe, q, now, 0); drawPlayer(fe, s); drawStatusFx(fe, q, now, 1);
+    const r = CFG.RADIUS + 10, l = 8; ctx.strokeStyle = '#ff4a4a'; ctx.lineWidth = 2; ctx.beginPath();
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) { const cx = q[0] + sx * r, cy = q[1] + sy * r; ctx.moveTo(cx - sx * l, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy - sy * l); }
+    ctx.stroke(); ctx.fillStyle = 'rgba(255,74,74,.85)'; ctx.fillRect(q[0] - 14, q[1] + r + 4, 28 * Math.min(1, left / K8_REV_MS), 3); ctx.restore();
+  }
+}
+let K8_SCAN = null;
+function k8ScanPat() { if (K8_SCAN) return K8_SCAN; const c = document.createElement('canvas'); c.width = 4; c.height = 4; const x = c.getContext('2d'); x.fillStyle = 'rgba(0,0,0,.30)'; x.fillRect(0, 0, 4, 1); x.fillStyle = 'rgba(0,0,0,.10)'; x.fillRect(0, 2, 4, 1); K8_SCAN = ctx.createPattern(c, 'repeat'); return K8_SCAN; }
+function drawK8Cam(W, H, k, now) {   // the VHS camera interface (screen space): dark outside the frame, tint + scan lines + noise inside, corner brackets, REC / CAM / time code / status
+  const J = S.wo.k8; if (!J) return;
+  const fw = K8_FW * k, fh = K8_FH * k, x0 = Math.round((W - fw) / 2), y0 = Math.round((H - fh) / 2), u = Math.max(.8, Math.min(W, H) / 400);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = 'rgba(0,0,6,.78)'; ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.rect(x0, y0, fw, fh); ctx.fill('evenodd');   // outside the frame
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, fw, fh); ctx.clip();
+  ctx.fillStyle = 'rgba(90,200,150,.07)'; ctx.fillRect(x0, y0, fw, fh);
+  ctx.fillStyle = k8ScanPat(); ctx.fillRect(x0, y0, fw, fh);
+  const by = y0 + ((now / 14) % (fh + 80)) - 40; ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fillRect(x0, by, fw, 26 * u); ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x0, by + 26 * u, fw, 6 * u);   // the rolling tracking band
+  ctx.fillStyle = 'rgba(255,255,255,.10)'; for (let i = 0; i < 40; i++) ctx.fillRect(x0 + Math.random() * fw, y0 + Math.random() * fh, 2 * u, u);   // static
+  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(fw, fh) * .3, W / 2, H / 2, Math.max(fw, fh) * .62); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.5)'); ctx.fillStyle = g; ctx.fillRect(x0, y0, fw, fh);
+  const fa = 1 - (now - K8C.flashAt) / 380; if (fa > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (.85 * fa).toFixed(3) + ')'; ctx.fillRect(x0, y0, fw, fh); }   // the picture flash
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(235,240,255,.9)'; ctx.lineWidth = Math.max(2, 2.5 * u); const bl = 26 * u; ctx.beginPath();
+  for (const sx of [0, 1]) for (const sy of [0, 1]) { const cx = x0 + sx * fw, cy = y0 + sy * fh, dx = sx ? -1 : 1, dy = sy ? -1 : 1; ctx.moveTo(cx + dx * bl, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + dy * bl); }
+  ctx.moveTo(W / 2 - 9 * u, H / 2); ctx.lineTo(W / 2 + 9 * u, H / 2); ctx.moveTo(W / 2, H / 2 - 9 * u); ctx.lineTo(W / 2, H / 2 + 9 * u); ctx.stroke();   // corner brackets + centre cross
+  const fs = Math.round(11 * u), pad = 12 * u; ctx.font = 'bold ' + fs + "px 'DBD Mini','Silkscreen','Courier New',ui-monospace,monospace"; ctx.textBaseline = 'top'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+  const rec = Math.floor(now / 500) % 2 === 0; if (rec) { ctx.fillStyle = '#ff2a2a'; ctx.beginPath(); ctx.arc(x0 + pad + 5 * u, y0 + pad + fs / 2, 5 * u, 0, 7); ctx.fill(); }
+  ctx.fillStyle = '#f2f4ff'; ctx.textAlign = 'left'; ctx.fillText('REC', x0 + pad + 14 * u, y0 + pad);
+  ctx.textAlign = 'right'; ctx.fillText('CAM 01', x0 + fw - pad, y0 + pad);
+  const el = Math.max(0, Math.floor((now - K8C.t0) / 1000)), tc = String(Math.floor(el / 60)).padStart(2, '0') + ':' + String(el % 60).padStart(2, '0');
+  ctx.textBaseline = 'bottom'; ctx.textAlign = 'left'; ctx.fillText('PLAY > ' + tc, x0 + pad, y0 + fh - pad);
+  const cd = Math.max(0, J.cd - now); ctx.textAlign = 'right'; ctx.fillStyle = cd > 0 ? '#ffb347' : '#7dffb0'; ctx.fillText(cd > 0 ? 'RECHARGING ' + Math.ceil(cd / 1000) + 's' : 'READY', x0 + fw - pad, y0 + fh - pad);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = 'rgba(235,240,255,.75)'; ctx.font = 'bold ' + Math.round(9 * u) + "px 'DBD Mini','Silkscreen','Courier New',ui-monospace,monospace";
+  if (y0 + fh + 22 * u < H) ctx.fillText('MOVE: AIM CAMERA   ATTACK: CAPTURE   ABILITY: EXIT', W / 2, y0 + fh + 10 * u);
+  const ca = 1 - (now - K8C.flashAt) / 900; if (ca > 0) { ctx.globalAlpha = Math.min(1, ca * 1.6); ctx.fillStyle = '#ffffff'; ctx.font = 'bold ' + Math.round(22 * u) + "px 'DBD Mini','Silkscreen','Courier New',ui-monospace,monospace"; ctx.textBaseline = 'middle'; ctx.fillText('CAPTURED', W / 2, H / 2 - 30 * u); }
+  ctx.restore();
+}
+function drawK8Caught(W, H, now, vId) {   // SURVIVOR side of the camera: when a picture catches me, a soft short flash and a very faint static for the capture's second (nothing scary, no sound)
+  const J = S.wo && S.wo.k8; if (!J || !J.rev) return; const left = J.rev[vId] - now; if (!(left > 0)) return;
+  const age = K8_REV_MS - left, u = Math.max(.8, Math.min(W, H) / 400);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (age < 320) { ctx.fillStyle = 'rgba(235,240,255,' + (.2 * (1 - age / 320)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }   // the flash: pale, soft, gone in a third of a second
+  const fa = Math.min(1, left / 400) * .5; ctx.fillStyle = 'rgba(255,255,255,' + (.07 * fa + .01).toFixed(3) + ')';   // the static: a handful of tiny specks that fade out
+  for (let i = 0; i < 70; i++) ctx.fillRect(Math.random() * W, Math.random() * H, 2 * u, u);
+  ctx.restore();
+}
+const K8_URL = {};
+function k8Icon(cam) {   // the ability button's little camcorder (red lens + REC light while the camera is up)
+  const key = cam ? 'x' : 'c'; if (K8_URL[key]) return K8_URL[key];
+  const c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d');
+  x.fillStyle = '#0b0d14'; x.fillRect(1, 4, 10, 9); x.fillRect(11, 6, 4, 5); x.fillRect(3, 2, 5, 3);
+  x.fillStyle = '#d8dbe8'; x.fillRect(2, 5, 8, 7); x.fillRect(12, 7, 2, 3); x.fillRect(4, 3, 3, 1);
+  x.fillStyle = '#0b0d14'; x.fillRect(4, 6, 4, 4); x.fillStyle = cam ? '#ff2a2a' : '#6f7a99'; x.fillRect(5, 7, 2, 2);
+  if (cam) { x.fillStyle = '#ff2a2a'; x.fillRect(9, 5, 1, 1); }
+  return K8_URL[key] = c.toDataURL();
+}
 const isK7 = id => kAbIdx(id) === 7;   // killer_7 = the eighth KILLERS entry; its ability code never mentions the character's name
 function k7Player() { for (const p of HP.values()) if (p.role === 'killer' && p.on && isK7(p.id)) return p; return null; }
 const k7Gun = () => S.role === 'host' ? K7.form === 1 : !!(S.wo && S.wo.k7 && S.wo.k7.form === 1);   // is he in rifle form (host: the truth; clients: the synced state)
@@ -6116,7 +6484,7 @@ function hatStep(now, dtMs) {   // Magician's Hat: p.hatLeft is "hat time". It d
 let DROP_PER_PLAYERS = 3;   // (TUNE phase 2) the map may hold one more drop per this many players (on top of DROP_MAX_BASE)
 function itemStep(now, dtMs) {
   const dt = dtMs / 1000, ps = [...HP.values()], live = ps.filter(p => p.role).length;
-  k0Step(now, dtMs); k1Step(now, dtMs); k6Step(now, dtMs); k7Step(now, dtMs); k5Step(now, dtMs);
+  k0Step(now, dtMs); k1Step(now, dtMs); k6Step(now, dtMs); k7Step(now, dtMs); k8Step(now, dtMs); k5Step(now, dtMs);
   k3Step(now); hatStep(now, dtMs);
   // ---- spawning / despawning drops ----
   if (now >= DR.next) { DR.next = now + rnd(CFG.DROP_MIN_MS, CFG.DROP_MAX_MS) / itemFreqMult(); if (DR.list.length < Math.min(CFG.DROP_MAX_CAP, CFG.DROP_MAX_BASE + Math.ceil(live / DROP_PER_PLAYERS))) spawnDrop(now); }
@@ -6448,7 +6816,11 @@ const INFO_KILLERS = [   // [KILLERS index, [[kind, title, text, optional sprite
     ['Ability', 'Knife / Rifle', 'She swaps between a knife and a rifle. The rifle narrows her flashlight but lets her see and shoot much further, with a 30-round magazine shown as a count under the minimap. Hold left click to fire continuously (on mobile, drag the right-hand stick to aim and fire); he is slowed while firing.', [[7, false, 0], [7, false, 1], [7, true, 0]]],
     ['Ability', 'Red Light Dolls', 'A doll stands next to every generator from the start of the round (no button, no cooldown) and leaves when that generator is repaired. While someone repairs it the doll covers its eyes; at random moments it lowers its hands and screams RED LIGHT, forcing a skill check on everyone repairing it. A miss blocks the generator for 5 s and pings every survivor nearby.'],
     ['Ability', 'Health bar', 'Every survivor has a health bar. Bullets drain it, reveal and slow the target and make them bleed. When it empties it counts as a normal hit, and it only comes back by hiding in a locker.'],
-    ['Ability', 'Lockers', 'Lockers stand along the walls in pairs, and opening one reloads her rifle. Survivors can hide inside to heal, but if she opens their locker they are thrown out and slowed.']]]
+    ['Ability', 'Lockers', 'Lockers stand along the walls in pairs, and opening one reloads her rifle. Survivors can hide inside to heal, but if she opens their locker they are thrown out and slowed.']]],
+  [8, [
+    ['Passive', 'Blind', 'He cannot see survivors: no sprites, no blood trails, no terror trails. A swing that happens to catch someone still hurts them, so he hunts by sound and guesswork. Only his camera shows them to him. The exceptions are survivors hanging on a hook and the one he is carrying: he always sees those.'],
+    ['Ability', 'Camera', 'Tap to raise a VHS camera that covers about one room. He stands still while the stick steers the camera, and any survivor inside the frame shows up on screen. Tap again to leave. Attack in camera mode takes a picture and closes the camera: everyone caught is visible to him for two seconds, in the dark too (red frame and timer), and for ten seconds after that his normal vision, flashlight and lit areas, works on them. Each caught survivor who is still on their feet also leaves a flickering grey afterimage behind (three at most; a downed survivor leaves none). Survivors only get a soft flash and a faint static when they are caught, and they can see the afterimages too, but only where it is lit. Hitting an afterimage makes it vanish, forms a Spawn on that survivor, plants a cross where the afterimage stood (only that survivor can see it), halves his swing cooldown and does not slow him down.'],
+    ['Ability', 'Spawns', 'Every afterimage he hits forms a Spawn: a slow, pitch-black copy of that survivor with white eyes. It chases only that survivor, and a survivor can only have one after them at a time, so no new afterimages of them appear until it is gone. There is no limit on how many Spawns exist overall. While a Spawn is after them the survivor turns monochrome. He sees it for its first two seconds and inside his camera frame, and otherwise only where his vision reaches; the hunted survivor sees it only where it is lit. When it touches them it counts as a hit, fades away and pings their location to Alternate. The cross is only visible where the hunted survivor can see. If they walk up to it and hold Cleanse for five seconds, its glow fading as they do, the Spawn expires at once. A Spawn, and its cross, fade after forty seconds if it never catches anyone, or as soon as its target is downed, carried or hooked.']]]
 ];
 function objPic(kind) {   // small pictures for the Objects tab, drawn with the game's own sprite code (nothing here touches a running round)
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; };
@@ -6735,8 +7107,12 @@ addEventListener('popstate', () => {
 const AIM = { active: false, id: null, ox: 0, oy: 0, a: 0, go: false, sendAt: 0, kind: 5 };   // the touch aim stick (killer_5 charged / killer_7 rifle)
 const keys = {}, joy = { active: false, id: null, x: 0, y: 0, ox: 0, oy: 0 }; let cur = [0, 0], sent = [NaN, NaN];
 let ctxKind = null, ctxHeld = false, keyRescue = false, ctxHeldKind = 'rescue';   // current context action (pickup | hook | rescue | repair | kick | task | block | breakdoor | null), whether a HELD action is being held, and which one
-const HOLD_KINDS = { rescue: 1, repair: 1, kick: 1, rbt: 1, disarm: 1, sabrep: 1 };   // context actions that are held down (sent as {t:'act', a, down})
+const HOLD_KINDS = { rescue: 1, repair: 1, kick: 1, rbt: 1, disarm: 1, sabrep: 1, cleanse: 1 };   // context actions that are held down (sent as {t:'act', a, down})
 function readInput() {
+  if (k8Cam()) return [0, 0];   // killer_8: the stick / keys steer the CAMERA (k8Raw), his body stands still
+  return k8Raw();
+}
+function k8Raw() {
   if (joy.active) return [joy.x, joy.y];
   let x = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), y = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
   if (x && y) { x *= Math.SQRT1_2; y *= Math.SQRT1_2; } return [x, y];
@@ -6762,7 +7138,8 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; applyInp
 /* ---- action buttons / keys: the client only REQUESTS, the host validates ---- */
 function sendAct(a, down, n) {
   if (a === 'block') a = 'barricade'; if (a === 'rbt') a = 'rbtoff'; if (a === 'hookdis') a = 'hook';
-  if (a === 'attack' && k6Me()) a = 'k6scr';   // killer_6: disguised, the attack button is SCREAM
+  if (a === 'attack' && k6Me()) a = 'k6scr';
+  if (a === 'attack' && k8Cam()) { if (!down) return; a = 'k8shot'; n = k8Pack(); }   // killer_8: in camera mode the attack button takes a PICTURE (no swing)   // killer_6: disguised, the attack button is SCREAM
   if (a === 'attack' && down && !k3GunOn() && !k5ShockOn() && !k5BasicOn() && !k2InMe() && !(isK1(S.me) && k1WailFx(S.me))) startPendingSwing();   // instant local slash for the killer; the host's 'atk' message settles hit/miss (a gun shot has no slash)
   const go = () => { if (S.role === 'host') { const p = HP.get(S.me); if (p) hostAct(p, a, down, n); } else if (S.inRoom && !S.reconnecting) T.send({ t: 'act', a, down, n }); }, d = k3LagDelay(performance.now());   // "fray the threads": a survivor's actions arrive late
   if (d) setTimeout(go, d); else go();
@@ -7064,7 +7441,7 @@ function qlStep(now) {   // every 2 s: slow frames -> cheaper lighting; steady g
   if (fpsAvg < 38 && QL.lvl < QL_LEVELS.length - 1) { qlSet(QL.lvl + 1); QL.up = now; }
   else if (fpsAvg > 56 && QL.lvl > 0 && now - QL.up > 15000) { qlSet(QL.lvl - 1); QL.up = now; }
 }
-const cv = $('cv'), ctx = cv.getContext('2d'); let dpr = 1;
+const cv = $('cv'); let ctx = cv.getContext('2d'); let dpr = 1;   // (ctx is a let: k8AiSprite swaps it for an offscreen context for one sprite render, then puts it back)
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, QL.dpr);
   const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
@@ -7274,7 +7651,9 @@ function fogVisibilityAllowed(viewerPos, targetPos) {
 }
 function canSee(viewerRole, viewerId, entityId) {
   if (entityId === viewerId) return true;          // everyone always sees themselves
+  if (viewerRole === 'survivor' && k8MadHide(entityId)) return false;   // killer_8: Maddened survivors see him flicker in and out
   if (k2Hid(entityId)) return false;               // killer_2 inside a TV (Telegraph): invisible to everybody, the same rule as an Among Us vent
+  if (viewerRole === 'killer' && isK8(viewerId)) { const be = S.players.find(x => x.id === entityId); if (be && be.role === 'survivor') { const r8 = k8Sees(entityId); if (r8 !== null) return r8; } }   // killer_8 (Alternate): blind, it never sees a survivor (no light, flare or hook reveals them) - EXCEPT through its camera: whoever is inside the frame, or was caught in a photo a moment ago
   if (viewerRole === 'killer' && hatOn(entityId)) return false;   // Magician's Hat: the killer cannot see the wearer at all (no light, flare or hook reveals them)
   if (viewerRole === 'killer' && isK3Min(entityId) && isK3(viewerId)) return true;   // killer_3: she always sees the killers her command summoned
   if (!viewerRole) return true;                    // no role => no darkness
@@ -7291,12 +7670,12 @@ function canSee(viewerRole, viewerId, entityId) {
 function buildVis(role, ph, me, k, W, H) {   // compute this frame's lit polygons for my role
   VIS = {}; rayCount = 0; const f = interpFace(); buildFlares(me, k, W, H);
   if (role === 'survivor') {
-    const pts = visibilityPolygon(me[0], me[1], CFG.SURV_VIEW_R * nmVis * K1C.visS * k3Dim()); VIS.surv = { pts, path: pathOf(pts) };
+    const pts = visibilityPolygon(me[0], me[1], CFG.SURV_VIEW_R * nmVis * K1C.visS * k3Dim() * k8MadVis()); VIS.surv = { pts, path: pathOf(pts) };
     const kid = k6Dis() ? -1 : killerIdRaw(), kp = kid >= 0 ? posOf(kid) : null;   // the killer's beam is visible from afar (not while he is disguised), but only if it can reach the screen
     const kR = CFG.FLASH_RANGE * kRangeMul(kid) * nmKillerScale();
-    if (CFG.BEAM_GLOW > 0 && ph === 'hunt' && kp && f !== null && !k3Invis(kid) && !k2Blind('survivor', S.me) && Math.hypot(kp[0] - me[0], kp[1] - me[1]) < kR + Math.hypot(W, H) / k / 2) {
+    if (CFG.BEAM_GLOW > 0 && ph === 'hunt' && kp && f !== null && !k3Invis(kid) && !k8MadHide(kid) && !k2Blind('survivor', S.me) && Math.hypot(kp[0] - me[0], kp[1] - me[1]) < kR + Math.hypot(W, H) / k / 2) {
       const pts2 = visibilityPolygon(kp[0], kp[1], kR, f, CFG.FLASH_ANGLE * kVisMul(kid) * Math.PI / 180); VIS.beam = { pts: pts2, path: pathOf(pts2), x: kp[0], y: kp[1], dir: f, R: kR, m: kVisMul(kid) }; }
-  } else if (role === 'killer' && ph === 'hunt') {
+  } else if (role === 'killer' && ph === 'hunt' && !k8Cam()) {   // (killer_8 with the camera up has no flashlight: the camera frame is his only light)
     if (f !== null) lastFace = f;
     { const pts = visibilityPolygon(me[0], me[1], CFG.FLASH_RANGE * kRangeMul(S.me) * nmVis * snakeVis(), lastFace, CFG.FLASH_ANGLE * kVisMul(S.me) * Math.PI / 180); VIS.cone = { pts, path: pathOf(pts), x: me[0], y: me[1], dir: lastFace, R: CFG.FLASH_RANGE * kRangeMul(S.me) * nmVis * snakeVis(), m: kVisMul(S.me) }; }   // killer_6: he keeps his vision cone while disguised (survivors still see no beam from him)
     const pts2 = visibilityPolygon(me[0], me[1], CFG.KILLER_AMBIENT_R * kAmbMul(S.me) * nmVis * ambVis()); VIS.amb = { pts: pts2, path: pathOf(pts2) };
@@ -7344,6 +7723,7 @@ function renderDarkness(me, k, W, H) {
   if (VIS.cone) cutCone(VIS.cone, 1);
   if (VIS.mins) for (const v of VIS.mins) cutCone(v, 1);   // killer_3: the summoned killers' cones
   if (VIS.amb) cutLight(VIS.amb, me[0], me[1], CFG.KILLER_AMBIENT_R * kAmbMul(S.me) * nmVis * ambVis(), 1);   // (the drawn circle now grows with the vision polygon)
+  if (k8Cam() || k8Hold()) { mctx.fillStyle = 'rgba(0,0,0,1)'; mctx.fillRect(me[0] - K8_FW / 2, me[1] - K8_FH / 2, K8_FW, K8_FH); }   // killer_8: the camera frame is fully lit
   if (VIS.hooks) for (const h of VIS.hooks) {   // killer: every hook stays lit, a small circle with a soft rim
     const r = CFG.HOOK_SEE_R * 1.25, g = mctx.createRadialGradient(h[0], h[1], 0, h[0], h[1], r);
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.7, 'rgba(0,0,0,.95)'); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -7485,6 +7865,7 @@ const sfxWarn = v => { sfxTone(150, 55, .2, v * .8, 'sine'); sfxTone(150, 55, .2
 const sfxEyes = v => { sfxNoise(.8, v * .35, 'bandpass', 2500, 1500, 0, .35); sfxTrem(1480, .8, v * .16, 9); sfxTrem(2093, .8, v * .12, 11); };   // whisper + a trembling tritone
 function sfxLaugh(v, ki) {
   if (ki === 6) { for (let i = 0; i < 2; i++) { const d = .28 + i * .5; sfxTone(520 - i * 70, 300 - i * 40, .42, v * .2, 'sawtooth', d); sfxTone(547 - i * 70, 310 - i * 40, .42, v * .16, 'sawtooth', d + .01); sfxNoise(.4, v * .2, 'bandpass', 2400, 900, d, .05); sfxTone(96, 52, .5, v * .22, 'sine', d); } return; }   // the Skinwalker: two thin, detuned, borrowed-sounding wails over a low rumble   // 'ha ha ha': three gruff voiced bursts, each a falling sawtooth through a noise rasp (Demogorgon: two low guttural growls instead)
+  if (ki === 8) { for (let i = 0; i < 4; i++) { const d = .28 + i * .2; sfxTone(150 - i * 14, 96 - i * 8, .17, v * .42, 'sawtooth', d); sfxTone(300 - i * 28, 190 - i * 16, .15, v * .14, 'square', d + .01); sfxNoise(.14, v * .16, 'lowpass', 900, 300, d, .02); } return; }   // Alternate: a deep, distorted laugh
   if (ki === 2 || ki === 4) { for (let i = 0; i < 2; i++) { const d = .3 + i * .42; sfxTone(88 - i * 10, 46, .5, v * .5, 'sawtooth', d); sfxTone(132 - i * 14, 70, .42, v * .22, 'square', d + .02); sfxNoise(.5, v * .3, 'lowpass', 900, 160, d, .06); } return; }
   if (ki === 1 || ki === 3) { const hi = ki === 1 ? 1.1 : 1; for (let i = 0; i < 3; i++) { const d = .3 + i * .22, b = (580 - i * 34) * hi; sfxTone(b, b * .72, .15, v * .24, 'triangle', d); sfxTone(b * 2, b * 1.45, .13, v * .1, 'sine', d); sfxTone(b * 1.01, b * .73, .13, v * .06, 'sawtooth', d); sfxNoise(.13, v * .15, 'bandpass', 3400, 2500, d, .015); } return; }   // Freaky Nikki and Banshee: the same three bursts, but an octave-plus higher, soft and clear (triangle + sine instead of a buzzy saw) with a bright breath on top, like a light giggle
   for (let i = 0; i < 3; i++) { const d = .3 + i * .24; sfxTone(190 - i * 12, 120 - i * 8, .17, v * .4, 'sawtooth', d); sfxNoise(.15, v * .22, 'bandpass', 1100, 700, d, .02); }
@@ -7509,7 +7890,7 @@ function phaseSound(ph) {
   if (ph === 'hunt') { metalHit(.9, 78, 3.5); sfxTone(60, 38, 1.4, .8, 'sine'); sfxNoise(.4, .5, 'lowpass', 600, 120); }   // the hunt begins: a deep gong
   else if (ph === 'result') { metalHit(.8, 65, 3.2); sfxTone(110, 55, 1.8, .4, 'triangle', .25); }
 }
-function eyesSound() { if (myRole() !== 'survivor' || k6Veil()) return; const kid = killerId(), q = kid >= 0 ? interp(kid) : null; if (kid >= 0 && k1InvisFx(kid) && !(S.wo && S.wo.k1 && S.wo.k1.cl && S.wo.k1.cl.length)) return;   // Wail: an invisible killer gives no eyes sound (her Guard clones still do)
+function eyesSound() { if (myRole() !== 'survivor' || k6Veil()) return; const kid = killerId(), q = kid >= 0 ? interp(kid) : null; if (kid >= 0 && (k1InvisFx(kid) || k8MadHide(kid)) && !(S.wo && S.wo.k1 && S.wo.k1.cl && S.wo.k1.cl.length)) return;   // Wail: an invisible killer gives no eyes sound (her Guard clones still do)
   sfxEyes(q ? evVol(q[0], q[1], 900) : .4); }
 function stateSound(m, prev) {   // called from applyStatus on a real state change (not on the bulk catch-up after joining/reconnecting)
   const ps = prev ? prev.s : 'healthy', hooks = S.map.hooks || [], q = interp(m.id) || [0, 0];
@@ -7966,6 +8347,8 @@ function drawSlashSkin(ki, e, kp, now) {
     if (span > .02) { arc(R - 16 * K, tail, lead, 'rgba(47,107,255,.35)', 40 * K, fade); arc(R - 16 * K, tail, lead, 'rgba(140,175,255,.6)', 18 * K, fade); }
     for (let j = 0; j < 4; j++) { const an = lead + (j - 1.5) * .08, [xa, ya] = pt(an, R - 34 * K), [xb, yb] = pt(an, R + 2 * K); ctx.globalAlpha = vis; ctx.strokeStyle = '#7a5200'; ctx.lineWidth = 10 * K; ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke(); ctx.strokeStyle = '#ffc21a'; ctx.lineWidth = 7 * K; ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke(); }
     if (prog > .3) for (let j = 0; j < 5; j++) { const [x, y] = pt(lead - j * .13, R * (.74 + (j % 3) * .08)), sz = (4 + 8 * cl((prog - .3) * 2.5)) * K; ctx.globalAlpha = 1 - prog; ctx.strokeStyle = j & 1 ? '#fff0a0' : '#ffe36a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x - sz, y); ctx.lineTo(x + sz, y); ctx.moveTo(x, y - sz); ctx.lineTo(x, y + sz); ctx.moveTo(x - sz * .6, y - sz * .6); ctx.lineTo(x + sz * .6, y + sz * .6); ctx.moveTo(x - sz * .6, y + sz * .6); ctx.lineTo(x + sz * .6, y - sz * .6); ctx.stroke(); }
+  } else if (ki === 8) {   // ALTERNATE: a pale claw rake with a dark edge
+    cres('222,226,240', '120,126,160', 50, 15);
   } else if (ki === 7) {   // PARTICIPANT: a clean neon-pink knife cut
     cres('255,79,168', '255,225,242', 40, 12);
   } else if (ki === 6) {   // SKINWALKER: a pale bone-white rake. Five long thin claw lines of uneven length trail the arc, snapping out one after another, with fine tooth-like shards flung off the tips
@@ -8160,7 +8543,7 @@ function ringAt(x, y, r, col, lw, frac) { ctx.strokeStyle = col; ctx.lineWidth =
 
 /* ================= CHARACTER SPRITES =================
    Everything is procedural pixel art: each pose is painted once into a tiny canvas (rects only), given a 1px dark outline, cached,
-   and blitted with smoothing off, so it stays crisp at any zoom. Nine survivor designs loop by player id (id % CHARS.length); the killer has his own.
+   and blitted with smoothing off, so it stays crisp at any zoom. Twelve survivor designs loop by player id (id % CHARS.length); the killer has his own.
    Poses: stand (2 frames), run (4), down (4 crawl + 2 breathing), hang (4 struggle + 2 limp), killer idle (2) / run (4) / swing (2). */
 const OUTLINE = '#0a0b14', PS = 2.4, PSK = 2.2;   // pixel scale in world units: survivors / killer
 const CHARS = [
@@ -8173,6 +8556,9 @@ const CHARS = [
   { name: 'Crewmate', skin: '#d8232a', hair: '#d8232a', hair2: '#d8232a', top: '#d8232a', top2: '#a8181f', trim: '#9fd0e6', pants: '#a8181f', shoe: '#a8181f', col: '#e0262d', style: 'crew' },   // Among Us crewmate: red bean suit, backpack, blue visor (own sprite, see the crewmate block)
   { name: 'Georgie', skin: '#f1cdb0', hair: '#6b4a32', hair2: '#8a6445', top: '#f0c22e', top2: '#c89a1e', cap: '#f0c22e', trim: '#d49a14', hl: '#f8dc72', btn: '#a87a14', pants: '#39465c', shoe: '#5d9b3a', sole: '#2f5a1f', col: '#f0c22e', sc: .92, style: 'hood' },   // IT's Georgie: yellow hooded raincoat (hood up, brown fringe), dark jeans, green rain boots; a bit smaller than the adults
   { name: 'Grace', skin: '#f6d6c2', hair: '#e9d098', hair2: '#fbeec4', hairD: '#d3b676', top: '#f3ead8', top2: '#dccfb6', trim: '#7a4a2a', dress: '#f9f3e6', dress2: '#d9cdb4', dressH: '#fffdf6', lace: '#fffaf0', sheer: '#f4e2d2', blush: '#f5c0b0', lip: '#d4707a', eye: '#5b93b3', pants: '#f0cfb6', shoe: '#d6a948', sole: '#fbf7ee', col: '#f3e8d0', style: 'bride' },   // Grace: blonde updo, high-neck lace bodice + satin sash, layered tulle skirt, leather shell bandolier across the chest, bare legs, yellow high-top sneakers
+  { name: 'Wednesday', skin: '#ece3dc', hair: '#0c0a12', hair2: '#2c2838', top: '#1d1a2a', top2: '#12101a', trim: '#f4f1ea', pants: '#0d0c14', shoe: '#0e0e14', sole: '#2a2a38', dress: '#1d1a2a', dress2: '#12101a', lip: '#6e1426', col: '#8a7fb5', style: 'wed' },   // Wednesday (simple): black dress, white collar + cuffs, two braids, pale face, black tights and shoes
+  { name: 'Van Helsing', skin: '#f2d0b0', hair: '#2b2128', hair2: '#55444c', hairD: '#17121a', top: '#1f1e25', top2: '#121217', trim: '#b98f3e', pipe: '#7a5538', cap: '#17161b', hl: '#383742', btn: '#121116', red: '#7a1a22', shade: '#dcb08e', pants: '#14131a', shoe: '#201814', sole: '#3a2c24', col: '#b98f3e', sc: 1.03, style: 'vh' },   // Van Helsing (refs: black duster + wide-brim hat + black vest with brass buckles + gloves; white-haired smirking hunter): near-black long coat with bronze piping and a red-lined vent, high black collar, black vest with brass buckles, broad shoulders tapering to a belted waist, tilted hat with a brass band, silver swept hair over one eye, clean face with a smirk and a cigarette
+  { name: 'Jack', skin: '#f08a1a', hair: '#3f7a2a', hair2: '#2b5a1c', top: '#f08a1a', top2: '#c9650e', trim: '#ffe45a', pants: '#f08a1a', shoe: '#5a3a1a', col: '#ff8a1f', style: 'jack' },   // Jack: just a jack-o'-lantern, a round pumpkin with a glowing carved face, a green stem and two stubby feet; no body, he hops around (own sprite, see the jack block)
 ];
 const KILLER_NAME = 'Jigsaw';
 const ownerId = id => { if (id >= 1000) { const d = S.wo.dc.find(c => c.id === id); if (d) return d.o; } return id; };   // a decoy (id >= 1000) wears its OWNER's character
@@ -8317,8 +8703,44 @@ function crewHang(r, limp, k, y0, hx, sw, hurt) {   // hung by the backpack: kic
   leg(4, k[0], -1); leg(9, k[1], 1);
   crewBody((x, y, w, h, c) => r(x + ox, y, w, h, c), by, limp ? 'x' : 'o', hurt);
 }
-function headParts(r, C, by, mood) {   // head, hair and face in a 16-wide grid (head = x4..11, rows 2..8, shifted by `by`); mood: n normal / o scream / x limp
+/* ---- Jack: a jack-o'-lantern. Round orange pumpkin, green stem, glowing carved face, two stubby feet. No arms or body: he hops (the whole pumpkin leaps and squashes on landing). ---- */
+const JK = { O: '#f08a1a', O2: '#c9650e', Ol: '#ffb347', G: '#3f7a2a', G2: '#2b5a1c', Y: '#ffe45a', F: '#5a3a1a', E: '#12121c', R: '#a31621' };
+const JHOP = [7, 5, 3, 5, 7, 5, 3, 5];   // pumpkin top row per walk frame: low (squashed landing) / rising / peak / falling
+function jackBody(r, t, mood, hurt, f1 = 0, f2 = 0) {   // stem top at row t; pumpkin spans rows 2+t..13+t, x1..14; feet at 14+t (f1/f2 move each foot up/down)
+  r(8, t, 2, 1, JK.G2); r(8, 1 + t, 3, 1, JK.G); r(10, t, 1, 1, JK.G); r(12, 1 + t, 2, 1, JK.G2);   // stem + a little curled leaf (turned a bit toward the facing side)
+  r(4, 2 + t, 8, 1, JK.O); r(2, 3 + t, 12, 1, JK.O); r(1, 4 + t, 14, 8, JK.O); r(2, 12 + t, 12, 1, JK.O); r(4, 13 + t, 8, 1, JK.O);
+  r(4, 3 + t, 1, 10, JK.O2); r(8, 3 + t, 1, 10, JK.O2); r(11, 3 + t, 1, 10, JK.O2); r(13, 4 + t, 1, 8, JK.O2); r(8, 2 + t, 1, 1, JK.O2); r(11, 12 + t, 3, 1, JK.O2); r(10, 13 + t, 2, 1, JK.O2);   // ribs bunch up toward the facing edge (3/4 turn) + shaded right
+  r(2, 5 + t, 1, 5, JK.Ol); r(3, 4 + t, 1, 1, JK.Ol);   // lit left
+  r(4, 14 + t + f1, 3, 1, JK.F); r(9, 14 + t + f2, 3, 1, JK.F);   // stubby feet
+  const Y = JK.Y;   // three-quarter view, facing right: the face sits on the right half, the far (left) eye is the bigger one, the near (right) eye is squeezed against the edge, the nose juts out, the grin wraps around the side
+  if (mood === 'x') { r(5, 6 + t, 3, 1, JK.E); r(11, 6 + t, 2, 1, JK.E); r(7, 10 + t, 6, 1, JK.E); }   // out cold: eyes shut, flat mouth
+  else if (mood === 'o') {   // screaming: wide eyes, big round mouth
+    r(6, 4 + t, 1, 1, Y); r(5, 5 + t, 3, 2, Y); r(11, 4 + t, 1, 1, Y); r(11, 5 + t, 2, 2, Y); r(9, 7 + t, 1, 1, Y);
+    r(7, 9 + t, 6, 3, Y); r(8, 12 + t, 4, 1, Y);
+  } else {   // carved grin: triangle eyes, nose, jagged teeth
+    r(6, 5 + t, 1, 1, Y); r(5, 6 + t, 3, 1, Y); r(11, 5 + t, 1, 1, Y); r(11, 6 + t, 2, 1, Y); r(9, 7 + t, 1, 1, Y);
+    r(5, 9 + t, 9, 1, Y); r(6, 10 + t, 7, 1, Y); r(7, 11 + t, 5, 1, Y);
+    r(7, 9 + t, 1, 1, JK.O); r(10, 9 + t, 1, 1, JK.O); r(12, 9 + t, 1, 1, JK.O); r(8, 11 + t, 1, 1, JK.O); r(11, 11 + t, 1, 1, JK.O);   // gaps between the teeth
+  }
+  if (hurt) { r(3, 8 + t, 2, 1, JK.R); r(11, 5 + t, 2, 1, JK.R); r(7, 12 + t, 2, 1, JK.R); }
+}
+function jackStand(r, run, f, by, hurt) { jackBody(r, run ? JHOP[f & 7] : 6 + by, 'n', hurt); }
+function jackDown(r, ex, ly, tb, hurt) {   // tipped over on its side, face toward the right, wobbling
+  const Y = JK.Y;
+  r(10, 1 + tb, 10, 1, JK.O); r(8, 2 + tb, 14, 1, JK.O); r(7, 3 + tb, 16, 6 - tb, JK.O); r(8, 9, 14, 1, JK.O); r(10, 10, 10, 1, JK.O);
+  r(11, 2 + tb, 1, 8, JK.O2); r(15, 2 + tb, 1, 8, JK.O2); r(8, 3 + tb, 1, 5, JK.Ol); r(21, 4 + tb, 2, 5, JK.O2);
+  r(3, 4 + tb, 5, 2, JK.G); r(2, 3 + tb, 2, 1, JK.G2); r(4, 5 + tb, 4, 1, JK.G2);   // stem points back
+  r(9, 10 + ly[0], 3, 1, JK.F); r(14, 11 + ly[1] * 0, 3, 1, JK.F);                       // feet peeking out
+  r(16, 4 + tb, 2, 2, Y); r(20, 4 + tb, 2, 2, Y); r(18, 6 + tb, 1, 1, Y); r(15, 7 + tb, 8, 1, Y); r(16, 8, 6, 1, Y); r(17, 7 + tb, 1, 1, JK.O); r(20, 7 + tb, 1, 1, JK.O);
+  if (hurt) { r(12, 4 + tb, 2, 1, JK.R); r(19, 8, 2, 1, JK.R); }
+}
+function jackHang(r, limp, k, y0, hx, sw, hurt) {   // dangling by the stem: feet kick, then he goes limp
+  const ox = hx - 4 + sw, oy = y0 - 4;
+  jackBody((x, y, w, h, c) => r(x + ox, y + oy, w, h, c), 0, limp ? 'x' : 'o', hurt, limp ? 2 : (k[0] ? -1 : 2), limp ? 2 : (k[1] ? -1 : 2));
+}
+function headParts(r, C, by, mood, sw = 0) {   // head, hair and face in a 16-wide grid (head = x4..11, rows 2..8, shifted by `by`); mood: n normal / o scream / x limp
   const E = '#12121c', s = C.style;
+  if (s === 'wed') mood = 'n';   // Wednesday never changes her face: same deadpan expression when screaming, hooked or limp
   if (s === 'dog') { dogHead(r, by, mood); return; }   // Courage has his own head (see the dog block above)
   r(5, 2 + by, 6, 1, C.skin); r(4, 3 + by, 8, 5, C.skin); r(5, 8 + by, 6, 1, C.skin);
   if (s === 'spike') { r(4, 1 + by, 8, 3, C.hair); r(4, 4 + by, 1, 2, C.hair); r(11, 4 + by, 1, 1, C.hair); r(5, by, 1, 1, C.hair); r(8, by, 2, 1, C.hair); r(11, by, 1, 1, C.hair); r(6, 2 + by, 2, 1, C.hair2); }
@@ -8342,12 +8764,30 @@ function headParts(r, C, by, mood) {   // head, hair and face in a 16-wide grid 
     r(4, 3 + by, 3, 1, H); r(10, 3 + by, 2, 1, H); r(6, 3 + by, 1, 1, H2); r(9, 3 + by, 1, 1, HD);
     r(4, 4 + by, 1, 3, H); r(11, 4 + by, 1, 2, H); r(3, 2 + by, 1, 4, H2); r(3, 6 + by, 1, 2, H); r(12, 2 + by, 1, 4, H); r(12, 6 + by, 1, 1, HD); r(4, 7 + by, 1, 1, HD);
   }   // (face details: brideFace below)
+  else if (s === 'wed') {   // Wednesday (simple): black hair with a straight fringe, side hair, two plaits (they swing while she runs)
+    const H = C.hair, H2 = C.hair2;
+    r(5, by, 6, 1, H); r(4, 1 + by, 8, 3, H); r(6, 1 + by, 2, 1, H2);
+    r(3, 2 + by, 1, 7, H); r(12, 2 + by, 1, 7, H);
+    for (let i = 0; i < 5; i++) { const c = i & 1 ? H2 : H; r(2 + sw, 9 + by + i, 1, 1, c); r(13 + sw, 9 + by + i, 1, 1, c); }
+  }
+  else if (s === 'vh') {   // Van Helsing: tilted wide-brim black hat (lit left, brass band + badge), black swept hair with an even fringe, shadow under the brim, clean jaw
+    const Hd = '#0c0b0f';
+    r(5, by, 6, 2, C.cap); r(5, by, 3, 1, C.hl); r(5, 1 + by, 6, 1, '#4a3a1c'); r(8, 1 + by, 1, 1, C.trim);
+    r(1, 2 + by, 14, 1, C.cap); r(1, 2 + by, 5, 1, C.hl); r(1, 3 + by, 2, 1, C.cap); r(12, 2 + by, 3, 1, Hd); r(4, 3 + by, 8, 1, '#8c6a58');
+    r(4, 4 + by, 1, 3, C.hair); r(11, 4 + by, 1, 2, C.hair); r(3, 4 + by, 1, 4, C.hair); r(3, 6 + by, 1, 2, C.hairD); r(12, 4 + by, 1, 4, C.hair); r(12, 6 + by, 1, 2, C.hairD);
+    r(5, 4 + by, 6, 1, C.hair); r(6, 4 + by, 2, 1, C.hair2); r(9, 4 + by, 1, 1, C.hair2);
+    r(5, 8 + by, 6, 1, C.shade);
+  }
   else if (s === 'hat') { r(5, by, 6, 3, C.cap); r(3, 3 + by, 10, 1, C.cap); r(5, 2 + by, 6, 1, C.cuff); r(4, 4 + by, 1, 3, C.hair); r(11, 4 + by, 1, 3, C.hair); r(6, 3 + by, 3, 1, '#2f2f3c'); r(6, 8 + by, 4, 1, C.hair2); }
   else { r(3, 1 + by, 10, 4, C.hair); r(3, 5 + by, 2, 4, C.hair); r(11, 5 + by, 2, 3, C.hair); r(5, 4 + by, 6, 1, C.hair2); r(5, 2 + by, 1, 1, '#d33b3b'); }
   if (mood === 'x') { r(6, 6 + by, 2, 1, E); r(9, 6 + by, 2, 1, E); r(8, 8 + by, 2, 1, '#5a2a2a'); }
   else if (mood === 'o') { r(7, 5 + by, 1, 2, E); r(10, 5 + by, 1, 2, E); r(8, 7 + by, 2, 2, '#5a0f18'); }
   else { r(7, 5 + by, 1, 2, E); r(10, 5 + by, 1, 2, E); r(8, 7 + by, 2, 1, '#8a4a4a'); }   // eyes sit one pixel right of centre: the sprite looks the way it faces
+  if (s === 'vh') {   // even eyes, smirk with a cigarette
+        if (mood === 'n') { r(8, 7 + by, 3, 1, '#a35a4e'); r(11, 7 + by, 2, 1, '#ece6d6'); r(13, 7 + by, 1, 1, '#ff9a3c'); }
+  }
   if (s === 'bride') brideFace(r, C, by, mood);
+  if (s === 'wed') { if (mood !== 'o') { r(6, 4 + by, 2, 1, C.hair); r(9, 4 + by, 2, 1, C.hair); } if (mood === 'n') r(8, 7 + by, 2, 1, C.lip); }   // Wednesday: straight stern brows, dark-red lips
 }
 function brideFace(r, C, by, mood) {   // Grace's prettier face: arched brows, lashes + blue eyes, rosy lips, blush, pearl earrings
   const E = '#12121c';
@@ -8368,6 +8808,7 @@ function humanBmp(ci, pose, f, hurt) {   // stand / run
   return cachedSpr(`h${ci}${pose}${f}${hurt}`, () => outl(ci, pxc(16, 23, r0 => {
     const C = CHARS[ci], r = (x, y, w, h, c) => r0(x, y + 1, w, h, c), run = pose === 'run', [lL, lR, aL, aR, by, dL = 0, dR = 0] = run ? RUNP[f & 7] : IDLP[f & 1], s = C.style;
     if (s === 'dog') { dogStand(r, run, lL, lR, by, dL, dR, hurt); return; }
+    if (s === 'jack') { jackStand(r, run, f, by, hurt); return; }   // Jack: a hopping pumpkin
     if (s === 'crew') { crewStand(r, run, lL, lR, by, dL, dR, hurt); return; }   // Crewmate: no arms, hair or shoes   // a dog, not a person: no arms, shoes or clothes
     if (s === 'tail') { const sw = run ? PONY[f & 7] : 0; r(12 + sw, 3 + by, 2, 6, C.hair); r(13 + sw, 8 + by, 1, 2, C.hair2); }   // ponytail swings while running
     const leg = (x, lift, dx, sx) => { r(x + dx, 16, 2, 4 - lift, C.pants); r(sx + dx, 20 - lift, 3, 2, C.shoe); r(sx + dx, 21 - lift, 3, 1, C.sole || '#2a2a38'); };   // dx = stride, lift = foot off the ground
@@ -8408,9 +8849,26 @@ function humanBmp(ci, pose, f, hurt) {   // stand / run
       r(5, 9 + by, 1, 1, '#c9a24a');   // buckle on the shoulder strap
       r(5 + dL, 19 - lL, 2, 1, C.shoe); r(5 + dL + 1, 19 - lL, 1, 1, L); r(9 + dR, 19 - lR, 2, 1, C.shoe); r(9 + dR, 19 - lR, 1, 1, L);   // high-top sneakers: ankle + lace pixel
     }
+    else if (s === 'wed') {   // Wednesday (simple): white pointed collar + cuffs on a plain black dress, knee-length skirt
+      const W = C.trim;
+      r(5, 9 + by, 2, 1, W); r(9, 9 + by, 2, 1, W); r(7, 9 + by, 2, 1, C.skin); r(6, 10 + by, 1, 1, W); r(9, 10 + by, 1, 1, W);
+      r(3, 11 + by + aL, 2, 1, W); r(11, 11 + by + aR, 2, 1, W);
+      r(5, 14, 6, 2, C.top); r(5, 16, 6, 1, C.top2);   // skirt is exactly as wide as the torso: a straight body, no flare
+    }
+    else if (s === 'vh') {   // Van Helsing: black duster (lit left) with bronze piping + a red-lined vent, high black collar, black vest + brass buckles, belt, bronze cuffs, black gloves
+      const R = C.red, B = C.trim, P = C.pipe, G = '#0e0d12', V = C.btn;
+      r(2, 9 + by, 3, 1, C.top); r(11, 9 + by, 3, 1, C.top); r(2, 9 + by, 2, 1, C.hl); r(13, 9 + by, 1, 1, C.top2);   // wide shoulders
+      r(5, 9 + by, 6, 1, V); r(7, 9 + by, 2, 1, '#2a2933');                                                         // high collar
+      r(6, 10 + by, 4, 3 - by, V); r(6, 10 + by, 1, 1, B); r(9, 11 + by, 1, 1, B); r(6, 12 + by, 1, 1, B);            // vest + brass buckles
+      r(5, 10 + by, 1, 4, '#4f3825'); r(10, 10 + by, 1, 4, '#33261b');                                                       // coat edge piping
+      r(5, 13, 6, 1, G); r(8, 13, 1, 1, B);                                                                          // belt + buckle
+      r(4, 14, 8, 2, C.top); r(3, 16, 10, 3, C.top); r(4, 14, 1, 2, C.hl); r(3, 16, 1, 3, C.hl); r(11, 14, 1, 2, C.top2); r(12, 16, 1, 3, C.top2); r(9, 15, 1, 4, C.top2);   // long flared coat
+      r(7, 16, 2, 3, R); r(3, 18, 4, 1, P); r(9, 18, 4, 1, P);                                                       // red-lined vent + piped hem
+      for (const [x, a] of [[3, aL], [11, aR]]) { r(x, 11 + by + a, 2, 1, '#4f3825'); r(x, 12 + by + a, 2, 2, G); }          // bronze cuffs + black gloves
+    }
     else if (s === 'hat') { r(7, 9 + by, 2, 1, '#e8ecf4'); r(8, 10 + by, 1, 1, C.trim); r(8, 12 + by, 1, 1, C.trim); r(5, 13, 6, 1, C.cuff); r(3, 9 + by + aL, 2, 1, C.cuff); r(11, 9 + by + aR, 2, 1, C.cuff); }
     else { r(5, 9 + by, 6, 1, C.trim); r(8, 11 + by, 1, 1, C.trim); r(8, 13, 1, 1, C.trim); }
-    headParts(r, C, by, 'n');
+    headParts(r, C, by, 'n', s === 'wed' && run ? PONY[f & 7] : 0);
     if (hurt) { r(5, 10 + by, 2, 2, '#a31621'); r(9, 13, 2, 1, '#7a0f18'); r(4, 4 + by, 1, 2, '#a31621'); }
   })));
 }
@@ -8426,6 +8884,8 @@ function hairLying(r, C, tb) {
   else if (s === 'mike') { r(16, 1 + tb, 7, 3, C.hair); r(15, 2 + tb, 2, 4, C.hair); r(17, tb, 3, 1, C.hair); r(21, tb, 2, 1, C.hair); r(23, 2 + tb, 1, 2, C.hair); r(19, 1 + tb, 2, 1, C.hair2); r(16, 5 + tb, 3, 2, C.hair); r(16, tb, 2, 1, C.mask2); r(14, 1 + tb, 4, 3, C.mask); r(13, 3 + tb, 4, 2, C.mask); r(13, 4 + tb, 1, 1, C.teeth); r(15, 4 + tb, 1, 1, C.teeth); r(15, 2 + tb, 1, 1, '#2a0a0e'); }   // mask sits on the back of the head
   else if (s === 'hood') { r(15, 1 + tb, 8, 4, C.cap); r(15, 5 + tb, 3, 3, C.cap); r(16, tb, 5, 1, C.cap); r(21, 3 + tb, 2, 1, C.hair); }
   else if (s === 'bride') { r(15, 1 + tb, 8, 4, C.hair); r(14, 3 + tb, 2, 3, C.hair2); r(16, 5 + tb, 3, 2, C.hair); r(17, tb, 3, 1, C.hair); for (let x = 15; x < 23; x++) { r(x, 1 + tb, 1, 1, x & 1 ? C.hair2 : C.hair); r(x, 2 + tb, 1, 1, x & 1 ? C.hair : C.hairD); } r(14, 6 + tb, 1, 1, C.hairD); }
+  else if (s === 'vh') { r(16, tb, 6, 2, C.cap); r(16, tb, 3, 1, C.hl); r(16, 1 + tb, 6, 1, '#4a3a1c'); r(13, 2 + tb, 12, 1, C.cap); r(13, 2 + tb, 4, 1, C.hl); r(18, 3 + tb, 6, 1, '#8c6a58'); r(15, 3 + tb, 2, 5, C.hair); r(15, 6 + tb, 1, 2, C.hairD); r(16, 8 + tb, 1, 1, C.hair); r(19, 8 + tb, 4, 1, C.shade); r(23, 6 + tb, 2, 1, '#ece6d6'); r(25, 6 + tb, 1, 1, '#ff9a3c'); }   // hat + hair + jaw shade + cigarette
+  else if (s === 'wed') { r(15, 1 + tb, 8, 4, C.hair); r(16, tb, 5, 1, C.hair); r(15, 5 + tb, 3, 3, C.hair); for (let i = 0; i < 6; i++) r(10 + i, 5 + tb + (i > 3 ? -1 : 0), 1, 1, i & 1 ? C.hair2 : C.hair); }   // plait trailing behind her head
   else if (s === 'hat') { r(17, tb - 1, 5, 3, C.cap); r(15, 2 + tb, 9, 1, C.cap); r(17, 1 + tb, 5, 1, C.cuff); r(16, 3 + tb, 1, 3, C.hair); }
   else { r(15, 2 + tb, 5, 7, C.hair); r(17, 1 + tb, 6, 2, C.hair); r(20, 2 + tb, 2, 1, C.hair2); }
 }
@@ -8433,6 +8893,7 @@ function downBmp(ci, f, hurt) {   // lying on the ground, head to the right. f 0
   return cachedSpr(`d${ci}${f}${hurt}`, () => outl(ci, pxc(26, 12, r => {
     const C = CHARS[ci], crawl = f < 4, ex = crawl ? [[3, 0], [1, 1], [0, 3], [1, 1]][f] : [1, 1], ly = crawl ? [[-1, 0], [0, 0], [0, 1], [0, 0]][f] : [0, 0], tb = f === 5 ? 1 : 0, E = '#12121c';
     if (C.style === 'dog') { dogDown(r, ex, ly, tb, hurt); return; }
+    if (C.style === 'jack') { jackDown(r, ex, ly, tb, hurt); return; }
     if (C.style === 'crew') { crewDown(r, ex, ly, tb, hurt); return; }
     r(0, 5 + ly[0], 8, 2, C.pants); r(0, 7 + ly[1], 8, 2, C.pants); r(0, 5 + ly[0], 2, 2, C.shoe); r(0, 7 + ly[1], 2, 2, C.shoe);
     if (C.style === 'bride') { r(2, 3, 7, 8, C.dress); r(3, 9, 5, 2, C.dress2); r(4, 4, 2, 1, C.dress2); }   // tulle skirt over her legs (shoes stay visible)
@@ -8440,6 +8901,8 @@ function downBmp(ci, f, hurt) {   // lying on the ground, head to the right. f 0
     if (C.style === 'bride') for (let i = 0; i < 6; i++) { r(9 + i, 3 + tb + i, 2, 1, C.trim); r(9 + i + (i & 1), 3 + tb + i, 1, 1, i & 1 ? '#d9a441' : '#b0302a'); }   // bandolier across the back
     r(12, 11, 3, 1, C.top2); r(15, 11, 2 + ex[1] * 2, 1, '#d3ab86');   // far arm
     r(13, 10, 3, 2, C.top); r(16, 10, 2 + ex[0] * 2, 2, C.skin);        // near arm
+    if (C.style === 'wed') { r(15, 3 + tb, 1, 4, C.trim); r(15, 10, 1, 2, C.trim); }
+    if (C.style === 'vh') { r(4, 3, 4, 6, C.top); r(3, 3, 1, 6, C.pipe); r(8, 8, 8, 1, C.top2); r(10, 3 + tb, 1, 1, C.trim); r(15, 10, 1, 2, C.pipe); r(16, 10, 2 + ex[0] * 2, 2, '#0e0d12'); }   // coat tails + piping + cuff + glove
     if (C.bare) { r(12, 11, 3, 1, '#d3ab86'); r(13, 10, 3, 2, C.skin); r(16, 10, 1, 2, C.band); r(15, 11, 1, 1, C.band); }
     r(17, 2 + tb, 6, 1, C.skin); r(16, 3 + tb, 8, 5, C.skin); r(17, 8 + tb, 6, 1, C.skin);
     hairLying(r, C, tb); r(21, 5 + tb, 2, 1, E); r(22, 7 + tb, 2, 1, '#5a2a2a');
@@ -8450,6 +8913,7 @@ function hangBmp(ci, f, hurt) {   // hanging on the hook. f 0..3 = struggling (a
   return cachedSpr(`g${ci}${f}${hurt}`, () => outl(ci, pxc(16, 30, r => {
     const C = CHARS[ci], limp = f >= 4, k = limp ? [0, 0] : [[2, 0], [0, 0], [0, 2], [0, 0]][f], y0 = limp ? 9 : 7, hx = limp ? 5 : 4, sw = limp && f === 5 ? 1 : 0;
     if (C.style === 'dog') { dogHang(r, limp, k, y0, hx, sw, hurt); return; }
+    if (C.style === 'jack') { jackHang(r, limp, k, y0, hx, sw, hurt); return; }
     if (C.style === 'crew') { crewHang(r, limp, k, y0, hx, sw, hurt); return; }
     if (limp) { r(3, y0 + 7, 2, 5, C.top); r(3, y0 + 12, 2, 2, C.skin); r(11, y0 + 7, 2, 5, C.top); r(11, y0 + 12, 2, 2, C.skin); }
     else { r(3, y0 - 1, 2, 9, C.top); r(3, y0 - 3, 2, 2, C.skin); r(11, y0 - 1, 2, 9, C.top); r(11, y0 - 3, 2, 2, C.skin); }
@@ -8458,6 +8922,8 @@ function hangBmp(ci, f, hurt) {   // hanging on the hook. f 0..3 = struggling (a
     leg(5, k[0], -1, 4); leg(9, k[1], 1, 9);
     r(5, y0 + 7, 6, 6, C.top); r(5, y0 + 11, 6, 2, C.top2); r(5, y0 + 13, 6, 1, '#1a1a24');
     if (C.style === 'bride') { r(4, y0 + 12, 8, 2, C.dress); r(3, y0 + 14, 10, 2, C.dress); r(3, y0 + 16, 10, 1, C.dress2); for (let i = 0; i < 5; i++) { r(5 + i, y0 + 7 + i, 2, 1, C.trim); r(5 + i + (i & 1), y0 + 7 + i, 1, 1, i & 1 ? '#d9a441' : '#b0302a'); } }   // Grace: tulle skirt + shell bandolier
+    if (C.style === 'vh') { r(2, y0 + 7, 3, 1, C.top); r(11, y0 + 7, 3, 1, C.top); r(5, y0 + 7, 6, 1, C.btn); r(6, y0 + 8, 4, 3, C.btn); r(6, y0 + 8, 1, 1, C.trim); r(9, y0 + 9, 1, 1, C.trim); r(5, y0 + 7, 1, 4, C.pipe); r(10, y0 + 7, 1, 4, '#4f3825'); r(3, y0 + 12, 10, 3, C.top); r(12, y0 + 12, 1, 3, C.top2); r(7, y0 + 12, 2, 3, C.red); r(3, y0 + 14, 4, 1, C.pipe); r(9, y0 + 14, 4, 1, C.pipe); r(3, limp ? y0 + 11 : y0 - 1, 2, 1, C.pipe); r(11, limp ? y0 + 11 : y0 - 1, 2, 1, C.pipe); }   // Van Helsing: shoulders, collar, vest, flared coat with red vent, bronze cuffs
+    if (C.style === 'wed') { r(5, y0 + 12, 6, 3, C.dress); r(5, y0 + 7, 2, 1, C.trim); r(9, y0 + 7, 2, 1, C.trim); if (limp) { r(3, y0 + 11, 2, 1, C.trim); r(11, y0 + 11, 2, 1, C.trim); } else { r(3, y0 - 1, 2, 1, C.trim); r(11, y0 - 1, 2, 1, C.trim); } }   // Wednesday: skirt, collar, cuffs
     if (C.tie) { r(6, y0 + 7, 2, 1, '#f8f4ea'); r(9, y0 + 7, 2, 1, '#f8f4ea'); r(8, y0 + 8, 1, 4, C.tie); }
     headParts((x, y, w, h, c) => r(x + hx - 4, y + y0 - 2, w, h, c), C, 0, limp ? 'x' : 'o');
     if (hurt) { r(6, y0 + 8, 2, 2, '#a31621'); r(hx, y0 + 2, 1, 2, '#a31621'); }
@@ -9154,6 +9620,103 @@ function skinwalkerBmp(pose, f, lau, mon) {   // The Skinwalker: a tall, thin, s
     }
   })));
 }
+function altDown(big, W, H, over) {   // shrinks the detailed 2x drawing onto the classic chunky grid every other killer uses (same pixel size on screen): each 2x2 block becomes one pixel, bright details (the white eyes) win over the plain body colour
+  const d = big.getContext('2d').getImageData(0, 0, W * 2, H * 2).data;
+  return pxc(W, H, r => { for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const cnt = {}; let n = 0;
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) { const k = ((y * 2 + j) * W * 2 + x * 2 + i) * 4; if (d[k + 3] < 128) continue; n++; const R = d[k], G = d[k + 1], Bc = d[k + 2], key = R << 16 | G << 8 | Bc, mx = Math.max(R, G, Bc), mn = Math.min(R, G, Bc); const e = cnt[key] || (cnt[key] = { w: 0, R, G, B: Bc }); e.w += 1 + (mx - mn > 70 ? .7 : 0) + (mx > 205 ? .5 : 0); }
+    if (n < 2) continue; let best = null; for (const k in cnt) if (!best || cnt[k].w > best.w) best = cnt[k]; r(x, y, 1, 1, `rgb(${best.R},${best.G},${best.B})`); } if (over) over(r); });
+}
+function alternateBmp(pose, f, lau, mon) {   // Alternate (killer_8) REWORK: a lanky, hunched, too-tall man. Normal form: a blank black blob head with ragged ink hair and two mismatched white eyes (one big, one small) on a thin pale neck; a loose white V-neck tee with rolled cuffs and skinny slate trousers; the arms are Skinwalker-long, the pale forearm bleeds raggedly into ink-black, and the hands are Huggy-big with long hooked claws that scrape the floor. mon = gates-open form: a stretched pitch-black silhouette, long neck, ink-ragged limbs, huge claws and a wide Huggy-style grin of white teeth. Drawn detailed on a 2x grid, then shrunk to the classic chunky grid (same pixel size as the other killers)
+  const S = .8, W = mon ? 40 : 34, H = mon ? 44 : 36;   // S = size factor (the first design was 1.0)
+  return cachedSpr(`al9${pose}${f}${lau ? 1 : 0}${mon ? 1 : 0}`, () => { const big = pxc(W * 2, H * 2, r0 => {
+    const OX = mon ? 5 : 3, OY = mon ? 6 : 3;
+    const cl = (v, a, b) => Math.max(a, Math.min(b, v)), px = (x, y, c) => r0(Math.round(x + OX), Math.round(y + OY), 1, 1, c);
+    const NAVY = ['#12152a', '#1f2340', '#2d3256', '#3f4670', '#555d8c'], SHIRT = ['#868aa0', '#b4b8cb', '#dcdfea', '#f2f3f9', '#ffffff'], SKP = ['#9a7b72', '#c9a79c', '#e8cec3', '#f6e3da', '#fff2eb'];
+    const BLK = ['#010103', '#06060b', '#0e0e17', '#191926', '#2b2b42'], CLW = ['#050509', '#0b0b13', '#141420', '#232339', '#6f74a8'], SHOE = ['#030305', '#09090e', '#13131b', '#202029', '#30303c'], SIL = ['#06060a', '#0f0f17', '#191924', '#262636', '#3a3a54'];
+    const tn = (p, t, x, y) => p[cl(Math.round(t * 4 + (((Math.round(x) + Math.round(y)) & 1) - .5) * .3), 0, 4)];
+    const lit = (nx, ny) => cl(.56 - (nx * .5 + ny * .7) * .42 - Math.pow(Math.hypot(nx, ny), 3) * .08, 0, 1);
+    const cap = (x0, y0, x1, y1, ra, rb, p, dk) => { x0 *= S; y0 *= S; x1 *= S; y1 *= S; ra *= S; rb *= S; const vx = x1 - x0, vy = y1 - y0, L2 = vx * vx + vy * vy || 1, m = Math.max(ra, rb) + 1;
+      for (let y = Math.floor(Math.min(y0, y1) - m); y <= Math.ceil(Math.max(y0, y1) + m); y++) for (let x = Math.floor(Math.min(x0, x1) - m); x <= Math.ceil(Math.max(x0, x1) + m); x++) {
+        const t = cl(((x + .5 - x0) * vx + (y + .5 - y0) * vy) / L2, 0, 1), dx = x + .5 - (x0 + vx * t), dy = y + .5 - (y0 + vy * t), rr = ra + (rb - ra) * t;
+        if (dx * dx + dy * dy <= rr * rr) px(x, y, tn(p, lit(dx / rr, dy / rr) + (dk || 0), x, y)); } };
+    const egg = (cx, cy, rx, ry, p, dk) => { cx *= S; cy *= S; rx *= S; ry *= S; for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx - 1); x <= Math.ceil(cx + rx + 1); x++) {
+      const nx = (x + .5 - cx) / rx, ny = (y + .5 - cy) / ry; if (Math.pow(Math.abs(nx), 2.3) + Math.pow(Math.abs(ny), 2.3) <= 1) px(x, y, tn(p, lit(nx * .85, ny * .85) + (dk || 0), x, y)); } };
+    const poly = (pts, p, sh) => { pts = pts.map(q => [q[0] * S, q[1] * S]); let y0 = 1e9, y1 = -1e9, x0 = 1e9, x1 = -1e9; for (const q of pts) { y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); }
+      for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) { const X = x + .5, Y = y + .5; let ins = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[i], b = pts[j]; if ((a[1] > Y) !== (b[1] > Y) && X < (b[0] - a[0]) * (Y - a[1]) / (b[1] - a[1]) + a[0]) ins = !ins; }
+        if (ins) px(x, y, tn(p, sh ? sh(x, y) : .5, x, y)); } };
+    const ln = (x0, y0, x1, y1, c, w) => { x0 *= S; y0 *= S; x1 *= S; y1 *= S; w = w || 1; const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1); for (let i = 0; i <= n; i++) r0(Math.round(x0 + (x1 - x0) * i / n + OX), Math.round(y0 + (y1 - y0) * i / n + OY), w, w, c); };
+    const sw = pose === 'swing', run = pose === 'run', [lL, lR, aL, aR, by0] = run ? KRUN[f & 3] : [0, 0, 0, 0, sw ? 0 : f & 1];
+    const B = run ? by0 * 2 : by0;
+    // a hooked talon: tapers to a needle and curls back toward the palm (curl > 0 hooks the tip back)
+    const talon = (x, y, ang, len, curl, r1, pal) => { let cx = x, cy = y, a = ang; const n = 6, seg = len / n; for (let i = 0; i < n; i++) { const t = i / n, nx = cx + Math.cos(a) * seg, ny = cy + Math.sin(a) * seg; cap(cx, cy, nx, ny, r1 * (1 - t * .78) + .25, r1 * (1 - (t + 1 / n) * .78) + .2, pal); cx = nx; cy = ny; a += curl * (.35 + t * 1.1); } };
+    const hand = (hx, hy, dir, len, pal, r1, fan) => {   // big palm + four long claws of different lengths + a short thumb claw
+      egg(hx, hy, 4.2, 3.8, pal, .05); const L = [.8, 1, .92, .66];
+      for (let i = 0; i < 4; i++) talon(hx + (i - 1.5) * 1.9, hy + 1.4, dir + (i - 1.5) * fan, len * L[i], .13, r1, pal);
+      talon(hx - 2.6, hy - .5, dir - 1.25, len * .45, .1, r1 * .9, pal); };
+    if (!mon) {
+      // ---- the pale man with the black mask head ----
+      const legs = [[32, lL * 2, -1, 29, 25], [37, lR * 2, 1, 41, 43]];
+      for (const [hx, lift, sd, kx0, fx] of legs) { const kx = kx0 + (lift ? sd * 2 : 0), ky = 64 - lift * .5, fy = 77 - lift, fxx = fx + (lift ? sd * 3 : 0);
+        cap(hx, 49 + B, kx, ky, 4, 3.1, NAVY); cap(kx, ky, fxx, fy, 3.1, 2.4, NAVY); ln(fxx - 2.4, fy - 1, fxx + 2.4, fy - 1, NAVY[3], 1);   // skinny trousers + a rolled hem
+        egg(fxx + 2.6, fy + 2.6, 5.4, 2.3, SHOE); r0(Math.round((fxx + 6) * S + OX), Math.round((fy + 3) * S + OY), 2, 1, SHOE[1]); }   // pointed black shoes
+      // arm: loose rolled sleeve, a short pale forearm, then it bleeds raggedly into ink-black; huge clawed hand at the end
+      const arm = (sx, sy, ex, ey, wx, wy, hx, hy, dir, back) => {
+        cap(sx, sy, ex, ey, 3.7, 3.1, SHIRT, back ? -.12 : 0);                                         // sleeve
+        ln(ex - 3, ey - 1, ex + 3, ey - 1, SHIRT[0], 2); ln(ex - 3, ey - 3, ex + 3, ey - 3, SHIRT[3], 1);   // the rolled cuff
+        const mx = ex + (wx - ex) * .3, my = ey + (wy - ey) * .3;
+        cap(ex, ey + 1, mx, my, 2.7, 2.6, SKP, back ? -.1 : 0);                                        // pale forearm
+        cap(mx, my, wx, wy, 3, 2.5, CLW, .12);                                                       // ink-black forearm
+        const vx = wx - ex, vy = wy - ey, L = Math.hypot(vx, vy) || 1, nx = -vy / L, ny = vx / L;      // ragged ink creeping up the arm
+        for (let k = -2; k <= 2; k++) { const l = 3 + ((k * 7 + 11) & 3) * 1.6; ln(mx + nx * k * 1.2, my + ny * k * 1.2, mx + nx * k * 1.2 - vx / L * l, my + ny * k * 1.2 - vy / L * l, CLW[1], 1); }
+        hand(hx, hy, dir, 23, CLW, 1.6, .58); };
+      let fA, nA;   // [shoulder, elbow, wrist, hand, claw direction]
+      if (sw && f === 0) { fA = [38, 28 + B, 29, 21 + B, 25, 10 + B, 24, 8 + B, -2.2]; nA = [45, 28 + B, 56, 21 + B, 60, 10 + B, 61, 8 + B, -1.0, 0]; }
+      else if (sw) { fA = [38, 29 + B, 50, 36 + B, 62, 39 + B, 65, 40 + B, .2]; nA = [45, 29 + B, 58, 33 + B, 68, 36 + B, 70, 37 + B, .1, 0]; }
+      else { fA = [38, 28 + B, 24, 43 + B, 21, 56 + B + aL * 2, 20, 61 + B + aL * 2, 2.15]; nA = [46, 28 + B, 59, 43 + B, 60, 56 + B + aR * 2, 60.5, 61 + B + aR * 2, 1.05, 0]; }
+      arm(...fA, 1);                                                                                   // far arm (behind)
+      cap(45, 26 + B, 50, 21 + B, 2.3, 2, SKP);                                                         // long thin neck
+      for (const [x0, y0, x1, y1] of [[44, 23, 45.5, 21], [45.5, 24.5, 47, 22]]) ln(x0, y0 + B, x1, y1 + B, SKP[0], 1);
+      cap(46, 26 + B, 35, 49 + B, 6.6, 5.7, SHIRT);                                                     // baggy hunched torso
+      poly([[39.5, 24.5 + B], [48.5, 24 + B], [43.8, 37 + B]], SKP, (x, y) => .72 - (y - 24) / 30);     // the V-neck
+      poly([[30, 47 + B], [42, 47 + B], [43, 52 + B], [29, 52 + B]], SHIRT, () => .48);                 // loose hem
+      for (const [x0, y0, x1, y1] of [[36, 36, 43, 38], [34, 42, 40, 43], [30, 34, 33, 43]]) ln(x0, y0 + B, x1, y1 + B, SHIRT[1]); ln(45, 31 + B, 41, 37 + B, SHIRT[2]);
+      arm(...nA);                                                                                      // near arm (front)
+      // the blank black head: ragged ink hair on top, a tilted egg, a pointed jaw
+      egg(43, 12 + B, 7.6, 9.4, BLK, .04); egg(55, 14 + B, 7.6, 8.8, BLK, .03); egg(57, 19.5 + B, 5, 4.4, BLK, .02); egg(49, 17 + B, 6, 5.6, BLK, .02);   // a big blank head turned 45 degrees away: skull behind, jaw pushed to the front
+      poly([[38, 6 + B], [33, -1 + B], [43, 3 + B]], BLK); poly([[43, 3 + B], [45, -4 + B], [50, 2 + B]], BLK); poly([[50, 4 + B], [56, -2 + B], [57, 6 + B]], BLK); poly([[36, 13 + B], [29, 12 + B], [37, 8 + B]], BLK); poly([[38, 19 + B], [31, 22 + B], [39, 14 + B]], BLK);   // ragged ink hair, strands out to both sides
+    } else {
+      // ---- the stretched pitch-black form, turned 45 degrees: the near shoulder / leg is forward, the far arm hides half behind the torso, the head and grin point to the side ----
+      const hunch = sw && f === 1 ? 2 : 0, hx = 47 + hunch;
+      const mLeg = (x0, lift, sd, kx0, fx0, wd) => { const kx = kx0 + (lift ? sd * 2 : 0), ky = 72 - lift * .5, fy = 93 - lift, fx = fx0 + (lift ? sd * 3 : 0); cap(x0, 58 + B, kx, ky, wd, wd * .8, SIL); cap(kx, ky, fx, fy - 1, wd * .82, wd * .62, SIL); egg(fx + 5, fy + .8, 6.5, 1.9, SIL); };
+      const mArm = (sx, sy, ex, ey, wx, wy, hx2, hy2, dir) => { cap(sx, sy, ex, ey, 2.6, 2.1, SIL); cap(ex, ey, wx, wy, 2.2, 1.8, SIL);
+        const vx = wx - ex, vy = wy - ey, L = Math.hypot(vx, vy) || 1, nx = -vy / L, ny = vx / L; for (let k = -1; k <= 1; k++) ln(ex + nx * k * 1.2, ey + ny * k * 1.2, ex + nx * k * 1.2 + vx / L * (6 + k * k * 4), ey + ny * k * 1.2 + vy / L * (6 + k * k * 4), SIL[3], 1);
+        hand(hx2, hy2, dir, 25, CLW, 1.4, .58); };
+      let fA, nA;
+      if (sw && f === 0) { fA = [37, 33 + B, 31, 20 + B, 28, 8 + B, 27, 6 + B, -2.1]; nA = [45, 33 + B, 55, 20 + B, 60, 8 + B, 61, 6 + B, -1.05]; }
+      else if (sw) { fA = [37, 34 + B, 40, 42 + B, 36, 55 + B, 35, 60 + B, 1.9]; nA = [45, 34 + B, 59, 42 + B, 75, 49 + B, 78, 50 + B, .1]; }
+      else { fA = [37, 33 + B, 29, 56 + B, 27 + aL, 76 + B, 26 + aL, 81 + B, 1.95]; nA = [45, 33 + B, 53, 58 + B, 56 - aR, 76 + B, 57 - aR, 81 + B, 1.2]; }
+      mArm(...fA);                                                                 // far arm: behind the body
+      mLeg(37, lL * 2, -1, 34, 31, 2.6);                                           // far leg: back
+      cap(40, 32 + B, 40, 58 + B, 4.4, 3.8, SIL); cap(36, 33 + B, 45, 33 + B, 2.6, 2.7, SIL);   // narrow torso, shoulders squeezed together by the turn
+      for (const dx of [-2, 0, 2]) ln(40 + dx, 56 + B, 40 + dx * 1.6, 61 + B + (dx ? 1 : 3), SIL[3], 1);   // tattered shirt strands
+      mLeg(42, lR * 2, 1, 47, 51, 2.8);                                            // near leg: stepping toward us
+      cap(41, 28 + B, hx + 1, 16 + B, 2.2, 2.6, SIL);                              // very long neck, leaning the way it looks
+      egg(hx - 6, 9 + B, 8.4, 10.6, SIL); egg(hx + 5, 11 + B, 8.8, 9.6, SIL); egg(hx + 8, 16 + B, 5.2, 4.4, SIL); egg(hx, 15 + B, 6, 5, SIL);        // body and head both turned 45 degrees away from the player
+      poly([[hx - 12, 4 + B], [hx - 18, -3 + B], [hx - 7, 0 + B]], SIL); poly([[hx - 7, 0 + B], [hx - 5, -8 + B], [hx + 1, -1 + B]], SIL); poly([[hx + 2, 1 + B], [hx + 8, -5 + B], [hx + 9, 4 + B]], SIL); poly([[hx - 13, 12 + B], [hx - 19, 14 + B], [hx - 12, 8 + B]], SIL);   // ragged ink hair
+      mArm(...nA);                                                                 // near arm: in front
+    }
+  }); const B = (pose === 'run' ? KRUN[f & 3][4] * 2 : pose === 'swing' ? 0 : f & 1), open = lau || pose === 'swing', q = Math.round;
+    return outlined(altDown(big, W, H, r => {   // the eyes (and the monster's grin) are placed by hand on the chunky grid so they stay sharp
+      const WH = '#f4f4fb', GR = '#9c9bb0', K = '#050508';
+      const AR = '#eceaf6', eye = (x, y, tall) => { r(x + 1, y, 1, 1, AR); r(x, y + 1, 1, tall ? 3 : 2, AR); r(x + 2, y + 1, 1, tall ? 3 : 2, AR); };   // a thin white arch (an upside-down U): no pupil. tall = stretched when it laughs / strikes
+      if (!mon) { const ey = q(4 + B * S / 2) + (open ? 0 : 1);   // two identical arches on the FRONT half of the head, a clear gap between them: it is looking 45 degrees away
+        eye(19, ey, open); eye(24, ey, open);
+      } else { const ey = q(4 + B * S / 2) + (open ? 0 : 1), hh = (pose === 'swing' && f === 1 ? 1 : 0);
+        eye(19 + hh, ey, open); eye(24 + hh, ey, open);
+      }
+    })); });
+}
 function skinwalkerHdBmp(pose, f, lau, mon) {   // (UNUSED: the shaded hi-res Skinwalker that was in the mechanics file; killerBmp now uses skinwalkerBmp from the Killing Season file)  Skinwalker: a tall, thin, smooth white humanoid with no face at all, arms hanging to the knees with long fingers. mon = gates-open form: the neck, torso and limbs stretch out of all proportion (one arm drags on the ground, the knees bend at different heights) and the blank face splits open into a burst of teeth. HI-RES: same model, drawn on a 2x grid (b.ss) with real shading, anatomy and skin detail
   const H = mon ? 50 : 38, oy = H - 28, W = mon ? 32 : 26;
   return cachedSpr(`sk${pose}${f}${lau ? 1 : 0}${mon ? 1 : 0}`, () => { const o = outlined(outlined(pxc(W * 2 + 4, H * 2 + 2, r0 => {
@@ -9396,7 +9959,7 @@ function fearBmp(pose, f, lau, mon) {
 
 function killerBmp(pose, f, lau, ki, mon, hv) {   // ki: 0 = killer_0 (Jigsaw), 1 = The Banshee, 2 = The Demogorgon, 3 = Freaky Nikki, 4 = Huggy Wuggy, 5 = The Boiled One (same frame and size), 6 = The Skinwalker (taller frame); mon = the gates-open monster form (every killer has one)
   ki = ki | 0; if (ki === 1) return mon ? ghostMonBmp(pose, f, lau) : ghostBmp(pose, f, lau);   // The Banshee (ghostBmp / ghostMonBmp). phBmp (Phantasia bride) and fearBmp (knight) are unused alternative designs
-   if (ki === 0) return mon ? scaryMonBmp(pose, f, lau) : scaryBmp(pose, f, lau); if (ki === 2) return mon ? bloomMonBmp(pose, f, lau) : bloomBmp(pose, f, lau); if (ki === 3) return mon ? nikkiMonBmp(pose, f, lau) : nikkiBmp(pose, f, lau); if (ki === 4) return huggyBmp(pose, f, lau, mon, hv); if (ki === 5) return boiledBmp(pose, f, lau, mon); if (ki === 6) return skinwalkerBmp(pose, f, lau, mon); if (ki === 7) return guardBmp(pose, f, lau, mon, hv); return cachedSpr(`k${pose}${f}${lau ? 1 : 0}${ki}`, () => outlined(pxc(26, 32, r0 => {
+   if (ki === 0) return mon ? scaryMonBmp(pose, f, lau) : scaryBmp(pose, f, lau); if (ki === 2) return mon ? bloomMonBmp(pose, f, lau) : bloomBmp(pose, f, lau); if (ki === 3) return mon ? nikkiMonBmp(pose, f, lau) : nikkiBmp(pose, f, lau); if (ki === 4) return huggyBmp(pose, f, lau, mon, hv); if (ki === 5) return boiledBmp(pose, f, lau, mon); if (ki === 6) return skinwalkerBmp(pose, f, lau, mon); if (ki === 7) return guardBmp(pose, f, lau, mon, hv); if (ki === 8) return alternateBmp(pose, f, lau, mon); return cachedSpr(`k${pose}${f}${lau ? 1 : 0}${ki}`, () => outlined(pxc(26, 32, r0 => {
     const ox = 2, oy = 4, r = (x, y, w, h, c) => r0(x + ox, y + oy, w, h, c);
     const H = ki === 1, COAT = H ? '#2d1f33' : '#23253f', COAT2 = H ? '#1c1223' : '#181a2d', COATH = H ? '#5a3a66' : '#3d4373', GLOVE = '#0e0e16', STEEL = H ? '#8f7a6a' : '#b9c0d6', EDGE = H ? '#cdb9a5' : '#eef2fb', WOOD = H ? '#46301f' : '#6b4a2e', RED = H ? '#2fd0c0' : '#8a1520', HAT = H ? '#160d1c' : '#14141f', MASK = H ? '#c9d3d6' : '#e4dccb', MASKS = H ? '#8c989d' : '#b6ae9c';
     const run = pose === 'run', sw = pose === 'swing', [lL, lR, aL, aR, by] = run ? KRUN[f & 3] : [0, 0, 0, 0, sw ? 0 : f & 1], bx = run || (sw && f) ? 1 : 0;
@@ -9444,8 +10007,8 @@ function colorRing(e, rx, dy, col) {
 }
 
 /* ---- survivor flair: subtle per-character touches (all cosmetic, stateless: everything is computed from the clock) ---- */
-const SF = { 'Leon Kennedy': '#e6c27a', Eleven: '#6ec6ff', Courage: '#ff8fb8', 'Lorraine Warren': '#ffe08a', Denji: '#ff5a4a', 'Michael Afton': '#b46bff', Crewmate: '#9fd0e6', Georgie: '#ffd23c', Grace: '#ffe9b8' };
-const HFX = { 'Leon Kennedy': [.6, .7], Eleven: [1, .9], Courage: [1.6, 1.2], 'Lorraine Warren': [.5, .6], Denji: [1.4, 1.3], 'Michael Afton': [1.2, 1], Crewmate: [1, 1], Georgie: [.8, .9], Grace: [1.1, 1.1] };   // hook struggle: [speed x, swing x]
+const SF = { 'Leon Kennedy': '#e6c27a', Eleven: '#6ec6ff', Courage: '#ff8fb8', 'Lorraine Warren': '#ffe08a', Denji: '#ff5a4a', 'Michael Afton': '#b46bff', Crewmate: '#9fd0e6', Georgie: '#ffd23c', Grace: '#ffe9b8', Wednesday: '#9b8cff', 'Van Helsing': '#c9a24a', Jack: '#ff9a2e' };
+const HFX = { 'Leon Kennedy': [.6, .7], Eleven: [1, .9], Courage: [1.6, 1.2], 'Lorraine Warren': [.5, .6], Denji: [1.4, 1.3], 'Michael Afton': [1.2, 1], Crewmate: [1, 1], Georgie: [.8, .9], Grace: [1.1, 1.1], Wednesday: [.7, .6], 'Van Helsing': [1, 1], Jack: [1.3, 1.3] };   // hook struggle: [speed x, swing x]
 const sfNm = ci => CHARS[ci].name, sfCol = ci => SF[CHARS[ci].name] || '#fff';
 const sfRnd = n => { const v = Math.sin(n * 127.1) * 43758.5453; return v - Math.floor(v); };
 function sfPuff(x, y, r, col, al) { ctx.globalAlpha = al; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
@@ -9590,6 +10153,7 @@ function atkAnim(ki, el) {
     case 3: return { dx: 9 * out, dy: 4 * Math.sin(Math.PI * s), rot: -.16 * back + .12 * out, sx: 1 - .3 * Math.sin(Math.PI * cl(s * 1.3)), sy: 1, ech: 0 };   // Nikki: leans back, then a quick hopping twist-slash
     case 4: return { dx: 13 * out - 2 * back, dy: 0, rot: -.07 * back + .24 * out, sx: 1 + .2 * out, sy: 1 + .12 * back - .1 * out, ech: 0 };   // Huggy: stretches tall, then slams down in a big grab
     case 5: return { dx: -5 * back + 19 * out + (s > 0 ? Math.sin(el / 13) * 1.5 * (1 - s) : 0), dy: 0, rot: -.22 * back + .26 * out, sx: 1, sy: 1 - .05 * out, ech: 2 };   // Boiled One: whiplash snap with a jittering recoil
+    case 8: return { dx: -4 * back + 12 * out, dy: 3 * back - 1 * out, rot: -.18 * back + .22 * out, sx: 1 + .04 * out, sy: 1 + .08 * back - .07 * out, ech: 1 };   // Alternate: rears its long clawed arms up and back, then rakes them down hard
     case 7: return { dx: -3 * back + 13 * out, dy: 0, rot: -.08 * back + .14 * out, sx: 1, sy: 1, ech: 0 };   // Game Guard: a short, tight knife lunge
     case 6: return { dx: -4 * back + 21 * out, dy: 2 * back, rot: -.1 * back + .14 * out, sx: 1 - .1 * out, sy: 1 + .16 * back + .1 * out, ech: 2 };   // Skinwalker: draws itself up unnaturally tall, then stretches far out and snaps back
   }
@@ -9653,7 +10217,7 @@ function drawKiller(e, ov) {   // ov = K6_OV: draw this entity as the Skinwalker
       for (let j = 0; j < 7; j++) { const px = e.x + Math.sin(j * 2.1 + 1) * (10 + 12 * u), py = e.y + 20 - u * (34 + j * 4), z = j & 1 ? 2 : 3; ctx.globalAlpha = (1 - u) * .9 * ea; ctx.fillStyle = j & 1 ? '#d8fff8' : '#3affd0'; ctx.fillRect(px - z / 2, py - z / 2, z, z); } }
     ctx.restore(); }
   if (tfm && !reduceFx) { const u = tel / 1300; ctx.save(); ctx.globalAlpha = (1 - u) * .7 * (e.alpha === undefined ? 1 : e.alpha); ctx.strokeStyle = KILLERS[ki].col; ctx.lineWidth = 4 * (1 - u) + 1; ctx.beginPath(); ctx.ellipse(e.x, e.y + 20, 20 + u * 70, 8 + u * 28, 0, 0, TAU); ctx.stroke(); ctx.restore(); }   // shockwave ring in the killer's colour
-  const te = ki === 6 ? { ...e, y: e.y - ((mon ? 52 : 40) - 34) * PSK } : ki === 0 ? { ...e, y: e.y - 9 * PSK } : e;   // the Skinwalker is taller than the rest: its tags ride above its head (Jigsaw's tags are nudged up 9 px)
+  const te = ki === 6 ? { ...e, y: e.y - ((mon ? 52 : 40) - 34) * PSK } : ki === 0 ? { ...e, y: e.y - 9 * PSK } : ki === 8 ? { ...e, y: e.y - ((mon ? 46 : 38) - 34) * PSK } : e;   // the Skinwalker is taller than the rest: its tags ride above its head (Jigsaw's tags are nudged up 9 px)
   if (ov) return; if (lau && !(LA && LA.nb)) drawHaHa(te, lel, a.face, ki, LA && LA.ms); else if (e.minion) minionTag(te); else if (e.me) nameTag(te, 60); else killerTag(te);   // the name tag makes room for the laugh
 }
 function minionTag(e) {   // killer_3's summoned killers: the red killer pill, but with the killer's own name
@@ -9704,7 +10268,21 @@ function drawHaHa(e, el, face, ki, lms) {
 }
 function drawDead() {}   // dead players are not drawn in the world
 const DRAW_BY_STATE = { healthy: drawHealthy, injured: drawInjured, downed: drawDowned, carried: drawCarried, hooked: drawHooked, dead: drawDead };
+let MONO_BUSY = false; const K8M = {};
+function drawMono(e, state) {   // killer_8: a survivor a shade has touched is drawn monochrome (the normal sprite code, rendered into a small canvas ~18x a second, then turned grey)
+  const now = performance.now(); let c = K8M[e.p.id];
+  if (!c || now - c.t > 55 || c.s !== state) {
+    const W0 = 192, H0 = 224, cv = c ? c.cv : document.createElement('canvas'); if (!c) { cv.width = W0; cv.height = H0; }
+    const o = cv.getContext('2d', { willReadFrequently: true }); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, W0, H0); o.setTransform(2, 0, 0, 2, W0 / 2 - e.x * 2, 160 - e.y * 2);
+    const prev = ctx; ctx = o; MONO_BUSY = true;
+    try { drawPlayer(e, state); } catch (er) {} finally { MONO_BUSY = false; ctx = prev; }
+    try { const im = o.getImageData(0, 0, W0, H0), d = im.data; for (let i = 0; i < d.length; i += 4) { if (!d[i + 3]) continue; const l = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; d[i] = d[i + 1] = d[i + 2] = l; } o.putImageData(im, 0, 0); } catch (er) {}
+    c = K8M[e.p.id] = { cv, t: now, s: state };
+  }
+  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(c.cv, e.x - 48, e.y - 80, 96, 112); ctx.restore();
+}
 function drawPlayer(e, state) {
+  if (!GHOSTING && !MONO_BUSY && e.p.role === 'survivor' && k8Pursued(e.p.id)) return drawMono(e, state);   // killer_8: a survivor with a spawn after them is drawn monochrome
   if (S.wo.k6 && k6Draw(e, state)) return;   // killer_6: disguise + CHAOS
   if (e.p.role === 'killer') { if (k3Invis(e.p.id)) { if (pickView().id !== e.p.id) return; let ga = .4; const fx = S.fx2[e.p.id], lf = fx && fx.k1inv > performance.now() ? fx.k1inv - performance.now() : 1e9; if (lf < 3000) ga = Math.floor(lf / (lf > 1500 ? 250 : 125)) % 2 ? .1 : .8; ctx.save(); ctx.globalAlpha = ga; drawKiller(e); ctx.restore(); return; } /* Wail: in the last 3 s her own ghost blinks (slow, then faster for the last 1.5 s) so she knows it is about to end */ return drawKiller(e); }   // invisible to everyone but herself (she sees a faded ghost)
   if ((state === 'healthy' || state === 'injured') && k3FrogFx(e.p.id, e.now)) return drawFrog(e);   // command 7: a frog until the timer runs out
@@ -9756,7 +10334,8 @@ function stepTerror(now) {
       t.push({ x: q[0] + rnd(-6, 6), y: q[1] + rnd(-6, 6), t: now, r, ang, sat }); if (t.length > CFG.TERROR_MAX) t.shift(); }
   }
 }
-function drawTerror(now) {   // same splat shape as the blood trail, but ink black with violet glow + highlights
+function drawTerror(now) {   if (kirBlind()) return;   // Alternate cannot see the terror trail either
+  // same splat shape as the blood trail, but ink black with violet glow + highlights
   const life = CFG.TERROR_HOLD_MS + CFG.TERROR_FADE_MS;
   for (const t of TERROR.values()) for (let i = 0; i < t.length; i++) { const d = t[i], ms = now - d.t; if (ms >= life) continue;
     const fade = ms < CFG.TERROR_HOLD_MS ? 1 : 1 - (ms - CFG.TERROR_HOLD_MS) / CFG.TERROR_FADE_MS, pul = .75 + .25 * Math.sin(now / 180 + i), pr = i > 0 ? t[i - 1] : null;
@@ -9771,7 +10350,8 @@ function drawTerror(now) {   // same splat shape as the blood trail, but ink bla
     ctx.globalAlpha = .55 * fade * pul; ctx.fillStyle = '#c58bff'; ctx.beginPath(); ctx.ellipse(d.x - d.r * .3, d.y - d.r * .3, d.r * .35, d.r * .2, -.6, 0, TAU); ctx.fill(); }   // violet glint
   ctx.globalAlpha = 1;
 }
-function drawTrails(now) {   // wet dark crimson when fresh, drying to a near-black red; smeared between splats, with a glossy glint while fresh
+function drawTrails(now) {   if (kirBlind()) return;   // Alternate cannot see blood
+  // wet dark crimson when fresh, drying to a near-black red; smeared between splats, with a glossy glint while fresh
   for (const t of TRAIL.values()) for (let i = 0; i < t.length; i++) { const d = t[i], ms = now - d.t; if (ms >= CFG.BLOOD_LIFE_MS) continue;
     const fade = ms < CFG.BLOOD_HOLD_MS ? 1 : 1 - (ms - CFG.BLOOD_HOLD_MS) / CFG.BLOOD_FADE_MS, wet = Math.max(0, 1 - ms / 4500), R = 54 + 74 * wet | 0, G = 5 + 5 * wet | 0, B = 8 + 6 * wet | 0,   // deep, dark blood: dried brown-black, never bright red
      col = `rgb(${R},${G},${B})`;
@@ -10520,7 +11100,7 @@ function drawGenPings(me, k, W, H, now, vRole) {
 /* ================= ITEM DROPS (client side: state, sounds, drawing) ================= */
 const IFX = [], HEXC = {};
 function hexRgb(h) { return HEXC[h] || (HEXC[h] = [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(',')); }
-function woEmpty() { return { dr: [], tr: [], sl: [], fl: [], fb: [], sm: [], dc: [], k0: null, k1: null, k3: null, bb: null, dd: null, tw: null, k3x: null, k6: null, k5: null, k2: null, k4: null, k7: null, um: null, k3m: [], ud: [], sb: [], ne: { k: 0, s: 0 } }; }
+function woEmpty() { return { dr: [], tr: [], sl: [], fl: [], fb: [], sm: [], dc: [], k0: null, k1: null, k3: null, bb: null, dd: null, tw: null, k3x: null, k6: null, k5: null, k2: null, k4: null, k7: null, k8: null, um: null, k3m: [], ud: [], sb: [], ne: { k: 0, s: 0 } }; }
 function ifx(e) { IFX.push(e); if (IFX.length > 30) IFX.shift(); }
 function applyWo(k, a, quiet) {
   const now = performance.now(), old = S.wo[k] || []; let L = [];   // the killer is never told where drops are (no beacons, minimap marks, sprites or spawn sound)
@@ -10552,6 +11132,7 @@ function applyWo(k, a, quiet) {
   else if (k === 'k1') { k1Apply(a, now); return; }
   else if (k === 'k6') { k6Apply(a, now); return; }
   else if (k === 'k7') { k7Apply(a, now); return; }
+  else if (k === 'k8') { k8Apply(a, now); return; }
   else if (k === 'k2') { S.wo.k2 = a && a.length ? { tid: a[0], n: a[1] | 0, sc: (a[2] || []).map(e => ({ id: e[0], x: e[1], y: e[2], b: now - e[3] })), tv: a[3], ex: a[4] > 0, tcd: now + a[5], pt: a[6] == null ? -1 : a[6], pe: now + (a[7] | 0), cd: now + (a[8] | 0) } : null; return; }   // killer_2: the current target's id
   else if (k === 'k4') { S.wo.k4 = a && a.length ? { cds: (a[0] || []).map(t => now + t), ch: a[1] >= 0 ? now - a[1] : 0, lg: !!a[2], sb: now + (a[3] | 0), bl: !!a[4] } : null; if (S.wo.k4 && S.wo.k4.lg) K4H.t0 = 0; return; }   // a lunge in flight ends the local hold (it may have gone off by itself after a very long charge)   // killer_4: the three lunge charges (time left on each) + the charge in progress + a lunge in flight
   else if (k === 'k5') { k5Apply(a, now); return; }
@@ -10978,7 +11559,7 @@ function perkTap(id) { const k = perkSelOf(S.me); if (S.phase !== 'select' || SE
 function selLock() {
   if (SEL.mode === 'perk') { const k = perkSelOf(S.me); if (S.phase !== 'select' || !k || !k.p || k.locked) return; audioInit(); metalHit(.45, 170, .5); sfxTone(90, 50, .2, .5, 'sine'); perkReq('lock'); return; }
   if (S.phase !== 'select' || !myRole() || pickOf(S.me).locked) return; audioInit(); metalHit(.45, 170, .5); sfxTone(90, 50, .2, .5, 'sine'); selReq('lock'); }
-const K_DIFF = [4, 2, 2, 3, 4, 4, 5, 3];   // how hard each killer is to play (1-5 stars), same order as KILLERS: Jigsaw, Banshee, Demogorgon, Freaky Nikki, Huggy Wuggy, The Boiled One, The Skinwalker
+const K_DIFF = [4, 2, 2, 3, 4, 4, 5, 3, 4];   // how hard each killer is to play (1-5 stars), same order as KILLERS: Jigsaw, Banshee, Demogorgon, Freaky Nikki, Huggy Wuggy, The Boiled One, The Skinwalker
 function selBuild(role, mode) {
   const box = $('selCards'), k = role === 'killer', pm = mode === 'perk'; box.replaceChildren(); box.classList.toggle('k', k); box.classList.toggle('pk', pm); SEL.cards = []; SEL.sig = ''; SEL.f = -1; SEL.sec = -1; SEL.q = -1;
   $('selT').textContent = pm ? 'Choose your perk' : k ? 'Choose your killer' : 'Choose your survivor'; $('selTag').textContent = pm ? 'One perk per match' : k ? 'The hunt awaits' : 'Who will you be tonight?';
@@ -11086,7 +11667,7 @@ function updateOverlay(now) {
   if (ov) { $('ovT').textContent = ov[0]; $('ovT').style.color = ov[2]; $('ovS').textContent = ov[1]; $('ovM').textContent = ov[3]; $('ovN').textContent = ov[4]; }
 }
 /* ---------- action buttons + spectator label (DOM only; updated per frame, touches the DOM only on change) ---------- */
-const UIC = { ctx: '', cd: -1, spec: '' }, CTX_LABEL = { pickup: 'PICK UP', lkin: 'HIDE', lkout: 'EXIT', lkopen: 'OPEN', hook: 'HOOK', rescue: 'RESCUE', repair: 'REPAIR', kick: 'KICK', rbt: 'REMOVE SCALE', disarm: 'DISARM', block: 'BLOCK', task: 'DO TASK', drop: 'DROP', breakdoor: 'BREAK', reform: 'REFORM', enchant: 'ENCHANT', sab: 'SABOTAGE', sabrep: 'REPAIR', hookdis: 'DISABLED' };
+const UIC = { ctx: '', cd: -1, spec: '' }, CTX_LABEL = { pickup: 'PICK UP', lkin: 'HIDE', lkout: 'EXIT', lkopen: 'OPEN', hook: 'HOOK', rescue: 'RESCUE', repair: 'REPAIR', kick: 'KICK', rbt: 'REMOVE SCALE', disarm: 'DISARM', block: 'BLOCK', task: 'DO TASK', drop: 'DROP', breakdoor: 'BREAK', reform: 'REFORM', enchant: 'ENCHANT', cleanse: 'CLEANSE', sab: 'SABOTAGE', sabrep: 'REPAIR', hookdis: 'DISABLED' };
 const reformLeft = now => { const f = S.fx2[S.me]; return f && f.reformcd > now ? f.reformcd - now : 0; };   // Reforming: ms left on my single cooldown
 const hookUsed = i => { for (const id in S.st) if (S.st[id].s === 'hooked' && S.st[id].hk === i) return true; return false; };
 let ctxSbI = -1;   // SABOTAGE (client): the hook the SABOTAGE / REPAIR / DISABLED button is about
@@ -11107,6 +11688,7 @@ function sbCtx(now) {   // the interact button's label for a hook: SABOTAGE / DI
 }
 function ctxFor(mp, role, st) {   // which context action is available right now (same ranges the host validates)
   if (k6Me()) return k6Ctx(mp);   // killer_6 disguised: only the fake RESCUE and the un-REPAIR
+  if (k8Cam()) return null;   // killer_8: no context button while the camera is up
   if (role === 'killer') {
     let carrying = false; if (iCarry()) carrying = true;
     if (carrying) { for (let i = 0; i < S.map.hooks.length; i++) { const h = S.map.hooks[i]; if (!hookUsed(i) && !sbDisC(i) && Math.hypot(h[0] - mp[0], h[1] - mp[1]) <= CFG.HOOK_R) return 'hook'; } const dz = sbNearDis(mp, CFG.HOOK_R); if (dz >= 0) { ctxSbI = dz; return 'hookdis'; } return 'drop'; }
@@ -11117,6 +11699,7 @@ function ctxFor(mp, role, st) {   // which context action is available right now
     { const sbn = sbNearDis(mp, CFG.HOOK_R); if (sbn >= 0) { ctxSbI = sbn; return 'sabrep'; } }   // REPAIR a disabled hook by hand (lowest priority)
   } else if (role === 'survivor' && (st === 'healthy' || st === 'injured') && !k3FrogFx(S.me)) {   // (a frog gets no action button at all)
     if (k7Hid(S.me)) return 'lkout';   // killer_7: inside a locker the only button is EXIT
+    { const Jk = S.wo && S.wo.k8, h = Jk && Jk.sh && Jk.sh.find(q => q.v === S.me); if (h && h.cx != null && Math.hypot(h.cx - mp[0], h.cy - mp[1]) <= K8_CLN_R) return 'cleanse'; }   // killer_8: CLEANSE the cross of the spawn that hunts me (first priority: it is rare and short-lived)
     for (const id in S.st) if (S.st[id].s === 'hooked' && +id !== S.me) { const h = S.map.hooks[S.st[id].hk]; if (h && Math.hypot(h[0] - mp[0], h[1] - mp[1]) <= CFG.RESCUE_R * pkRangeMul(S.me)) return 'rescue'; }
     const gn = performance.now(), gens = S.map.gens || [];   // REPAIR: an OPEN, enabled generator in reach (priority: RESCUE, then REPAIR, then DO TASK)
     for (let i = 0; i < gens.length; i++) { const e = S.gs.g[i]; if (e && e.st === 1 && e.disEnd <= gn && Math.hypot(gens[i][0] - mp[0], gens[i][1] - mp[1]) <= CFG.GEN_R * pkRangeMul(S.me)) return 'repair'; }
@@ -11144,6 +11727,14 @@ function dsbUpdate(now) {   // killer_0: a survivor holding DISARM sees a pixel 
   const r = $('ctx').getBoundingClientRect(), el = DSB.el; el.style.display = ''; el.style.left = Math.round(r.left + r.width / 2 - 52) + 'px'; el.style.top = Math.round(r.top - 30) + 'px';
   el.querySelector('.f').style.width = Math.min(100, (now - DSB.t0) / K0_DIS_MS * 100).toFixed(1) + '%';
 }
+let CLB = { el: null };
+function clbUpdate(now) {   // killer_8: a survivor holding CLEANSE sees a pixel progress bar over the button (progress comes from the host, so it matches the cross's fading glow)
+  const on = !!(ctxHeld && ctxHeldKind === 'cleanse' && ctxKind === 'cleanse');
+  if (!on) { if (CLB.el) CLB.el.style.display = 'none'; return; }
+  if (!CLB.el) { const d = document.createElement('div'); d.style.cssText = 'position:fixed;z-index:30;width:104px;height:16px;padding:2px;background:#0a0b14;border:2px solid #e9dcb4;box-sizing:border-box;pointer-events:none;font:800 11px "Courier New",monospace;color:#fff3b0'; d.innerHTML = '<div style="position:absolute;left:0;right:0;top:-16px;text-align:center;text-shadow:0 0 3px #000">CLEANSING</div><div class="f" style="height:100%;background:repeating-linear-gradient(90deg,#e9dcb4 0 6px,#a89868 6px 8px)"></div>'; document.body.appendChild(d); CLB.el = d; }
+  const J = S.wo && S.wo.k8, h = J && J.sh && J.sh.find(q => q.v === S.me), r = $('ctx').getBoundingClientRect(), el = CLB.el; el.style.display = ''; el.style.left = Math.round(r.left + r.width / 2 - 52) + 'px'; el.style.top = Math.round(r.top - 30) + 'px';
+  el.querySelector('.f').style.width = Math.min(100, h ? h.cp | 0 : 0) + '%';
+}
 function updateControls(now) {
   if (TK) { ctxKind = null; UIC.item = -2; UIC.rr = 0; $('itmT').classList.add('hidden'); $('atk').classList.add('hidden'); $('ctx').classList.add('hidden'); $('itm').classList.add('hidden'); return; }   // minigame open: action buttons are off
   const hunt = S.phase === 'hunt', role = myRole(), st = myState(), dead = st === 'dead'; if(st==='sent'){$('atk').classList.add('hidden');$('ctx').classList.add('hidden');$('itm').classList.add('hidden');$('itmT').classList.add('hidden');$('k5f').classList.add('hidden');return;}
@@ -11155,9 +11746,9 @@ function updateControls(now) {
   $('atk').classList.toggle('hidden', !showAtk); $('ctx').classList.toggle('hidden', !ctxKind);
   const abil = hunt && role === 'killer' && !dead && abilitiesOn();   // the killer can't hold items: he gets an ABILITY button in the item button's place (does nothing yet)
   const itI = hunt && !dead && !abil && S.item ? ITEMS.findIndex(x => x.id === S.item) : -1;   // held item -> button on the right side
-  const J = abil && isK0(S.me) ? S.wo.k0 : null, J1 = abil && isK1(S.me) ? S.wo.k1 : null, J3 = abil && isK3(S.me) ? (S.wo.k3 || { n: 0 }) : null, J6 = abil && isK6(S.me) ? S.wo.k6 : null, J5 = abil && isK5(S.me) ? S.wo.k5 : null, J2 = abil && isK2(S.me) ? S.wo.k2 : null, J4 = abil && isK4(S.me) ? S.wo.k4 : null, J7 = abil && isK7(S.me) ? S.wo.k7 : null, m1 = J1 ? k1Mode() : 0, itK = abil ? (J7 ? -800 - J7.form : J ? -10 - J.held : J1 ? -20 - m1 : J6 ? -400 - J6.form : J5 ? -500 - (J5.act ? 1 : 0) : J2 ? -600 : J4 ? -700 : J3 ? -30 - J3.n * 10 - (J3.gun | 0) : -3) : itI >= 0 ? itI + 100 * (S.itemC | 0) : itI;
-  if (itK !== UIC.item) { UIC.item = itK; UIC.k0t = null; const b = $('itm'); b.classList.toggle('hidden', itK === -1); b.classList.toggle('abil', abil && !J && !J1 && !J3 && !J6 && !J5 && !J2 && !J4 && !J7);
-    if (abil) { $('itmN').textContent = J7 ? (J7.form ? 'Knife' : 'Rifle') : J ? 'Traps' : J1 ? (m1 ? 'Guard' : 'Wail') : J3 ? (J3.n ? 'Wish x' + J3.n : 'No wish') : J6 ? (J6.form === 1 ? 'Chaos' : 'Transform') : J5 ? (J5.act ? 'Trail ON' : 'Trail') : J2 ? 'Recast' : J4 ? 'Lunge' : 'Ability'; if (J) $('itmI').src = k0Icon(J.held || 1); else if (J1) $('itmI').src = k1Icon(m1 ? 'guard' : 'wail'); else if (J3) $('itmI').src = k3Icon(); else if (J6) $('itmI').src = k6Icon(J6.form === 1 ? 'ch' : 'tf'); else if (J5) $('itmI').src = k5Icon(J5.act ? 'on' : 'off'); else if (J2) $('itmI').src = k2Icon(); else if (J4) $('itmI').src = k4Icon(0); else if (J7) $('itmI').src = k7Icon(J7.form ? 'knife' : 'rifle'); b.style.setProperty('--ic', J1 ? '#3affd0' : J6 ? '#e9e6dc' : J2 ? '#c2412e' : J4 ? K4_COL[0] : '#ff4f57'); }   // killer_4: the icon is Huggy's face
+  const J = abil && isK0(S.me) ? S.wo.k0 : null, J1 = abil && isK1(S.me) ? S.wo.k1 : null, J3 = abil && isK3(S.me) ? (S.wo.k3 || { n: 0 }) : null, J6 = abil && isK6(S.me) ? S.wo.k6 : null, J5 = abil && isK5(S.me) ? S.wo.k5 : null, J2 = abil && isK2(S.me) ? S.wo.k2 : null, J4 = abil && isK4(S.me) ? S.wo.k4 : null, J7 = abil && isK7(S.me) ? S.wo.k7 : null, J8 = abil && isK8(S.me) ? S.wo.k8 : null, m1 = J1 ? k1Mode() : 0, itK = abil ? (J8 ? -900 - (J8.cam ? 1 : 0) : J7 ? -800 - J7.form : J ? -10 - J.held : J1 ? -20 - m1 : J6 ? -400 - J6.form : J5 ? -500 - (J5.act ? 1 : 0) : J2 ? -600 : J4 ? -700 : J3 ? -30 - J3.n * 10 - (J3.gun | 0) : -3) : itI >= 0 ? itI + 100 * (S.itemC | 0) : itI;
+  if (itK !== UIC.item) { UIC.item = itK; UIC.k0t = null; const b = $('itm'); b.classList.toggle('hidden', itK === -1); b.classList.toggle('abil', abil && !J && !J1 && !J3 && !J6 && !J5 && !J2 && !J4 && !J7 && !J8);
+    if (abil) { $('itmN').textContent = J8 ? (J8.cam ? 'Exit Cam' : 'Camera') : J7 ? (J7.form ? 'Knife' : 'Rifle') : J ? 'Traps' : J1 ? (m1 ? 'Guard' : 'Wail') : J3 ? (J3.n ? 'Wish x' + J3.n : 'No wish') : J6 ? (J6.form === 1 ? 'Chaos' : 'Transform') : J5 ? (J5.act ? 'Trail ON' : 'Trail') : J2 ? 'Recast' : J4 ? 'Lunge' : 'Ability'; if (J) $('itmI').src = k0Icon(J.held || 1); else if (J1) $('itmI').src = k1Icon(m1 ? 'guard' : 'wail'); else if (J3) $('itmI').src = k3Icon(); else if (J6) $('itmI').src = k6Icon(J6.form === 1 ? 'ch' : 'tf'); else if (J5) $('itmI').src = k5Icon(J5.act ? 'on' : 'off'); else if (J2) $('itmI').src = k2Icon(); else if (J4) $('itmI').src = k4Icon(0); else if (J7) $('itmI').src = k7Icon(J7.form ? 'knife' : 'rifle'); else if (J8) $('itmI').src = k8Icon(J8.cam); b.style.setProperty('--ic', J1 ? '#3affd0' : J6 ? '#e9e6dc' : J2 ? '#c2412e' : J4 ? K4_COL[0] : '#ff4f57'); }   // killer_4: the icon is Huggy's face
     else if (itI >= 0) { $('itmI').src = itemSprite(itI).toDataURL(); $('itmN').textContent = ITEMS[itI].name + ((S.itemC | 0) > 1 ? ' x' + S.itemC : ''); b.style.setProperty('--ic', ITEMS[itI].col); } }
   if (abil && J1) { const cdl = Math.max(0, (m1 ? J1.gd : J1.wail) - now), t1 = k1WailFx(S.me) ? 'Reveal' : (m1 ? 'Guard' : 'Wail') + (cdl > 0 ? ' ' + Math.ceil(cdl / 1000) + 's' : ''); if (t1 !== UIC.k1t) { UIC.k1t = t1; $('itmN').textContent = t1; $('itm').style.opacity = cdl > 0 ? .55 : ''; } }   // killer_1: cooldown shown in the label
   else if (UIC.k1t) { UIC.k1t = ''; $('itm').style.opacity = ''; }
@@ -11185,9 +11776,10 @@ function updateControls(now) {
   { const sbl = sbCtx(now), rfl = ctxKind === 'reform' ? reformLeft(now) : 0, lb = sbl ? sbl.lb : ctxKind === 'hook' && k2On() ? 'SEND' : ctxKind === 'reform' && rfl > 0 ? 'REFORM\n' + Math.ceil(rfl / 1000) + 's' : CTX_LABEL[ctxKind]; if (ctxKind && (ctxKind !== UIC.ctx || UIC.lb !== lb)) { $('ctx').textContent = lb; UIC.ctx = ctxKind; UIC.lb = lb; }
     { const dm = rfl > 0 || !!(sbl && sbl.dim); if (dm !== UIC.rfd) { UIC.rfd = dm; $('ctx').classList.toggle('dis', dm); } } }   // killer_2: HOOK becomes SEND; Reforming: greyed out with the seconds left while the barricade cools down   // killer_2: HOOK becomes SEND
   try { dsbUpdate(now); } catch (e) {}
+  try { clbUpdate(now); } catch (e) {}
   if (showAtk) { const dg6 = k6Me();
-    const at6 = k2InMe() ? 'EXIT' : dg6 ? 'SCREAM' : isK1(S.me) && k1WailFx(S.me) ? 'REVEAL' : k5ShockOn() ? 'THORNS' : isK7(S.me) && S.wo.k7 && S.wo.k7.form === 1 ? 'SHOOT ' + S.wo.k7.bul : 'ATTACK'; if (at6 !== UIC.atkT) { UIC.atkT = at6; $('atk').textContent = at6; }   // killer_6: disguised, the attack button is SCREAM (no cooldown ring)
-    const left = dg6 ? 0 : Math.max(0, S.cdEnd - now), tot6 = dg6 ? 0 : S.cdTot, q = Math.round((tot6 ? Math.min(1, left / tot6) : 0) * 50) / 50;
+    const at6 = k2InMe() ? 'EXIT' : k8Cam() ? 'CAPTURE' : dg6 ? 'SCREAM' : isK1(S.me) && k1WailFx(S.me) ? 'REVEAL' : k5ShockOn() ? 'THORNS' : isK7(S.me) && S.wo.k7 && S.wo.k7.form === 1 ? 'SHOOT ' + S.wo.k7.bul : 'ATTACK'; if (at6 !== UIC.atkT) { UIC.atkT = at6; $('atk').textContent = at6; }   // killer_6: disguised, the attack button is SCREAM (no cooldown ring)
+    const k8c = k8Cam(), left = k8c ? Math.max(0, S.wo.k8.cd - now) : dg6 ? 0 : Math.max(0, S.cdEnd - now), tot6 = k8c ? K8_SHOT_CD : dg6 ? 0 : S.cdTot, q = Math.round((tot6 ? Math.min(1, left / tot6) : 0) * 50) / 50;
     if (q !== UIC.cd) { $('atk').style.setProperty('--cd', q); UIC.cd = q; } $('atk').classList.toggle('dis', carrying); }
 }
 function updateAux(now, V) {
@@ -11492,7 +12084,7 @@ function draw() {
   const V = pickView(), vId = V.id, role = V.role, vSt = V.st, ph = S.phase;   // the VIEWED player: me, or the spectated one when I'm dead
   updateControls(now); {const ub=$('udBanner'),qq=posOf(vId)||[0,0],us=(S.st[vId]||{}),u=inUD(qq[0],qq[1]);ub.classList.toggle('hidden',!u);if(u)ub.textContent='THE UPSIDE DOWN · Bulbs '+(((S.wo.ud||[]).find(e=>e[0]===vId)||[0,[]])[1].length)+'/'+CFG.UD_NEED+' · '+Math.ceil(Math.max(0,(us.udEnd||now)-now)/1000)+'s';if(now-(S._sentChipAt||0)>1000){S._sentChipAt=now;refreshStatus();}} updateAux(now, V); if(!inUD((interp(V.id)||[0,0])[0],(interp(V.id)||[0,0])[1]))stepMono(now,dtF,V); if(!inUD((interp(V.id)||[0,0])[0],(interp(V.id)||[0,0])[1])){stepNmAudio(now,V);stepAmbience(now,dtF,V);}
   const W = cv.width, H = cv.height, k = Math.min(W, H) / CFG.VIEW;
-  FP.clear(); predFrame(now, dtF, vId); statsHud(now); netDbg(now); const me = posOf(vId) || [S.map.w / 2, S.map.h / 2], M = S.map; const realm = inUD(me[0], me[1]); mmFrame(now, V, me);
+  FP.clear(); predFrame(now, dtF, vId); statsHud(now); netDbg(now); const me0 = posOf(vId) || [S.map.w / 2, S.map.h / 2], M = S.map; const camLive = vId === S.me && k8Cam(), camOn = camLive || (vId === S.me && k8Hold()); k8CamStep(now, dtF, me0, camLive); const me = camOn ? [K8C.x, K8C.y] : me0; const realm = inUD(me0[0], me0[1]); mmFrame(now, V, me0);   // killer_8 with the camera up: the VIEW is centred on the camera, his body stays where it is (minimap, realm)
   // Reveal / select / result screens, and the killer during headstart: pure black (the DOM overlay carries the text).
   if (ph === 'reveal' || ph === 'select' || ph === 'result' || (role === 'killer' && ph === 'headstart')) {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); k2ArrowsHide(); stepHeartbeat(0, dtF, now); genHumStopAll(); rayCount = 0; debugLine(now); return; }
@@ -11519,6 +12111,7 @@ function draw() {
   if (!realm && S.phase === 'hunt') drawK6World(me, vw, vh, now);
   if (!realm && (S.phase === 'hunt' || S.phase === 'headstart')) drawK4World(me, vw, vh, now, role, vId);
   if(!realm){drawDecoys(now,me,vw,vh,role,vId);drawK3Min(now,me,vw,vh,role,vId);drawFx(now,me,vw,vh,role,vId);try{drawTkWisps(now,me,vw,vh,role,vId);drawPotBars(now,me,vw,vh,role,vId);drawMeterBars(now,me,vw,vh,role,vId);drawReactLines(now,me,vw,vh,role,vId);}catch(e){}drawIFx(now,me,vw,vh,role,false);drawSmokes(now,me,vw,vh);}   // slash / impact bursts / floating text: under the darkness so lighting applies
+  if (!realm && S.phase === 'hunt' && S.wo.k8) { try { drawK8Images(now, vId); if (role === 'survivor') { drawK8Shades(now, vId, 'world'); drawK8Crosses(now, vId); } else if (role === 'killer' && vId === S.me && isK8(S.me)) drawK8Shades(now, vId, 'lit'); } catch (e) {} }   // (a shade is drawn only for the survivor it hunts)   // killer_8: the afterimages a capture leaves behind, for the killer AND the survivors: drawn under the darkness, so they only show where it is lit
   // ---- darkness on top, then warm beam glow, then eyes ----
   if (role) {
     renderDarkness(me, k, W, H); worldTf();
@@ -11526,8 +12119,9 @@ function draw() {
     if (VIS.beam) tintCone(VIS.beam, CFG.BEAM_GLOW);
     if (VIS.cone) tintCone(VIS.cone, 1);
     if (VIS.mins) for (const v of VIS.mins) tintCone(v, 1);
+    if (!realm && role === 'killer' && vId === S.me && isK8(S.me)) { try { drawK8Over(now, vId); } catch (e) {} }   // killer_8: the survivors his camera caught, redrawn above the darkness
     const kid = killerId(), kp = kid >= 0 ? posOf(kid) : null, kidR = killerIdRaw(), kpT = kp || (kidR >= 0 && k2Hid(kidR) ? posOf(kidR) : null);   // kpT: the Demogorgon keeps his terror radius and heartbeat while he is hidden inside a portal (everything else about him stays hidden)
-    if (!realm && role === 'survivor' && ph === 'hunt' && kp && S.eyesStart && !k2Blind(role, vId) && !k1InvisFx(kid)) {   // (Wail: no eyes while she is invisible) red eyes reveal: visible through walls, only if the killer is NOT already lit
+    if (!realm && role === 'survivor' && ph === 'hunt' && kp && S.eyesStart && !k2Blind(role, vId) && !k1InvisFx(kid) && !k8MadHide(kid)) {   // (Wail: no eyes while she is invisible) red eyes reveal: visible through walls, only if the killer is NOT already lit
       const t = now - S.eyesStart;
       if (t >= 0 && t < S.eyesMs && !canSee(role, vId, kid)) {
         // Only if the killer is inside the visible world rectangle (inner margin EYE_GLOW so the glow isn't clipped); off-screen = no eyes at all.
@@ -11562,6 +12156,8 @@ function draw() {
     if (inten > 0 && !S._near && now - (S._stab || 0) > 9000) { S._stab = now; sfxStab(Math.min(1, .5 + inten)); } S._near = inten > 0;
     stepHeartbeat(inten, dtF, now); if (inten > 0) drawVignette(inten * (vSt === 'injured' ? CFG.INJURED_VIGNETTE_MULT : 1), W, H, now);
   }
+  if (camOn) { try { drawK8Cam(W, H, k, now); } catch (e) {} }   // killer_8: the VHS camera interface on top of everything
+  if (role === 'survivor' && S.phase === 'hunt') { try { drawK8Caught(W, H, now, vId); } catch (e) {} }   // killer_8: a captured survivor gets a very faint static + a soft flash
   debugLine(now);
 }
 requestAnimationFrame(draw);
@@ -11742,7 +12338,7 @@ netReady = true; busy(false); $('mStatus').textContent = ''; T.warm();
   const KBDEF = [['speed', 'Speed', 'Running speed of this killer (x1.00 = unchanged)', 0.3, 2], ['flashrange', 'Beam length', 'Length of this killer\'s flashlight beam (x)', 0.3, 3], ['flashangle', 'Beam width', 'Width of this killer\'s flashlight cone (x)', 0.3, 3],
     ['ambient', 'Close vision', 'Size of the small light around this killer (x)', 0.3, 3], ['terror', 'Terror radius', 'How far away survivors feel this killer (x)', 0.3, 3], ['reach', 'Swing reach', 'How far this killer\'s melee swing reaches (x)', 0.3, 3],
     ['hitcd', 'Hit cooldown', 'Wait after this killer hits (x, higher = slower)', 0.3, 3], ['misscd', 'Miss cooldown', 'Wait after this killer misses (x, higher = slower)', 0.3, 3]];
-  for (let n = 0; n < 8; n++) for (const [st, label, desc, lo, hi] of KBDEF) TUNE.add({ id: 'kb.' + n + '.' + st, group: 'Killer ' + n, sub: 'Base stats', killer: n, label, desc, kind: 'mult', min: lo, max: hi, step: 0.05, def: 1, get: () => KB[n][st], set: v => { KB[n][st] = v; } });
+  for (let n = 0; n < 9; n++) for (const [st, label, desc, lo, hi] of KBDEF) TUNE.add({ id: 'kb.' + n + '.' + st, group: 'Killer ' + n, sub: 'Base stats', killer: n, label, desc, kind: 'mult', min: lo, max: hi, step: 0.05, def: 1, get: () => KB[n][st], set: v => { KB[n][st] = v; } });
   TUNE.onApply(kbRecalc);
   TUNE.onApply(() => { CFG.BLOOD_HOLD_MS = CFG.BLOOD_LIFE_MS / 2; CFG.BLOOD_FADE_MS = CFG.BLOOD_LIFE_MS / 2; });   // the drop fades over its whole life (identical to 1500 + 1500 at the default 3000)
   TUNE.skip(['JOIN_ATTEMPT_TIMEOUT', 'JOIN_ATTEMPTS', 'JOIN_RETRY_GAP', 'UNAVAILABLE_RETRY', 'HEARTBEAT', 'DEAD_AFTER', 'HANDSHAKE_TIMEOUT', 'RECONNECT_WINDOW', 'TICK_HZ', 'MAX_PLAYERS', 'INTERP_MS', 'INTERP_MAX', 'FAST_CHANNEL', 'FAST_MAX', 'SNAPSHOT_HZ_LARGE', 'LARGE_ROOM_PLAYERS', 'MAX_BUFFERED', 'SHARED_SERIALISE', 'LAG_COMP_MS', 'HIST_MS', 'ACT_SLACK', 'PENDING_SWING_MS'], 'networking / transport / host timing: technical, must be identical on every device');
@@ -11875,7 +12471,7 @@ function tuneRender() {
   const bTab = tuneBtn('Reset this tab', () => { const ids = tuneDefsOf(tab).filter(tuneIsMod).map(d => d.id); if (ids.length) { hostResetTuneMany(ids); tuneRender(); } }); bTab.disabled = ro;
   const bAll = tuneBtn('Reset ALL', () => { if (!TUI.armAll) { bAll.textContent = 'Tap again to confirm'; bAll.classList.add('on'); TUI.armAll = setTimeout(() => { TUI.armAll = 0; bAll.textContent = 'Reset ALL'; bAll.classList.remove('on'); }, 3000); } else { clearTimeout(TUI.armAll); TUI.armAll = 0; hostResetAllTune(); tuneRender(); } }); bAll.disabled = ro;
   tools.append(bOnly, bTab, bAll, tuneBtn('Presets', tunePresets), tuneBtn('Export / Import', tuneExport)); body.append(tools);
-  if (!TUI.q && tab.id === 'Killers') { const kc = tEl('div', 'kch'); for (let n = 0; n < 8; n++) { const b = tuneBtn(tuneKName(n), () => { TUI.kil = n; tuneRender(); }, TUI.kil === n ? 'on' : ''); kc.append(b); } body.append(kc); }
+  if (!TUI.q && tab.id === 'Killers') { const kc = tEl('div', 'kch'); for (let n = 0; n < 9; n++) { const b = tuneBtn(tuneKName(n), () => { TUI.kil = n; tuneRender(); }, TUI.kil === n ? 'on' : ''); kc.append(b); } body.append(kc); }
   let defs = tuneDefsOf(tab); if (TUI.only) defs = defs.filter(tuneIsMod);
   if (TUI.q && defs.length > 150) { defs = defs.slice(0, 150); body.append(tEl('div', 'empty', 'Showing the first 150 matches. Type more to narrow it down.')); }
   if (!defs.length) { body.append(tEl('div', 'empty', TUI.only ? 'Nothing changed here yet.' : TUI.q ? 'No settings match "' + TUI.q + '".' : 'No settings in this tab yet.')); return; }
@@ -12290,7 +12886,7 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
 /* ==== TUNE PHASE 3: END ==== */
 /* ==== TUNE PHASE 4: START ==== */
 {
-  const KN = ["Jigsaw", "The Banshee", "The Demogorgon", "Freaky Nikki", "Huggy Wuggy", "The Boiled One", "The Skinwalker", "Game Guard"];
+  const KN = ["Jigsaw", "The Banshee", "The Demogorgon", "Freaky Nikki", "Huggy Wuggy", "The Boiled One", "The Skinwalker", "Game Guard", "Alternate"];
   // ---- killers 4..7 (killer_4 Huggy Wuggy, killer_5 The Boiled One, killer_6 The Skinwalker, killer_7 Game Guard) ----
   TUNE.add({ id: 'k4.bl_r', group: "Killer 4", killer: 4, sub: 'Blood Lust', label: 'Blood Lust reach', desc: 'How close to a hurt survivor\'s blood drop he must be', kind: 'num', min: 20, max: 300, step: 5, unit: 'units', get: () => K4_BL_R, set: v => { K4_BL_R = v; } });
   TUNE.add({ id: 'k4.bl_ms', group: "Killer 4", killer: 4, sub: 'Blood Lust', label: 'Blood Lust linger', desc: 'How long Blood Lust stays after he leaves the blood', kind: 'ms', min: 500, max: 10000, step: 100, unit: '', get: () => K4_BL_MS, set: v => { K4_BL_MS = v; } });
@@ -12307,8 +12903,6 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   TUNE.add({ id: 'k4.lg_w', group: "Killer 4", killer: 4, sub: 'Lunge', label: 'Lunge width', desc: 'Width of the path; survivors inside it are caught', kind: 'num', min: 20, max: 200, step: 5, unit: 'units', get: () => K4_LG_W, set: v => { K4_LG_W = v; } });
   TUNE.add({ id: 'k4.lg_cd', group: "Killer 4", killer: 4, sub: 'Lunge', label: 'Charge recharge time', desc: 'Time for ONE used lunge charge to come back', kind: 'ms', min: 1000, max: 40000, step: 500, unit: '', get: () => K4_LG_CD, set: v => { K4_LG_CD = v; } });
   TUNE.add({ id: 'k4.charges', group: "Killer 4", killer: 4, sub: 'Lunge', label: 'Lunge charges', desc: 'How many lunges he can store', kind: 'int', min: 1, max: 6, step: 1, unit: '', get: () => K4_CHARGES, set: v => { K4_CHARGES = v; } });
-  TUNE.add({ id: 'k4.lg_slow', group: "Killer 4", killer: 4, sub: 'Lunge', label: 'Caught survivor speed', desc: 'Speed multiplier of a survivor the lunge catches', kind: 'mult', min: 0.1, max: 1, step: 0.05, unit: '', get: () => K4_LG_SLOW, set: v => { K4_LG_SLOW = v; } });
-  TUNE.add({ id: 'k4.lg_slow_ms', group: "Killer 4", killer: 4, sub: 'Lunge', label: 'Caught slow time', desc: 'How long a caught survivor stays slowed', kind: 'ms', min: 0, max: 10000, step: 250, unit: '', get: () => K4_LG_SLOW_MS, set: v => { K4_LG_SLOW_MS = v; } });
   TUNE.add({ id: 'k5.base', group: "Killer 5", killer: 5, sub: 'General', label: 'Base speed', desc: 'His own speed multiplier (0.9 = 10% slower than other killers)', kind: 'mult', min: 0.5, max: 1.5, step: 0.05, unit: '', get: () => K5_BASE, set: v => { K5_BASE = v; } });
   TUNE.add({ id: 'k5.cd', group: "Killer 5", killer: 5, sub: 'Trail', label: 'Trail toggle cooldown', desc: 'Wait between switching the thorn trail on and off', kind: 'ms', min: 500, max: 15000, step: 250, unit: '', get: () => K5_CD, set: v => { K5_CD = v; } });
   TUNE.add({ id: 'k5.min', group: "Killer 5", killer: 5, sub: 'Trail', label: 'Torment to start trail', desc: 'Torment (%) needed to switch the trail on', kind: 'num', min: 0, max: 100, step: 1, unit: '%', get: () => K5_MIN, set: v => { K5_MIN = v; } });
@@ -12397,6 +12991,21 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   TUNE.add({ id: 'k7.doll_ping_r', group: "Killer 7", killer: 7, sub: 'Red Light Dolls', label: 'Ping radius', desc: 'Survivors this close to the doll get pinged to the killer', kind: 'num', min: 100, max: 1500, step: 25, unit: 'units', get: () => K7_DOLL_PING_R, set: v => { K7_DOLL_PING_R = v; } });
   TUNE.add({ id: 'k7.doll_ping_ms', group: "Killer 7", killer: 7, sub: 'Red Light Dolls', label: 'Ping time', desc: 'How long the killer sees the pinged survivors', kind: 'ms', min: 500, max: 15000, step: 250, unit: '', get: () => K7_DOLL_PING_MS, set: v => { K7_DOLL_PING_MS = v; } });
   TUNE.add({ id: 'k7.doll_off', group: "Killer 7", killer: 7, sub: 'Red Light Dolls', label: 'Doll distance', desc: 'How far the doll stands from its generator', kind: 'num', min: 30, max: 120, step: 2, unit: 'units', get: () => K7_DOLL_OFF, set: v => { K7_DOLL_OFF = v; } });
+  TUNE.add({ id: 'k8.fw', group: "Killer 8", killer: 8, sub: 'Camera', label: 'Camera frame width', desc: 'Width of the VHS camera frame (about one room)', kind: 'num', min: 240, max: 1600, step: 20, unit: 'units', get: () => K8_FW, set: v => { K8_FW = v; } });
+  TUNE.add({ id: 'k8.fh', group: "Killer 8", killer: 8, sub: 'Camera', label: 'Camera frame height', desc: 'Height of the VHS camera frame', kind: 'num', min: 160, max: 1200, step: 20, unit: 'units', get: () => K8_FH, set: v => { K8_FH = v; } });
+  TUNE.add({ id: 'k8.spd', group: "Killer 8", killer: 8, sub: 'Camera', label: 'Camera speed', desc: 'How fast the camera moves around', kind: 'num', min: 100, max: 1200, step: 10, unit: 'units/s', get: () => K8_CAM_SPD, set: v => { K8_CAM_SPD = v; } });
+  TUNE.add({ id: 'k8.range', group: "Killer 8", killer: 8, sub: 'Camera', label: 'Camera range', desc: 'How far from his body the camera can go', kind: 'num', min: 200, max: 4000, step: 50, unit: 'units', get: () => K8_CAM_R, set: v => { K8_CAM_R = v; } });
+  TUNE.add({ id: 'k8.shot_cd', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Picture cooldown', desc: 'Wait between two pictures', kind: 'ms', min: 500, max: 15000, step: 100, unit: '', get: () => K8_SHOT_CD, set: v => { K8_SHOT_CD = v; } });
+  TUNE.add({ id: 'k8.ai_max', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Afterimages at once', desc: 'How many afterimages can exist at the same time (a new picture pushes the oldest out)', kind: 'int', min: 1, max: 10, step: 1, unit: '', get: () => K8_AI_MAX, set: v => { K8_AI_MAX = v; } });
+  TUNE.add({ id: 'k8.see_ms', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Normal vision after reveal', desc: 'How long after a reveal his normal vision (flashlight / lit areas) works on that survivor', kind: 'ms', min: 0, max: 30000, step: 500, unit: '', get: () => K8_SEE_MS, set: v => { K8_SEE_MS = v; } });
+  TUNE.add({ id: 'k8.rev_ms', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Reveal time', desc: 'How long everyone caught in a picture is visible to him (also in the dark)', kind: 'ms', min: 500, max: 20000, step: 250, unit: '', get: () => K8_REV_MS, set: v => { K8_REV_MS = v; } });
+  TUNE.add({ id: 'k8.sh_form', group: "Killer 8", killer: 8, sub: 'Spawns', label: 'Spawn forming time', desc: 'How long a spawn takes to form before it starts hunting', kind: 'ms', min: 200, max: 5000, step: 100, unit: '', get: () => K8_SH_FORM_MS, set: v => { K8_SH_FORM_MS = v; } });
+  TUNE.add({ id: 'k8.sh_life', group: "Killer 8", killer: 8, sub: 'Spawns', label: 'Spawn lifetime', desc: 'How long a spawn lasts if it never catches its survivor', kind: 'ms', min: 5000, max: 120000, step: 1000, unit: '', get: () => K8_SH_LIFE_MS, set: v => { K8_SH_LIFE_MS = v; } });
+  TUNE.add({ id: 'k8.sh_see', group: "Killer 8", killer: 8, sub: 'Spawns', label: 'Killer sees spawn', desc: 'How long Alternate sees a new spawn through the dark', kind: 'ms', min: 0, max: 20000, step: 250, unit: '', get: () => K8_SH_SEE_MS, set: v => { K8_SH_SEE_MS = v; } });
+  TUNE.add({ id: 'k8.sh_always', group: "Killer 8", killer: 8, sub: 'Spawns', label: 'Killer always sees spawns', desc: 'On: Alternate always sees the spawns, even in the dark. Off (default): only briefly after one forms, inside his camera frame, or where his normal vision reaches', kind: 'bool', def: false, get: () => K8_SH_ALWAYS, set: v => { K8_SH_ALWAYS = !!v; } });
+  TUNE.add({ id: 'k8.cln_ms', group: "Killer 8", killer: 8, sub: 'Spawns', label: 'Cleanse time', desc: 'How long the hunted survivor must hold CLEANSE at their cross', kind: 'ms', min: 500, max: 20000, step: 500, unit: '', get: () => K8_CLN_MS, set: v => { K8_CLN_MS = v; } });
+  TUNE.add({ id: 'k8.sh_spd', group: "Killer 8", killer: 8, sub: 'Spawns', label: 'Spawn speed', desc: 'How fast a spawn moves, as a share of survivor speed (slow)', kind: 'mult', min: .1, max: 1.5, step: .05, unit: '', get: () => K8_SH_SPD, set: v => { K8_SH_SPD = v; } });
+  TUNE.add({ id: 'k8.ai_cd', group: "Killer 8", killer: 8, sub: 'Spawns', label: 'Swing cooldown after an afterimage', desc: 'Multiplier on his normal swing cooldown when the swing only hits an afterimage (0.5 = half)', kind: 'mult', min: 0.1, max: 1, step: 0.05, unit: '', get: () => K8_AI_CD_MULT, set: v => { K8_AI_CD_MULT = v; } });
   TUNE.add({ id: 'k5.ring_r.1', group: "Killer 5", killer: 5, sub: "Thorn circles", label: 'Hook circle radius', desc: 'Radius of the thorn circle around a hooked survivor', kind: "num", min: 60, max: 500, step: 5, unit: "units", get: () => K5_RING_R[1], set: v => { K5_RING_R[1] = v; } });
   TUNE.add({ id: 'k5.ring_r.2', group: "Killer 5", killer: 5, sub: "Thorn circles", label: 'Generator circle radius', desc: 'Radius of the thorn circle around a kicked generator', kind: "num", min: 60, max: 500, step: 5, unit: "units", get: () => K5_RING_R[2], set: v => { K5_RING_R[2] = v; } });
 
