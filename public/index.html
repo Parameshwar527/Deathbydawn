@@ -3040,6 +3040,7 @@ function resolveAttack(k, now) {
     if (rew) useFace = snap.f;
     hit = true; TW.extra = []; hitSurvivor(v, now); hits.push([v.id, v.st]); for (const e of TW.extra) hits.push(e); TW.extra = [];   // v.st = 'injured' | 'downed' after the hit
   }
+  if (hit && K7.on && isK7(k.id)) { K7.bul = K7_BULLETS; K7.dirty = true; }   // killer_7: landing a melee hit refills the whole magazine
   let k8Aih = false;
   if (isK8(k.id) && K8.ai.length) for (const a of K8.ai.slice()) { if (!inSector(k.x, k.y, S.face, a.x, a.y, k.id)) continue; K8.ai = K8.ai.filter(x => x !== a); k8Aih = true; k8AiHit(a, now); woSend('k8'); }   // killer_8: hitting an afterimage removes it (no damage; the swing still has its cooldown, but NO slow). It forms a SPAWN on that survivor and halves his swing cooldown
   for (const c of DCY.slice()) {   // phantoms (survivor-made) can be hit: they pop in a 0.7 s holy light that blinds the killer and disables his ability for 3 s
@@ -5299,7 +5300,7 @@ function drawK3Glints(me, vw, vh, now, role) {
        KNIFE = a normal killer.
        RIFLE = ambient circle unchanged, flashlight cone only K7_ANGLE degrees but K7_RANGE x longer (that is also the bullet's range). ATTACK fires a hitscan bullet
                (like Freaky Nikki's gun): it only hits a survivor inside the narrow cone with a clear line. Every shot costs 1 of K7_BULLETS, has a 0.1 s cooldown (HOLD left click = continuous fire) and slows him by 50% while he fires (K7_SLOW_MS = 0.3 s tail, hit or miss).
-   - HEALTH BAR: every survivor has a K7_HP bar (shown under THEIR minimap, nobody else's). A bullet that hits removes K7_DMG (7%; 15 bullets = a hit) and also reveals the survivor to the killer (event 'bond'), slows them 2% per stacked bullet for 0.2 s and, from the 2nd bullet, makes them bleed (k7Wound; 0.4 s reveal per bullet). At 0 the survivor takes a NORMAL hit
+   - HEALTH BAR: every survivor has a K7_HP bar (shown under THEIR minimap, nobody else's). A bullet that hits removes K7_DMG (10%; 10 bullets = a hit) and also reveals the survivor to the killer (event 'bond'; k7Wound; 0.4 s reveal per bullet). Bullets no longer slow or make anyone bleed. At 0 the survivor takes a NORMAL hit
        (healthy -> injured, injured -> downed), the bar goes back to 100% and he laughs / is slowed like after a swing. Any real hit refills the bar too. No passive regen (only 4 s in a locker heals 50%).
    - LOCKERS: when he is picked, K7_LK_PAIRS pairs (10 lockers, the two of a pair always side by side) are placed against the walls. The killer opens one (OPEN) = his bullets go back to
        K7_BULLETS. A survivor can HIDE in a free one (invisible, cannot move, EXIT button): every second inside heals K7_HEAL_RATE (12.5%) of the bar, so 4 s = 50%. If the killer opens an occupied locker the
@@ -5319,7 +5320,7 @@ function drawK3Glints(me, vw, vh, now, role) {
       - buttons: ctxFor (HIDE / EXIT / OPEN), abilityPress, updateControls (ability + attack labels), CTX_LABEL
       - drawing: killerBmp -> guardBmp, drawKiller (rifle flag), atkAnim, drawSlashSkin, drawItemsWorld -> drawK7World, draw loop -> drawK7Over, INFO_KILLERS (guide)
    ################################################################################################ */
-let K7_TERROR = 1, K7_ANGLE = 8, K7_RANGE = 1.36, K7_BULLETS = 30, K7_HP = 100, K7_DMG = 7, K7_HEAL_RATE = 12.5, K7_W_SLOW = .02, K7_W_SLOW_MS = 200, K7_W_MS = 400, K7_BLEED_MS = 400, K7_SW_MS = 500, K7_SHOT_MS = 100, K7_SHOT_SLOW = .5, K7_SLOW_MS = 300, K7_OPEN_ANIM = 325;   // terror (distance divisor) / rifle cone (degrees) / rifle beam + bullet range (x) / magazine / health bar (percent) / health one bullet takes / swap time / shot cooldown / slow multiplier (50% slower) / how long the shot slow lasts / locker-open animation length
+let K7_TERROR = 1, K7_ANGLE = 8, K7_RANGE = 1.36, K7_BULLETS = 20, K7_HP = 100, K7_DMG = 10, K7_HEAL_RATE = 12.5, K7_W_SLOW = .02, K7_W_SLOW_MS = 200, K7_W_MS = 400, K7_BLEED_MS = 400, K7_SW_MS = 500, K7_SHOT_MS = 100, K7_SHOT_SLOW = .5, K7_SLOW_MS = 300, K7_OPEN_ANIM = 325;   // terror (distance divisor) / rifle cone (degrees) / rifle beam + bullet range (x) / magazine / health bar (percent) / health one bullet takes / swap time / shot cooldown / slow multiplier (50% slower) / how long the shot slow lasts / locker-open animation length
 let K7_LK_PAIRS = 5, K7_LK_W = 60, K7_LK_D = 40, K7_ENTER_ANIM = 375, K7_LK_R = 70, K7_KICK_SLOW = .3, K7_KICK_MS = 1500, K7_OPEN_CD = 700, K7_SEND_MS = 100;   // locker pairs / one locker's width along the wall / depth / interaction reach / kicked-out slow / its length / killer's locker cooldown / resend gap
 let K7_DOLL_FIRST_MIN = 3000, K7_DOLL_FIRST_MAX = 7000, K7_DOLL_CALM_MIN = 2000, K7_DOLL_CALM_MAX = 4000, K7_DOLL_NEXT_MIN = 5000, K7_DOLL_NEXT_MAX = 10000, K7_EMPTY_CD = 500;   // (TUNE) doll: repair time before the FIRST scream (min/max ms) / wait after the doll calmed down / wait after a scream;  attack cooldown with an empty magazine
 let K7_DOLL_WARN_MS = 500, K7_DOLL_SCREAM_MS = 1200, K7_DOLL_CHK_MS = 6000, K7_DOLL_BLOCK_MS = 5000, K7_DOLL_PING_R = 450, K7_DOLL_PING_MS = 3000, K7_DOLL_OFF = 46;   // A GAME: cooldown (from the moment the doll is set) / how long the doll stays / the 'hands come off' delay / how long it screams / time a survivor has to answer the skill check / generator block after a miss / 'nearby' radius for the ping / ping length / distance of the doll from its generator
@@ -5709,13 +5710,11 @@ function k7Bond(v, w, now, quiet) {   // the reveal pin on the killer's screen +
   const K = k7Player(); if (!K) return; w.bAt = now; w.bEnd = w.rev;
   evSend({ k: 'bond', id: v.id, kid: K.id, ms: Math.max(1, w.rev - now), sh: hatHid(v, now) ? 0 : 1, sk: 0, q: quiet ? 1 : 0 });
 }
-function k7Wound(v, now) {   // a bullet landed (bar not empty): reveal him to the killer (0.4 s per bullet), slow him 2% per stacked bullet for 0.2 s, and from the 2nd bullet on he bleeds
+function k7Wound(v, now) {   // a bullet landed (bar not empty): reveal him to the killer (0.4 s per bullet). No slow and no bleed any more
   let w = K7.w[v.id]; if (!w || now >= w.rev) w = K7.w[v.id] = { n: 0, rev: now, bl: 0, bAt: 0, bEnd: 0 };   // the last stack ran out = a fresh one
   w.n++; w.rev = Math.max(w.rev, now) + K7_W_MS;   // every bullet adds K7_W_MS (0.4 s) of reveal
-  addMod(v, 'k7wound', Math.max(.1, 1 - K7_W_SLOW * w.n), K7_W_SLOW_MS, now);   // 2% slower per stacked bullet, for K7_W_SLOW_MS (0.2 s) after the latest bullet (the reveal still lasts 0.4 s per bullet)
-  if (w.n >= 2) w.bl = now + K7_BLEED_MS;   // every additional bullet: he bleeds (blood trail) for 0.4 s
   if (w.n === 1) k7Bond(v, w, now, false);   // the first bullet pings the pin; k7Step keeps it covering the growing reveal
-  if (w.n === 1) msgTo(v, 'Shot! The Guard can see you'); else if (w.n === 2) msgTo(v, 'Shot again! You are bleeding and slowed');   // (only the first two bullets of a stack talk: the rest would spam)
+  if (w.n === 1) msgTo(v, 'Shot! The Guard can see you');    // (only the first bullet of a stack talks: the rest would spam)
   K7.dirty = true;
 }
 function k7Fire(K, now) {   // rifle: the attack button fires one hitscan bullet at a survivor inside the narrow cone (clear line); nobody there = a wasted bullet
@@ -6835,9 +6834,9 @@ const INFO_KILLERS = [   // [KILLERS index, [[kind, title, text, optional sprite
     ['Ability', 'Sabotage', 'While disguised he can fake an unhook and slowly undo generator repairs.'],
     ['Ability', 'Chaos', 'While disguised, Chaos makes every survivor look like him and carry his terror, until he lands a hit.']]],
   [7, [
-    ['Ability', 'Knife / Rifle', 'She swaps between a knife and a rifle. The rifle narrows her flashlight but lets her see and shoot much further, with a 30-round magazine shown as a count under the minimap. Hold left click to fire continuously (on mobile, drag the right-hand stick to aim and fire); he is slowed while firing.', [[7, false, 0], [7, false, 1], [7, true, 0]]],
+    ['Ability', 'Knife / Rifle', 'She swaps between a knife and a rifle. The rifle narrows her flashlight but lets her see and shoot much further, with a 20-round magazine shown as a count under the minimap (landing a knife hit refills it). Hold left click to fire continuously (on mobile, drag the right-hand stick to aim and fire); he is slowed while firing.', [[7, false, 0], [7, false, 1], [7, true, 0]]],
     ['Ability', 'Red Light Dolls', 'A doll stands next to every generator from the start of the round (no button, no cooldown) and leaves when that generator is repaired. While someone repairs it the doll covers its eyes; at random moments it lowers its hands and screams RED LIGHT, forcing a skill check on everyone repairing it. A miss blocks the generator for 5 s and pings every survivor nearby.'],
-    ['Ability', 'Health bar', 'Every survivor has a health bar. Bullets drain it, reveal and slow the target and make them bleed. When it empties it counts as a normal hit, and it only comes back by hiding in a locker.'],
+    ['Ability', 'Health bar', 'Every survivor has a health bar. Bullets drain it and reveal the target to him. When it empties it counts as a normal hit, and it only comes back by hiding in a locker.'],
     ['Ability', 'Lockers', 'Lockers stand along the walls in pairs, and opening one reloads her rifle. Survivors can hide inside to heal, but if she opens their locker they are thrown out and slowed.']]],
   [8, [
     ['Passive', 'Flicker', 'He sees survivors normally, but he blinks out of sight for about a second every few seconds. His terror radius never goes away.'],
@@ -13107,7 +13106,7 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
     BB_SHOW.speed = BB.SPEED_MS; BB_SHOW.item = BB.ITEM_SHOW_MS; BB_SHOW.mark = BB.MARK_MS; BB_SHOW.swap = BB.SWAP_MS; BB_SHOW.frog = BB.FROG_MS; BB_SHOW.jitter = BB.JIT_MS; BB_SHOW.vision = BB.VIS_MS;
     // guide texts that quote numbers are rebuilt from the live values (the originals are kept and patched, so defaults read exactly as before)
     if (_g4) _g4.row[2] = _g4.orig.replace("10% slower while charging", _spd(K4_CH_SLOW) + " while charging");
-    if (_g7r) _g7r.row[2] = _g7r.orig.replace("30-round magazine", K7_BULLETS + "-round magazine");
+    if (_g7r) _g7r.row[2] = _g7r.orig.replace("20-round magazine", K7_BULLETS + "-round magazine");
     if (_g7d) _g7d.row[2] = _g7d.orig.replace("blocks the generator for 5 s", "blocks the generator for " + _sec(K7_DOLL_BLOCK_MS));
   });
   TUNE.skip(['K4_PAL', 'K4_COL', 'K4_URL', 'K5_URL', 'K6_ART', 'K6_URL', 'K6_OV', 'K6_HUSK', 'K7_ART', 'K7_URL', 'K7_DURL', 'K7_PORT'], 'sprite / colour / icon-cache data (art, not gameplay)');
