@@ -644,7 +644,7 @@ const CFG = {
   SELECT_MS: 15000,                    // cosmetic character select (ends early when everyone has locked in)
   // ---- survivor perks (host setting "Survivor perks"; every number here is a starting guess, tune freely) ----
   PK_KILLER_MS: 20000, PK_CHAR_MS: 10000, PK_PICK_MS: 10000,   // perks ON, pre-match: the killer has PK_KILLER_MS for the character; survivors have PK_CHAR_MS for the character, then PK_PICK_MS for the perk (parallel, they end together)
-  PK_LL_BLIND_MS: 1500, PK_LL_AB_MS: 3000, PK_LL_GLOW_MS: 3000, PK_LL_VIS: 1.15, PK_REACT_MULT: 2, PK_REACT_MS: 350, PK_POT_CAP: 25, PK_POT_HI: 75, PK_POT_BONUS: .1, PK_REFORM_CD_MS: 30000, PK_REFORM_GLOW_MS: 3000, PK_SAB_CD_MS: 30000, PK_SAB_DIS_MS: 20000, PK_SAB_MARK_MS: 3000, PK_SAB_KMULT: 3, PK_SAB_GLOW_MS: 3000, PK_SAB_R: 96,   // Sabotage: holder cooldown after a success (ready from the start) / how long a sabotaged hook stays off / how long a missed check marks the holder to the killer / killer hand-repair speed multiplier / icon glow / reach to a hook
+  PK_LL_BLIND_MS: 1500, PK_LL_AB_MS: 3000, PK_LL_GLOW_MS: 3000, PK_LL_VIS: 1.15, PK_GP_MULT: 1.035, PK_GP_ALL: true, PK_REACT_MULT: 1.5, PK_REACT_MS: 2000, PK_POT_CAP: 25, PK_POT_HI: 75, PK_POT_BONUS: .1, PK_REFORM_CD_MS: 30000, PK_REFORM_GLOW_MS: 3000, PK_SAB_CD_MS: 30000, PK_SAB_DIS_MS: 20000, PK_SAB_MARK_MS: 3000, PK_SAB_KMULT: 3, PK_SAB_GLOW_MS: 3000, PK_SAB_R: 96,   // Sabotage: holder cooldown after a success (ready from the start) / how long a sabotaged hook stays off / how long a missed check marks the holder to the killer / killer hand-repair speed multiplier / icon glow / reach to a hook
     PK_BOND_EVERY_MS: 7000, PK_BOND_SURV_MS: 1500, PK_BOND_KILL_MS: 1000, PK_BOND_GAP_MS: 3000, PK_BOND_WARN_MS: 1000,   // Reforming: ONE cooldown after each use (starts ready) / icon glow after using it. Bonded (alternating, never at the same time): first wait PK_BOND_EVERY_MS, then the HOLDER sees the killer for PK_BOND_SURV_MS, PK_BOND_GAP_MS of pause, then the KILLER sees the holder for PK_BOND_KILL_MS, PK_BOND_GAP_MS of pause, and round again; the icon glows from PK_BOND_WARN_MS before each reveal until it ends
     // Last Light: blind time (ms) / ability-lock time (ms) of its thrown Holy Light / icon glow after it is thrown (ms) / the holder's ambient vision multiplier (+15%); Reaction: speed multiplier and duration (ms) after leaving a generator / an unhook or using the block / break button; Potential: the bar's size, as % of one generator (dumped on the generator the moment it is full) / a generator at or above this % takes the holder's repair directly, and the holder banks BONUS (10%) of that repair on top
   PK_TK_MULT: 2.04, PK_UNDYING_FIRST_MS: 1000, PK_UNDYING_STEP_MS: 4000,   // Telekinetic: repair / unhook reach x this (1.7 + 20% = 2.04); Undying: downed time the first time (ms), plus this much more each further time (capped at DOWN_RECOVER_MS)
@@ -917,7 +917,8 @@ const PERKS = [
   { id: 'undying', name: 'Undying', type: 'passive', desc: "Recover from being downed faster; each subsequent recovery takes longer.", implemented: true },
   { id: 'potential', name: 'Potential', type: 'passive', desc: "Store generator fixing progress to prevent loss from kicks.", implemented: true },
   { id: 'lastlight', name: 'Last Light', type: 'passive', desc: "When hit or hooked, you throw a Holy Light at the killer. You also see further.", implemented: true },
-  { id: 'reaction', name: 'Reaction', type: 'passive', desc: "Gain a short speed boost after performing actions.", implemented: true },
+  { id: 'reaction', name: 'Reaction', type: 'passive', desc: "After performing actions, gain a 50% speed boost that fades over 2 seconds.", implemented: true },
+  { id: 'groupproject', name: 'Group Project', type: 'passive', desc: "When two or more survivors repair the same generator, everyone repairing it works 3.5% faster.", implemented: true },
   { id: 'sabotage', name: 'Sabotage', type: 'special', desc: "Interact with hooks to disable them on a cooldown.", implemented: true },
   { id: 'banesberry', name: 'Banesberry', type: 'special', desc: "Find hidden berries that grant random effects.", implemented: true },
   { id: 'reforming', name: 'Reforming', type: 'special', desc: "Reset a broken barricade so it can be used again.", implemented: true },
@@ -1798,7 +1799,7 @@ function botKillerThink(p, B, now) {
   for (const q of HP.values()) {
     if (q.role !== 'survivor' || !q.on) continue; if (isK2(p.id) && k2Lk(q.id)) continue; if (hatHid(q, now)) continue;   // Magician's Hat: invisible to a bot killer too (not during its blink)
     const dd = Math.hypot(q.x - p.x, q.y - p.y);   // (killer_2 bot: only sees / chases his target)
-    if (isK8(p.id) ? !(dd < 110 || K8.rev[q.id] > now || (K8.mk[q.id] > now && dd < L.ksight * kRangeMul(p.id) && losClear(p.x, p.y, q.x, q.y))) : !((EG.final && L.kdawn) || dd < 110 || (dd < L.ksight * kRangeMul(p.id) && losClear(p.x, p.y, q.x, q.y) && botFogClear(p.x,p.y,q.x,q.y,now)) || (botKSees(p, q, now) && botFogClear(p.x,p.y,q.x,q.y,now)))) continue;
+    if (!((EG.final && L.kdawn) || dd < 110 || (dd < L.ksight * kRangeMul(p.id) && losClear(p.x, p.y, q.x, q.y) && botFogClear(p.x,p.y,q.x,q.y,now)) || (botKSees(p, q, now) && botFogClear(p.x,p.y,q.x,q.y,now)))) continue;
     if (q.st === 'healthy' || q.st === 'injured') { const sc = dd - (q.st === 'injured' ? 80 : 0) - (B.tid === q.id ? 120 : 0); if (sc < bs) { bs = sc; tgt = q; } }
     else if (q.st === 'downed' && now >= q.pickupImmuneUntil && dd < dd2) { dd2 = dd; down = q; }
     if (q.st === 'healthy' || q.st === 'injured' || q.st === 'downed') B.last = { x: q.x, y: q.y, t: now };
@@ -2054,7 +2055,7 @@ function botK7(p, B, now, L, tgt, down) {   // true = it decided the movement / 
   B.tgt = tgt; B.tid = tgt.id; B.direct = d < 260; B.arrive = 10; return true;   // too far / no clear line: close the distance
 }
 
-/* killer_8 (Alternate) bot: blind, so it plays the camera. Raise the camera, wait a moment, snap a picture where survivors probably are (busy generators, its last sighting; Hard even knows where a survivor really is), then chase whoever the picture revealed and go and swing at the afterimages (each one forms a Spawn). Everything goes through hostAct like a human's buttons. */
+/* killer_8 (Alternate) bot: it sees normally, so it hunts like any killer, and when nobody is in sight it raises the camera, waits a moment, snaps a picture where survivors probably are (busy generators, its last sighting; Hard even knows where a survivor really is), then goes and swings at the afterimages (each one forms a Spawn). Everything goes through hostAct like a human's buttons. */
 function botK8Point(p, B, now) {   // where to point the camera: busy spots, plus the last sighting; the lower the level, the bigger the aim error
   const A = BA(), c = abHot().map(h => [h[0], h[1], h[2]]);
   if (B.last && now - B.last.t < 15000) c.push([B.last.x, B.last.y, 3]);
@@ -2211,7 +2212,7 @@ const canMove = p => (S.phase === 'hunt' && !(p.role === 'killer' && K4.lg)) || 
 /* ---- CHARACTER SELECT (cosmetic, host-authoritative). S.pick[id] = { c, locked } on the host and on every client; an id with no entry is implicitly { c: id % CHARS.length, locked: false }.
    The final choice is written to p.ch (roster 'ch') when select ends. Wire: c->h {t:'pick',c} {t:'lock'}; h->all {t:'ch',id,c,locked}; late joiners get pk:[[id,c,locked]] in welcome/start. ---- */
 const dfltCh = id => ((id % CHARS.length) + CHARS.length) % CHARS.length;
-const KILLERS = [{ name: 'Jigsaw', flavor: 'Find them. Hang them. Before dawn.', col: '#ff4f57' }, { name: 'The Banshee', flavor: 'You will hear her before you see her.', col: '#3affd0' }, { name: 'The Demogorgon', flavor: 'It opens. It hungers. It always finds you.', col: '#d1454f' }, { name: 'Freaky Nikki', flavor: 'She quit hiding it. Smile back.', col: '#e0264a' }, { name: 'Huggy Wuggy', flavor: 'Come here. Give me a big, big hug.', col: '#2f6bff' }, { name: 'The Boiled One', flavor: 'Skin like a scalded wound. It never stops screaming.', col: '#ff3b30' }, { name: 'The Skinwalker', flavor: 'It knows your voice. It never needed a face.', col: '#e9e6dc' }, { name: 'Game Guard', flavor: 'Rule one: nobody leaves the game.', col: '#ff4fa8' }, { name: 'Alternate', flavor: 'It can\u2019t see you. It just heard you say come outside.', col: '#d8dbe8' }];   // cosmetic only: same stats
+const KILLERS = [{ name: 'Jigsaw', flavor: 'Find them. Hang them. Before dawn.', col: '#ff4f57' }, { name: 'The Banshee', flavor: 'You will hear her before you see her.', col: '#3affd0' }, { name: 'The Demogorgon', flavor: 'It opens. It hungers. It always finds you.', col: '#d1454f' }, { name: 'Freaky Nikki', flavor: 'She quit hiding it. Smile back.', col: '#e0264a' }, { name: 'Huggy Wuggy', flavor: 'Come here. Give me a big, big hug.', col: '#2f6bff' }, { name: 'The Boiled One', flavor: 'Skin like a scalded wound. It never stops screaming.', col: '#ff3b30' }, { name: 'The Skinwalker', flavor: 'It knows your voice. It never needed a face.', col: '#e9e6dc' }, { name: 'Game Guard', flavor: 'Rule one: nobody leaves the game.', col: '#ff4fa8' }, { name: 'Alternate', flavor: 'It almost looks like someone you know. Almost.', col: '#d8dbe8' }];   // cosmetic only: same stats
 let testKiller = -1;   // test room, you as survivor: which killer the bot plays (-1 = random, else an index into KILLERS)
 const isKiller = id => { const q = S.players.find(x => x.id === id); return !!q && q.role === 'killer'; };
 const pickOf = id => S.pick[id] || { c: isKiller(id) ? 0 : dfltCh(id), locked: false };
@@ -2761,7 +2762,8 @@ function genStep(now, dtMs, killer) {   // every hunt tick: expire disabled time
     if (!k) { g.ping = 0; continue; }
     if (was === 0 || now >= g.ping) { if (cnt[i].some(id => { const q = HP.get(id); return !hatHid(q, now); })) genPing(i); g.ping = now + CFG.GEN_PING_MS; }   // first repairer, then every GEN_PING_MS while it is being repaired
     let nb = 0; for (const id of cnt[i]) { const q = HP.get(id); if (q && q.snakeEnd > now) nb++; }   // Snake Oil: a boosted repairer counts SNAKE_REPAIR_MULT times
-    let wsum = 0; for (const id of cnt[i]) { const q = HP.get(id); wsum += (q && q.snakeEnd > now ? CFG.SNAKE_REPAIR_MULT : 1) * k1Slow(q, now) * k5Slow(q) * (q && q.bbRep > now ? BB.SWAP_REP : 1) * (q && ddActive(q) ? CFG.PK_DD_REPAIR : 1) * (q && twinNearH(q) ? CFG.PK_TWIN_REP : 1); }   // killer_1: each repairer's fear slows their contribution
+    const gph = k >= 2 ? cnt[i].filter(id => hasPerk(id, 'groupproject')) : [];   // GROUP PROJECT: 2+ repairers and a holder among them
+    let wsum = 0; for (const id of cnt[i]) { const q = HP.get(id); wsum += (gph.length && (CFG.PK_GP_ALL || gph.indexOf(id) >= 0) ? CFG.PK_GP_MULT : 1) * (q && q.snakeEnd > now ? CFG.SNAKE_REPAIR_MULT : 1) * k1Slow(q, now) * k5Slow(q) * (q && q.bbRep > now ? BB.SWAP_REP : 1) * (q && ddActive(q) ? CFG.PK_DD_REPAIR : 1) * (q && twinNearH(q) ? CFG.PK_TWIN_REP : 1); }   // killer_1: each repairer's fear slows their contribution
     const kr = CFG.GEN_RATE_BY_K[clampN(k, 1, 9)], boost = wsum / k;
     let sl = 0; for (const id of cnt[i]) { const pg = K0.ping[id]; sl += pg && pg.sc && now - pg.s < K0_SCAN_SLOW_MS ? K0_SCAN_SLOW : 1; } sl /= k;   // IR scanner: pinged repairers are slower
     let gain = 100 * kr * boost * sl * split / charges * dt / (perksRule() ? CFG.PK_GEN_MULT : 1) / genTimeMult();   // survivor perks ON: 30% more repair work per generator
@@ -2823,8 +2825,8 @@ function bondStep(now) {   // BONDED (host, every tick of the hunt): the reveals
     if (now < p.bondAt) continue;
     p.bondW = 0; p.bondAt = now + ms + CFG.PK_BOND_GAP_MS; p.bondPh = ph ? 0 : 1; if (!K) continue;
     const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && (K1.inv > now || K1.stl));   // a killer who is inside a TV / invisible stays hidden from the holder; a hat-wearer stays hidden from the killer
-    if (ph === 0) evSend({ k: 'bond', id: p.id, kid: K.id, ms, sh: 0, sk: kHid ? 0 : 1 });   // the holder sees the killer
-    else evSend({ k: 'bond', id: p.id, kid: K.id, ms, sh: hatHid(p, now) ? 0 : 1, sk: 0 });   // the killer sees the holder
+    if (ph === 0) evSend({ k: 'bond', id: p.id, kid: K.id, ms, sh: 0, sk: kHid ? 0 : 1, bd: 1 });   // the holder sees the killer
+    else evSend({ k: 'bond', id: p.id, kid: K.id, ms, sh: hatHid(p, now) ? 0 : 1, sk: 0, bd: 1 });   // the killer sees the holder
   }
 }
 /* ---- LONG LAST TWIN (special perk, maxHolders 1): at the start of the hunt the holder is linked to ONE random other survivor (mutual: p.twin on both). Every hit on one twin is also dealt to the other with the normal hit logic (hitSurvivor); it never chains past the pair, and is skipped if the partner is downed / hooked / carried / dead. Hooks are not shared. While the twins are within twinR() of each other both repair faster (PK_TWIN_REP, host: generator loop) and see farther (PK_TWIN_VIS, client: stepMono). Clients learn the pair through the 'tw' world list and draw a thin pixel line (drawTwinLink). ---- */
@@ -2988,7 +2990,7 @@ function ddStep(now, dtMs) {   // host, every tick of the hunt
     else if (q.role === 'survivor' && q.on && hasPerk(q.id, 'demonicdeal')) ddSendTo(q, q.ddOn ? [ent(q, true)] : []);
   }
 }
-const pkReact = p => { if (p.role !== 'survivor' || !hasPerk(p.id, 'reaction')) return; addMod(p, 'react', CFG.PK_REACT_MULT, CFG.PK_REACT_MS, performance.now()); sxSend(p.id, 'react', CFG.PK_REACT_MS); };   // REACTION (host): a speed mod + the visual cue for everyone; only on the three triggers in hostAct
+const pkReact = p => { if (p.role !== 'survivor' || !hasPerk(p.id, 'reaction')) return; addMod(p, 'react', CFG.PK_REACT_MULT, CFG.PK_REACT_MS, performance.now(), true); sxSend(p.id, 'react', CFG.PK_REACT_MS); };   // REACTION (host): a speed mod + the visual cue for everyone; only on the three triggers in hostAct
 function hitSurvivor(v, now, minion) {   // minion = 1: hit by one of killer_3's summoned killers (the real killer's own hit hooks stay out of it)
   k4Lust3(now);   // Huggy: Blood Lust after a hit
   if (K7.on && v.role === 'survivor') { K7.h[v.id] = K7_HP; if (K7.w[v.id]) { delete K7.w[v.id]; dropMod(v, 'k7wound'); } K7.dirty = true; }   // killer_7: any real hit refills the health bar to 100%
@@ -3507,7 +3509,7 @@ function woList(k, now) {
     case 'k1': { if (!k1Player()) return []; const r = v => Math.round(v); return [left(K1.wailAt), left(K1.gdAt), Object.keys(K1.f).map(id => [+id, Math.round(K1.f[id] * 10) / 10]), K1.clones.map(c => [c.id, r(c.x), r(c.y), r(c.vx), r(c.vy), left(c.end), c.tk, c.ti]), Object.keys(K1.brk).concat(Object.keys(K1.imm).filter(id => !(id in K1.brk))).map(id => [+id, left(K1.brk[id] || 0), left(K1.imm[id] || 0)]).filter(e => e[1] || e[2])]; }   // killer_1 (see the KILLER_1 section)
     case 'k5': { if (!k5Player()) return []; return [K5.act ? 1 : 0, Math.round(K5.torm * 10) / 10, left(K5.cd), K5.rings.map(r => [r.id, r.k, r.i, r.x, r.y, r.end ? Math.max(1, left(r.end)) : 0, Math.round(now - r.t0)]), K5.mv ? 1 : 0, K5.chg ? 1 : 0, Object.keys(K5.cond).map(id => [+id, Math.round(K5.cond[id].b), K5.cond[id].c]), Object.keys(K5.ping).map(id => [+id, Math.max(1, left(K5.ping[id]))])]; }   // killer_5 (see the KILLER_5 section)
     case 'k6': { if (!k6Player()) return []; return [K6.form, K6.tid, left(K6.tfEnd), left(K6.chEnd), left(K6.cd), left(K6.chAt), K6.fh, Math.round(K6.fp), K6.fo ? 1 : 0]; }   // killer_6 (see the KILLER_6 section)
-    case 'k8': { if (!k8Player()) return []; return [K8.cam ? 1 : 0, left(K8.shotCd), K8.sn, Object.keys(K8.rev).map(id => [+id, left(K8.rev[id])]), K8.ai.map(a => [a.id, a.v, a.x, a.y, a.dk ? 1 : 0]), K8.sh.map(h => [h.id, h.v, Math.round(h.x), Math.round(h.y), h.st, Math.round(now - h.born), Math.round(h.ix * 100), Math.round(h.iy * 100), Math.round(h.cx), Math.round(h.cy), h.cp | 0]), Object.keys(K8.mk).map(id => [+id, left(K8.mk[id])]), Object.keys(K8.mad).map(id => [+id, K8.mad[id].map(t => left(t))])]; }   // killer_8 (see the KILLER_8 section)
+    case 'k8': { if (!k8Player()) return []; return [K8.cam ? 1 : 0, left(K8.shotCd), K8.sn, Object.keys(K8.rev).map(id => [+id, left(K8.rev[id])]), K8.ai.map(a => [a.id, a.v, a.x, a.y, a.dk ? 1 : 0]), K8.sh.map(h => [h.id, h.v, Math.round(h.x), Math.round(h.y), h.st, Math.round(now - h.born), Math.round(h.ix * 100), Math.round(h.iy * 100), Math.round(h.cx), Math.round(h.cy), h.cp | 0]), Object.keys(K8.mk).map(id => [+id, left(K8.mk[id])]), Object.keys(K8.mad).map(id => [+id, K8.mad[id].map(t => left(t))]), K8.hid ? 1 : 0]; }   // killer_8 (see the KILLER_8 section)
     case 'k7': { if (!k7Player()) return []; return [K7.form, K7.bul, left(K7.swEnd), K7.L.map(l => [Math.round(l.x), Math.round(l.y), l.nx, l.ny, l.occ]), Object.keys(K7.h).map(id => [+id, K7.h[id]]), Object.keys(K7.w).filter(id => K7.w[id].rev > now).map(id => [+id, left(K7.w[id].rev), left(K7.w[id].bl), K7.w[id].n]), Object.keys(K7.dolls).map(gi => { const D = K7.dolls[gi]; return [Math.round(D.x), Math.round(D.y), D.st, left(D.stEnd), D.gi]; })]; }   // killer_7 (see the KILLER_7 section)
     case 'k4': { if (!k4Player()) return []; return [K4.cds.map(left), K4.ch ? Math.round(now - K4.ch) : -1, K4.lg ? 1 : 0, left(K4.slU), K4.bl > now ? 1 : 0]; }   // killer_4 (see the KILLER_4 section)
     case 'k2': { if (!k2Player()) return []; return [K2.tid, K2.n, K2.sc.map(q => [q.id, q.x, q.y, Math.round(now - q.t0)]), K2.tv, left(K2.tx), left(K2.tcd), K2.pt, left(K2.pe), left(K2.cd)]; }
@@ -5323,8 +5325,7 @@ let K7_DOLL_FIRST_MIN = 3000, K7_DOLL_FIRST_MAX = 7000, K7_DOLL_CALM_MIN = 2000,
 let K7_DOLL_WARN_MS = 500, K7_DOLL_SCREAM_MS = 1200, K7_DOLL_CHK_MS = 6000, K7_DOLL_BLOCK_MS = 5000, K7_DOLL_PING_R = 450, K7_DOLL_PING_MS = 3000, K7_DOLL_OFF = 46;   // A GAME: cooldown (from the moment the doll is set) / how long the doll stays / the 'hands come off' delay / how long it screams / time a survivor has to answer the skill check / generator block after a miss / 'nearby' radius for the ping / ping length / distance of the doll from its generator
 function k7Empty() { return { on: false, init: false, form: 0, swEnd: 0, bul: K7_BULLETS, L: [], h: {}, w: {}, dirty: false, sendAt: 0, dolls: {} }; }   // dolls = { generatorIndex: doll } (one on EVERY generator); form: 0 knife, 1 rifle; L = lockers [{x, y, nx, ny, occ}] (nx,ny = the way the door faces); h = hearts per survivor id
 let K7 = k7Empty();
-const isK8 = id => kAbIdx(id) === 8;   // killer_8 = the ninth KILLERS entry (Alternate): PASSIVE = it is blind to survivors (canSee, drawTrails, drawTerror, bot sight). Its ability (the VHS camera) is in the KILLER_8 section below.
-const kirBlind = () => myRole() === 'killer' && isK8(S.me);   // client: I am Alternate, so no survivor sprites, blood or terror trails are drawn for me
+const isK8 = id => kAbIdx(id) === 8;   // killer_8 = the ninth KILLERS entry (Alternate): PASSIVE = FLICKER (survivors see him blink out; he is no longer blind). Its ability (the VHS camera) is in the KILLER_8 section below.
 
 /* ################################################################################################
    ##                                                                                            ##
@@ -5333,6 +5334,8 @@ const kirBlind = () => myRole() === 'killer' && isK8(S.me);   // client: I am Al
    ##   starts with K8 / k8.                                                                     ##
    ##                                                                                            ##
    ################################################################################################
+
+   REWORK (overrides everything below that says he is blind): Alternate is NOT blind: his normal vision works on survivors all the time. PASSIVE = FLICKER: survivors see him blink out (K8_FL_*, host K8.hid / K8.hidEnd, client k8Hide: no sprite, red eyes, beam or eyes sound; terror radius stays). The camera can only be raised when K8.shotCd is over (K8_SHOT_CD = 10 s after a picture). Spawns: K8_SH_LIFE_MS 60 s, K8_SH_SPD 0.5, Cleanse K8_CLN_MS 2 s.
 
    LATEST RULES (these override anything below that mentions black-static afterimages, monochrome, downing or K8_DK_HITS):
    - Afterimages are plain only. EVERY hit on one forms a SPAWN on that survivor (k8AiHit): slow (K8_SH_SPD x survivor speed), ONE per survivor, no overall limit; a survivor with a spawn after them leaves no new afterimage and is drawn MONOCHROME (k8Pursued). The swing cooldown after hitting an afterimage is K8_AI_CD_MULT (half) of the normal one, still no slow.
@@ -5368,17 +5371,18 @@ const kirBlind = () => myRole() === 'killer' && isK8(S.me);   // client: I am Al
       - input / buttons: readInput (-> k8Raw), sendAct (attack -> 'k8shot'), abilityPress, ctxFor, updateControls (ability + attack labels, cooldown ring)
       - drawing: draw() (view centred on the camera), buildVis (no flashlight), renderDarkness (the frame is lit), canSee, INFO_KILLERS (guide), TUNE panel ("Killer 8")
    ################################################################################################ */
-let K8_CLN_R = 90, K8_CLN_MS = 5000;   // CLEANSE: how close the hunted survivor must stand to the planted cross (world units) / how long they must HOLD the button (like disarming a killer_0 trap)
+let K8_CLN_R = 90, K8_CLN_MS = 2000;   // CLEANSE: how close the hunted survivor must stand to the planted cross (world units) / how long they must HOLD the button (like disarming a killer_0 trap)
 let K8_SH_ALWAYS = false;   // true: Alternate always sees the spawns (drawn above the darkness, anywhere); false: only for K8_SH_SEE_MS, inside his camera frame, or where his normal vision reaches
-let K8_SH_SPD = .6, K8_MAD_ON = false, K8_SH_FORM_MS = 900, K8_SH_LIFE_MS = 40000, K8_SH_SEE_MS = 2000, K8_AI_CD_MULT = .5;   // SPAWNS (a spawn forms every time he hits an afterimage): speed as a share of survivor speed (slow) / Maddened on-off / forming animation / lifetime if it never catches / how long the killer sees one / swing cooldown multiplier after hitting an afterimage
+let K8_SH_SPD = .5, K8_MAD_ON = false, K8_SH_FORM_MS = 900, K8_SH_LIFE_MS = 60000, K8_SH_SEE_MS = 2000, K8_AI_CD_MULT = .5;   // SPAWNS (a spawn forms every time he hits an afterimage): speed as a share of survivor speed (slow) / Maddened on-off / forming animation / lifetime if it never catches / how long the killer sees one / swing cooldown multiplier after hitting an afterimage
 let K8_MAD_MS = 20000, K8_MAD_STEP = .2, K8_MAD_MIN = .3, K8_MAD_FLK = .45, K8_MAD_MAX = 6;   // MADDENED: how long one stack lasts (it fades out linearly) / vision lost per stack / vision never goes below this share / share of the time the killer is invisible per stack (capped at 90%) / most stacks   // SHADES: afterimage hits of one survivor before the next one is a black-static one / most shades out at once / forming animation / lifetime if it never catches / how long the killer sees one / how long it clings to a survivor after its first catch
-let K8_FW = 720, K8_FH = 480, K8_CAM_SPD = 336, K8_CAM_R = 3600, K8_SHOT_CD = 3000, K8_REV_MS = 2000, K8_SEE_MS = 10000, K8_TOG_MS = 350, K8_AI_MAX = 3;   // camera frame (world units, about one room) / camera speed (units per second) / how far from his body the camera may go / picture cooldown / how long a caught survivor stays visible / on-off debounce
-function k8Empty() { return { on: false, init: false, cam: false, tog: 0, shotCd: 0, sn: 0, rev: {}, mk: {}, ai: [], ain: 1, mad: {}, sh: [], shn: 1, shT: 0 }; }   // hits = { survivor id: afterimages of his the killer has hit (reset when his black-static one forms) }; sh = the SHADES (black white-eyed copies that hunt one survivor)   // ai = the AFTERIMAGES [{ id, v (survivor id), x, y }] (max K8_AI_MAX, oldest goes first); cam = camera up; shotCd = when the next picture is allowed; sn = pictures taken (the client flashes when it changes); rev = { survivor id: visible until }
+let K8_FW = 720, K8_FH = 480, K8_CAM_SPD = 504, K8_CAM_R = 3600, K8_SHOT_CD = 10000, K8_REV_MS = 2000, K8_SEE_MS = 10000, K8_TOG_MS = 350, K8_AI_MAX = 3;   // camera frame (world units, about one room) / camera speed (units per second) / how far from his body the camera may go / picture cooldown / how long a caught survivor stays visible / on-off debounce
+function k8Empty() { return { on: false, init: false, cam: false, hid: false, hidEnd: 0, tog: 0, shotCd: 0, sn: 0, rev: {}, mk: {}, ai: [], ain: 1, mad: {}, sh: [], shn: 1, shT: 0 }; }   // hits = { survivor id: afterimages of his the killer has hit (reset when his black-static one forms) }; sh = the SHADES (black white-eyed copies that hunt one survivor)   // ai = the AFTERIMAGES [{ id, v (survivor id), x, y }] (max K8_AI_MAX, oldest goes first); cam = camera up; shotCd = when the next picture is allowed; sn = pictures taken (the client flashes when it changes); rev = { survivor id: visible until }
+let K8_FL_VIS_MIN = 2000, K8_FL_VIS_MAX = 4000, K8_FL_HID_MIN = 500, K8_FL_HID_MAX = 1000;   // FLICKER (passive): how long he stays visible to survivors / how long he is hidden from them (random between min and max, ms); his terror radius never goes away
 let K8 = k8Empty();
 function k8Player() { for (const p of HP.values()) if (p.role === 'killer' && p.on && isK8(p.id)) return p; return null; }
 function k8Ability(p, now) {   // camera on / off
   if (!K8.on || p !== k8Player() || now < K8.tog) return;
-  if (!K8.cam && (p.carry != null || p.wind)) return;
+  if (!K8.cam && (p.carry != null || p.wind || now < K8.shotCd)) return;   // (the camera cannot be raised again until the picture cooldown is over)
   K8.tog = now + K8_TOG_MS; K8.cam = !K8.cam; p.ix = p.iy = 0; p.kick = false; p.kickT = 0; p.kickGen = -1; woSend('k8');
 }
 function k8Shot(p, n, now) {   // a picture: every survivor inside the frame (centred on the camera position the client sent) stays visible for K8_REV_MS
@@ -5427,6 +5431,8 @@ function k8Step(now, dtMs) {   // host, every tick
   const B = k8Player(); K8.on = !!B; if (!B) return; let ch = false;
   if (!K8.init) { K8.init = true; ch = true; }
   if (K8.cam && (B.st === 'sent' || B.st === 'dead' || B.carry != null)) { K8.cam = false; ch = true; }
+  if (S.phase === 'hunt') { if (!K8.hidEnd) { K8.hid = false; K8.hidEnd = now + rnd(K8_FL_VIS_MIN, K8_FL_VIS_MAX); ch = true; } else if (now >= K8.hidEnd) { K8.hid = !K8.hid; K8.hidEnd = now + (K8.hid ? rnd(K8_FL_HID_MIN, K8_FL_HID_MAX) : rnd(K8_FL_VIS_MIN, K8_FL_VIS_MAX)); ch = true; } }   // FLICKER: survivors see him visible for a while, then hidden for a moment, over and over
+  else if (K8.hid || K8.hidEnd) { K8.hid = false; K8.hidEnd = 0; ch = true; }
   for (const id in K8.rev) if (now >= K8.rev[id]) { delete K8.rev[id]; ch = true; }
   for (const id in K8.mk) if (now >= K8.mk[id]) { delete K8.mk[id]; ch = true; }
   for (const id in K8.mad) { const a = K8.mad[id].filter(t => t > now); if (a.length !== K8.mad[id].length) { ch = true; if (a.length) K8.mad[id] = a; else delete K8.mad[id]; } }   // Maddened stacks run out
@@ -5440,10 +5446,10 @@ function k8Step(now, dtMs) {   // host, every tick
   if (ch) woSend('k8');
 }
 /* ---- client ---- */
-const K8C = { x: 0, y: 0, was: false, t0: 0, sn: -1, flashAt: -1e9, holdUntil: 0, spr: {}, pops: [], shv: {}, shc: {}, cfx: [] };   // x / y = where the camera is now; t0 = when it went up (time code); sn = last picture count seen; flashAt = last picture (white flash)
+const K8C = { fl: [], nh: false, x: 0, y: 0, was: false, t0: 0, sn: -1, flashAt: -1e9, holdUntil: 0, spr: {}, pops: [], shv: {}, shc: {}, cfx: [] };   // x / y = where the camera is now; t0 = when it went up (time code); sn = last picture count seen; flashAt = last picture (white flash)
 function k8Apply(a, now) {
   const old = S.wo.k8;
-  if (!a || !a.length) { S.wo.k8 = null; K8C.spr = {}; K8C.pops = []; K8C.holdUntil = 0; K8C.shv = {}; K8C.shc = {}; K8C.cfx = []; return; }
+  if (!a || !a.length) { S.wo.k8 = null; K8C.fl = []; K8C.spr = {}; K8C.pops = []; K8C.holdUntil = 0; K8C.shv = {}; K8C.shc = {}; K8C.cfx = []; return; }
   const rev = {}; for (const e of a[3] || []) rev[e[0]] = now + e[1];
   const mad = {}; for (const e of a[7] || []) mad[e[0]] = (e[1] || []).map(ms => now + ms);   // mad = Maddened stacks per survivor (when each one runs out)
   const mk = {}; for (const e of a[6] || []) mk[e[0]] = now + e[1];   // mk = until when a revealed survivor stays visible to his NORMAL vision (K8_SEE_MS after the reveal)
@@ -5456,26 +5462,27 @@ function k8Apply(a, now) {
     if (a[0]) K8C.holdUntil = 0;   // camera raised again: no photo on hold any more
     else if (old && old.cam && a[2] !== old.sn) { K8C.holdUntil = 0; K8C.flashAt = now; K8C.sn = a[2]; try { k8ShutterSfx(); } catch (e) {} }   // the picture was taken and the camera closed: flash, and keep the view parked on the photo while the caught survivors show
   }
-  S.wo.k8 = { cam: !!a[0], cd: now + a[1], sn: a[2], rev, mk, mad, ai, sh };
+  if (old && !!old.hid !== !!a[8]) K8C.fl.push({ t: now, out: !!a[8] });   // FLICKER: he just blinked out / back in: a glitch burst where he is
+  S.wo.k8 = { cam: !!a[0], cd: now + a[1], sn: a[2], rev, mk, mad, ai, sh, hid: !!a[8] };
 }
 const k8MadEff = id => { const J = S.wo && S.wo.k8, a = J && J.mad && J.mad[id]; if (!a) return 0; const now = performance.now(); let e = 0; for (const t of a) e += Math.max(0, Math.min(1, (t - now) / K8_MAD_MS)); return e; };   // MADDENED strength of a survivor: every stack counts 1 and fades out linearly
 const k8MadVis = () => myRole() === 'survivor' && S.phase === 'hunt' ? Math.max(K8_MAD_MIN, 1 - K8_MAD_STEP * k8MadEff(S.me)) : 1;   // my vision multiplier (Maddened shrinks it)
-function k8MadHide(id) {   // I am Maddened and Alternate is in a 'flicker off' moment: he is invisible to me like the Banshee (no sprite, no red eyes, no beam, no eyes sound), but his TERROR RADIUS stays
+function k8Hide(id) {   // (K8C.nh = the glitch burst asks canSee() 'could I see him if he were not hidden?')
+  if (K8C.nh) return false;
+  // I am a survivor and Alternate is in a 'flicker off' moment: he is invisible to me like the Banshee (no sprite, no red eyes, no beam, no eyes sound), but his TERROR RADIUS stays
   if (myRole() !== 'survivor' || S.phase !== 'hunt' || !isK8(id) || killerIdRaw() !== id) return false;
-  const e = k8MadEff(S.me); if (e <= .02) return false;
-  return sfRnd(Math.floor(performance.now() / 260) * 3.7 + S.me) < Math.min(.9, K8_MAD_FLK * e);
+  const J = S.wo && S.wo.k8; return !!(J && J.hid);
 }
 const k8Pursued = id => { const J = S.wo && S.wo.k8; return !!(J && J.sh && J.sh.length && J.sh.some(h => h.v === id)); };   // a spawn is after this survivor (forming or hunting): their sprite turns monochrome
 const k8Hold = () => myRole() === 'killer' && isK8(S.me) && S.phase === 'hunt' && !!(S.wo && S.wo.k8) && performance.now() < K8C.holdUntil;   // the camera just closed after a picture: the view stays on the photo for a moment
 const k8Cam = () => myRole() === 'killer' && isK8(S.me) && S.phase === 'hunt' && !!(S.wo && S.wo.k8 && S.wo.k8.cam);   // I am Alternate and my camera is up
 const k8Pack = () => Math.round(Math.max(0, Math.min(8191, K8C.x))) * 8192 + Math.round(Math.max(0, Math.min(8191, K8C.y)));   // the camera position in ONE number (sendAct only carries one)
-function k8Sees(id) {   // can Alternate see this survivor right now? only if he is caught in a picture, or inside the live camera frame
+function k8Sees(id) {   // Alternate is NOT blind: true / false = forced (live camera frame, a photo's reveal through the dark / hidden by a hat), null = his normal vision decides
   if (hatOn(id) || k7Hid(id)) return false;
   { const s0 = effSt(id); if (s0 === 'hooked' || s0 === 'carried') return true; }   // he can always see a survivor on a hook and the one he is carrying
   const now = performance.now(), J = S.wo && S.wo.k8; if (J && J.rev[id] > now) return true;
   if (k8Cam()) { const q = posOf(id); if (q && Math.abs(q[0] - K8C.x) <= K8_FW / 2 && Math.abs(q[1] - K8C.y) <= K8_FH / 2) return true; }
-  if (J && J.mk && J.mk[id] > now) return null;   // revealed in the last K8_SEE_MS: his NORMAL vision (flashlight / lit areas) works on this survivor
-  return false;
+  return null;   // anything else: his NORMAL vision (flashlight / lit areas), like every other killer
 }
 function k8ShutterSfx() { try { sfxTone(2200, 900, .05, .22, 'square', 0); sfxTone(700, 300, .09, .18, 'square', .06); sfxNoise(.08, .18, 'highpass', 2500, 1500, 0, .01); } catch (e) {} }
 function k8CamStep(now, dtF, me0, on) {   // every frame: steer the camera with the stick / keys, keep it on the map and within range, flash when a picture was taken
@@ -5517,6 +5524,20 @@ function drawK8Images(now, vId) {   // the AFTERIMAGES: flickering, see-through,
     ctx.restore();
   }
 }
+function drawK8Flick(now, vId, role) {   // Alternate's FLICKER: a short VHS glitch burst (static specks + torn scan lines) where he blinks out and where he blinks back in; drawn only for someone who could see him at that spot
+  if (!K8C.fl.length) return; const kid = killerIdRaw();
+  if (kid < 0 || !isK8(kid) || vId === kid) { K8C.fl.length = 0; return; }
+  const q = posOf(kid); if (!q) return;
+  let ok = false; K8C.nh = true; try { ok = canSee(role, vId, kid); } finally { K8C.nh = false; }
+  for (let i = K8C.fl.length - 1; i >= 0; i--) {
+    const f = K8C.fl[i], age = now - f.t; if (age > 380) { K8C.fl.splice(i, 1); continue; } if (!ok) continue;
+    const u = age / 380, n = (now / 45) | 0, a = (.9 * (1 - u)).toFixed(3); ctx.save();
+    for (let j = 0; j < 16; j++) { ctx.fillStyle = j % 3 === 0 ? 'rgba(3,3,7,' + a + ')' : 'rgba(225,230,245,' + a + ')'; ctx.fillRect(q[0] + (sfRnd(n * 11 + j + f.t) - .5) * 58, q[1] - 30 + sfRnd(n * 23 + j * 5 + f.t) * 64, 2 + ((sfRnd(n + j * 3) * 6) | 0), 2 + (j % 2)); }   // static specks around him
+    ctx.fillStyle = 'rgba(235,240,255,' + a + ')'; for (let j = 0; j < 3; j++) { const y = q[1] - 30 + ((n * 7 + j * 21) % 62), len = 26 + ((sfRnd(n + j) * 30) | 0), sh = (sfRnd(n * 3 + j) - .5) * 14; ctx.fillRect(q[0] - len / 2 + sh, y, len, 2); }   // torn scan lines
+    if (f.out && age < 120) { ctx.fillStyle = 'rgba(255,255,255,' + (.35 * (1 - age / 120)).toFixed(3) + ')'; ctx.fillRect(q[0] - 14, q[1] - 34, 28, 62); }   // blinking out: one pale flash of his outline
+    ctx.restore();
+  }
+}
 function k8ShPos(sh, now) {   // where a shade is drawn: the last synced position, carried on at survivor speed along its heading, eased so the 10 Hz updates do not jerk
   const dtx = Math.min(160, now - sh.at) / 1000, k = sh.st === 1 ? CFG.SURVIVOR_SPEED * K8_SH_SPD * dtx / 100 : 0, tx = sh.x + sh.ix * k, ty = sh.y + sh.iy * k;
   let v = K8C.shv[sh.id]; if (!v || Math.hypot(tx - v.x, ty - v.y) > 160) v = K8C.shv[sh.id] = { x: tx, y: ty }; else { v.x += (tx - v.x) * .35; v.y += (ty - v.y) * .35; }
@@ -5550,17 +5571,18 @@ function drawK8Shades(now, vId, mode) {   // the SHADES. mode 'world' = the hunt
     if (mode === 'lit' && (K8_SH_ALWAYS || age < K8_SH_SEE_MS || (k8Cam() && Math.abs(q.x - K8C.x) <= K8_FW / 2 && Math.abs(q.y - K8C.y) <= K8_FH / 2))) continue;   // (already drawn above the darkness by the 'killer' mode)
     if (mode === 'killer' && !(K8_SH_ALWAYS || age < K8_SH_SEE_MS || (k8Cam() && Math.abs(q.x - K8C.x) <= K8_FW / 2 && Math.abs(q.y - K8C.y) <= K8_FH / 2))) continue;
     const form = sh.st === 0, u = form ? Math.min(1, age / K8_SH_FORM_MS) : 1;
-    let al; if (form) al = (.2 + .8 * u) * (((now / 60) | 0) % 5 === 0 ? .3 : 1); else if (sh.st === 2) al = .95;
-    else { const gap = ((now / 1000 + sh.id * .37) % 2.2) < .45, fk = ((now / 85 + sh.id * 13) | 0) % 6 === 0; al = gap ? .06 : fk ? .35 : .9; }   // hunting: it blinks in and out to confuse its target (a long gap now and then, plus quick flickers)
+    let al, glitch = false; if (form) al = (.2 + .8 * u) * (((now / 60) | 0) % 5 === 0 ? .3 : 1); else if (sh.st === 2) al = .95;
+    else { const ph8 = (now / 1000 + sh.id * .37) % 2.2, gap = ph8 < .45, fk = ((now / 85 + sh.id * 13) | 0) % 6 === 0; glitch = fk || ph8 < .09 || Math.abs(ph8 - .45) < .09 || ph8 > 2.11; al = gap ? .06 : fk ? .35 : .9; }   // glitch: a quick flicker, or the moment it drops out / comes back: it tears into slices and throws static   // hunting: it blinks in and out to confuse its target (a long gap now and then, plus quick flickers)
     let sp = null; try { sp = k8ShSprite(sh, q, vId, now); } catch (e) { sp = null; }
     ctx.save(); ctx.globalAlpha = al; ctx.imageSmoothingEnabled = false;
     const py = q.y + 24, sy = form ? .12 + .88 * u : 1; ctx.translate(q.x, py); ctx.scale(1, sy); ctx.translate(-q.x, -py);
     if (sp) {
-      if (form) { for (let i = 0; i < 8; i++) { const j = (((now / 50) | 0) + i + sh.id) % 4 === 0 ? (i & 1 ? 5 : -5) : 0, y0 = i * 28; ctx.drawImage(sp, 0, y0, 192, 28, q.x - 48 + j, q.y - 80 + y0 / 2, 96, 14); } }   // forming: it tears into horizontal slices that settle
+      if (form || glitch) { for (let i = 0; i < 8; i++) { const j = form ? ((((now / 50) | 0) + i + sh.id) % 4 === 0 ? (i & 1 ? 5 : -5) : 0) : ((((now / 40) | 0) + i + sh.id) % 2 === 0 ? (i & 1 ? 7 : -7) : 0), y0 = i * 28; ctx.drawImage(sp, 0, y0, 192, 28, q.x - 48 + j, q.y - 80 + y0 / 2, 96, 14); } }   // forming: it tears into horizontal slices that settle
       else ctx.drawImage(sp, q.x - 48, q.y - 80, 96, 112);
     } else { ctx.fillStyle = '#08080c'; ctx.beginPath(); ctx.ellipse(q.x, q.y, 14, 24, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(q.x - 6, q.y - 20, 4, 5); ctx.fillRect(q.x + 2, q.y - 20, 4, 5); }
     ctx.restore();
-    ctx.save(); ctx.fillStyle = 'rgba(3,3,7,.85)'; const n = (now / 70) | 0, cnt = form ? 26 : 8; for (let i = 0; i < cnt; i++) ctx.fillRect(q.x + (sfRnd(n * 13 + i + sh.id) - .5) * (form ? 70 : 44), q.y - 38 + sfRnd(n * 29 + i * 5 + sh.id) * 80, 2 + ((sfRnd(n + i) * 5) | 0), 2); ctx.restore();   // black static around it (heavy while forming)
+    ctx.save(); ctx.fillStyle = 'rgba(3,3,7,.85)'; const n = (now / 70) | 0, cnt = form ? 26 : glitch ? 18 : 8; for (let i = 0; i < cnt; i++) ctx.fillRect(q.x + (sfRnd(n * 13 + i + sh.id) - .5) * (form ? 70 : glitch ? 58 : 44), q.y - 38 + sfRnd(n * 29 + i * 5 + sh.id) * 80, 2 + ((sfRnd(n + i) * 5) | 0), 2); ctx.restore();   // black static around it (heavy while forming)
+    if (glitch && !form) { ctx.save(); ctx.fillStyle = 'rgba(225,230,245,.75)'; const n2 = (now / 37) | 0; for (let j = 0; j < 3; j++) ctx.fillRect(q.x - 24 + (sfRnd(n2 + j + sh.id) - .5) * 16, q.y - 40 + ((n2 * 13 + j * 29 + sh.id * 7) % 70), 48, 2); ctx.restore(); }   // torn scan lines across it
   }
 }
 function drawK8Crosses(now, vId) {   // CROSS: planted where an afterimage was hit; ONLY the hunted survivor sees it (world layer = under the darkness, so only where it is lit). Walk up and CLEANSE to dissolve the spawn
@@ -6818,9 +6840,9 @@ const INFO_KILLERS = [   // [KILLERS index, [[kind, title, text, optional sprite
     ['Ability', 'Health bar', 'Every survivor has a health bar. Bullets drain it, reveal and slow the target and make them bleed. When it empties it counts as a normal hit, and it only comes back by hiding in a locker.'],
     ['Ability', 'Lockers', 'Lockers stand along the walls in pairs, and opening one reloads her rifle. Survivors can hide inside to heal, but if she opens their locker they are thrown out and slowed.']]],
   [8, [
-    ['Passive', 'Blind', 'He cannot see survivors: no sprites, no blood trails, no terror trails. A swing that happens to catch someone still hurts them, so he hunts by sound and guesswork. Only his camera shows them to him. The exceptions are survivors hanging on a hook and the one he is carrying: he always sees those.'],
-    ['Ability', 'Camera', 'Tap to raise a VHS camera that covers about one room. He stands still while the stick steers the camera, and any survivor inside the frame shows up on screen. Tap again to leave. Attack in camera mode takes a picture and closes the camera: everyone caught is visible to him for two seconds, in the dark too (red frame and timer), and for ten seconds after that his normal vision, flashlight and lit areas, works on them. Each caught survivor who is still on their feet also leaves a flickering grey afterimage behind (three at most; a downed survivor leaves none). Survivors only get a soft flash and a faint static when they are caught, and they can see the afterimages too, but only where it is lit. Hitting an afterimage makes it vanish, forms a Spawn on that survivor, plants a cross where the afterimage stood (only that survivor can see it), halves his swing cooldown and does not slow him down.'],
-    ['Ability', 'Spawns', 'Every afterimage he hits forms a Spawn: a slow, pitch-black copy of that survivor with white eyes. It chases only that survivor, and a survivor can only have one after them at a time, so no new afterimages of them appear until it is gone. There is no limit on how many Spawns exist overall. While a Spawn is after them the survivor turns monochrome. He sees it for its first two seconds and inside his camera frame, and otherwise only where his vision reaches; the hunted survivor sees it only where it is lit. When it touches them it counts as a hit, fades away and pings their location to Alternate. The cross is only visible where the hunted survivor can see. If they walk up to it and hold Cleanse for five seconds, its glow fading as they do, the Spawn expires at once. A Spawn, and its cross, fade after forty seconds if it never catches anyone, or as soon as its target is downed, carried or hooked.']]]
+    ['Passive', 'Flicker', 'He sees survivors normally, but he blinks out of sight for about a second every few seconds. His terror radius never goes away.'],
+    ['Ability', 'Camera', 'Raise a VHS camera covering about one room; he stands still while the stick steers it. Attack takes a picture: caught survivors show through the dark for 2 s and leave a grey afterimage (max 3). The camera then recharges for 10 s.'],
+    ['Ability', 'Spawns', 'Hitting an afterimage forms a slow Spawn (half speed, lasts 60 s) that chases that survivor and plants a cross only they can see. Its touch counts as a hit. Hold Cleanse at the cross for 2 s to destroy it.']]]
 ];
 function objPic(kind) {   // small pictures for the Objects tab, drawn with the game's own sprite code (nothing here touches a running round)
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; };
@@ -7651,9 +7673,9 @@ function fogVisibilityAllowed(viewerPos, targetPos) {
 }
 function canSee(viewerRole, viewerId, entityId) {
   if (entityId === viewerId) return true;          // everyone always sees themselves
-  if (viewerRole === 'survivor' && k8MadHide(entityId)) return false;   // killer_8: Maddened survivors see him flicker in and out
+  if (viewerRole === 'survivor' && k8Hide(entityId)) return false;   // killer_8 (Alternate): survivors see him flicker in and out
   if (k2Hid(entityId)) return false;               // killer_2 inside a TV (Telegraph): invisible to everybody, the same rule as an Among Us vent
-  if (viewerRole === 'killer' && isK8(viewerId)) { const be = S.players.find(x => x.id === entityId); if (be && be.role === 'survivor') { const r8 = k8Sees(entityId); if (r8 !== null) return r8; } }   // killer_8 (Alternate): blind, it never sees a survivor (no light, flare or hook reveals them) - EXCEPT through its camera: whoever is inside the frame, or was caught in a photo a moment ago
+  if (viewerRole === 'killer' && isK8(viewerId)) { const be = S.players.find(x => x.id === entityId); if (be && be.role === 'survivor') { const r8 = k8Sees(entityId); if (r8 !== null) return r8; } }   // killer_8 (Alternate): normal vision, plus whoever is inside the camera frame or was caught in a photo a moment ago is shown even in the dark
   if (viewerRole === 'killer' && hatOn(entityId)) return false;   // Magician's Hat: the killer cannot see the wearer at all (no light, flare or hook reveals them)
   if (viewerRole === 'killer' && isK3Min(entityId) && isK3(viewerId)) return true;   // killer_3: she always sees the killers her command summoned
   if (!viewerRole) return true;                    // no role => no darkness
@@ -7673,7 +7695,7 @@ function buildVis(role, ph, me, k, W, H) {   // compute this frame's lit polygon
     const pts = visibilityPolygon(me[0], me[1], CFG.SURV_VIEW_R * nmVis * K1C.visS * k3Dim() * k8MadVis()); VIS.surv = { pts, path: pathOf(pts) };
     const kid = k6Dis() ? -1 : killerIdRaw(), kp = kid >= 0 ? posOf(kid) : null;   // the killer's beam is visible from afar (not while he is disguised), but only if it can reach the screen
     const kR = CFG.FLASH_RANGE * kRangeMul(kid) * nmKillerScale();
-    if (CFG.BEAM_GLOW > 0 && ph === 'hunt' && kp && f !== null && !k3Invis(kid) && !k8MadHide(kid) && !k2Blind('survivor', S.me) && Math.hypot(kp[0] - me[0], kp[1] - me[1]) < kR + Math.hypot(W, H) / k / 2) {
+    if (CFG.BEAM_GLOW > 0 && ph === 'hunt' && kp && f !== null && !k3Invis(kid) && !k8Hide(kid) && !k2Blind('survivor', S.me) && Math.hypot(kp[0] - me[0], kp[1] - me[1]) < kR + Math.hypot(W, H) / k / 2) {
       const pts2 = visibilityPolygon(kp[0], kp[1], kR, f, CFG.FLASH_ANGLE * kVisMul(kid) * Math.PI / 180); VIS.beam = { pts: pts2, path: pathOf(pts2), x: kp[0], y: kp[1], dir: f, R: kR, m: kVisMul(kid) }; }
   } else if (role === 'killer' && ph === 'hunt' && !k8Cam()) {   // (killer_8 with the camera up has no flashlight: the camera frame is his only light)
     if (f !== null) lastFace = f;
@@ -7890,7 +7912,7 @@ function phaseSound(ph) {
   if (ph === 'hunt') { metalHit(.9, 78, 3.5); sfxTone(60, 38, 1.4, .8, 'sine'); sfxNoise(.4, .5, 'lowpass', 600, 120); }   // the hunt begins: a deep gong
   else if (ph === 'result') { metalHit(.8, 65, 3.2); sfxTone(110, 55, 1.8, .4, 'triangle', .25); }
 }
-function eyesSound() { if (myRole() !== 'survivor' || k6Veil()) return; const kid = killerId(), q = kid >= 0 ? interp(kid) : null; if (kid >= 0 && (k1InvisFx(kid) || k8MadHide(kid)) && !(S.wo && S.wo.k1 && S.wo.k1.cl && S.wo.k1.cl.length)) return;   // Wail: an invisible killer gives no eyes sound (her Guard clones still do)
+function eyesSound() { if (myRole() !== 'survivor' || k6Veil()) return; const kid = killerId(), q = kid >= 0 ? interp(kid) : null; if (kid >= 0 && (k1InvisFx(kid) || k8Hide(kid)) && !(S.wo && S.wo.k1 && S.wo.k1.cl && S.wo.k1.cl.length)) return;   // Wail: an invisible killer gives no eyes sound (her Guard clones still do)
   sfxEyes(q ? evVol(q[0], q[1], 900) : .4); }
 function stateSound(m, prev) {   // called from applyStatus on a real state change (not on the bulk catch-up after joining/reconnecting)
   const ps = prev ? prev.s : 'healthy', hooks = S.map.hooks || [], q = interp(m.id) || [0, 0];
@@ -10334,7 +10356,7 @@ function stepTerror(now) {
       t.push({ x: q[0] + rnd(-6, 6), y: q[1] + rnd(-6, 6), t: now, r, ang, sat }); if (t.length > CFG.TERROR_MAX) t.shift(); }
   }
 }
-function drawTerror(now) {   if (kirBlind()) return;   // Alternate cannot see the terror trail either
+function drawTerror(now) {
   // same splat shape as the blood trail, but ink black with violet glow + highlights
   const life = CFG.TERROR_HOLD_MS + CFG.TERROR_FADE_MS;
   for (const t of TERROR.values()) for (let i = 0; i < t.length; i++) { const d = t[i], ms = now - d.t; if (ms >= life) continue;
@@ -10350,7 +10372,7 @@ function drawTerror(now) {   if (kirBlind()) return;   // Alternate cannot see t
     ctx.globalAlpha = .55 * fade * pul; ctx.fillStyle = '#c58bff'; ctx.beginPath(); ctx.ellipse(d.x - d.r * .3, d.y - d.r * .3, d.r * .35, d.r * .2, -.6, 0, TAU); ctx.fill(); }   // violet glint
   ctx.globalAlpha = 1;
 }
-function drawTrails(now) {   if (kirBlind()) return;   // Alternate cannot see blood
+function drawTrails(now) {
   // wet dark crimson when fresh, drying to a near-black red; smeared between splats, with a glossy glint while fresh
   for (const t of TRAIL.values()) for (let i = 0; i < t.length; i++) { const d = t[i], ms = now - d.t; if (ms >= CFG.BLOOD_LIFE_MS) continue;
     const fade = ms < CFG.BLOOD_HOLD_MS ? 1 : 1 - (ms - CFG.BLOOD_HOLD_MS) / CFG.BLOOD_FADE_MS, wet = Math.max(0, 1 - ms / 4500), R = 54 + 74 * wet | 0, G = 5 + 5 * wet | 0, B = 8 + 6 * wet | 0,   // deep, dark blood: dried brown-black, never bright red
@@ -10885,7 +10907,7 @@ function mmFrame(now, V, me) { if(inUD(me[0],me[1])){$('mm').classList.add('hidd
     for (let j = 0; j < 2; j++) { const ph = (age / 1100 + j * .5) % 1; g.strokeStyle = `rgba(${rgb},${((1 - ph) * .9 * fd).toFixed(3)})`; g.lineWidth = Math.max(1.2, 1.5 * dpr); g.beginPath(); g.arc(x, y, r + ph * Math.max(7, 9 * dpr), 0, TAU); g.stroke(); }   // two ripples, half a cycle apart
     g.fillStyle = `rgba(${rgb},${fd.toFixed(3)})`; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.strokeStyle = `rgba(255,255,255,${fd.toFixed(3)})`; g.lineWidth = Math.max(1, dpr); g.stroke(); }
   if (myRole() === 'killer' && S.wo.k0) for (const q of S.wo.k0.pg) if (now < q.end) { const pq = posOf(q.id) || [q.x, q.y]; g.fillStyle = '#ff3b3b'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr); g.beginPath(); g.arc(pq[0] * k, pq[1] * k, Math.max(2.8, 3.2 * dpr), 0, TAU); g.fill(); g.stroke(); }   // IR scanner pings
-  if (S.phase === 'hunt' && BOND.length) { const V = pickView(); for (const b of BOND) { if (now >= b.end) continue; const pq = bondTarget(V, b); if (!pq) continue; const pu = .5 + .5 * Math.sin(now / 120); g.fillStyle = '#ff8fd8'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr); g.beginPath(); g.arc(pq[0] * k, pq[1] * k, Math.max(3, 3.4 * dpr) * (1 + .25 * pu), 0, TAU); g.fill(); g.stroke(); } }   // Bonded: the other side's dot for as long as the reveal lasts
+  if (S.phase === 'hunt' && BOND.length) { const V = pickView(); for (const b of BOND) { if (now >= b.end) continue; const pq = bondTarget(V, b); if (!pq) continue; const pu = .5 + .5 * Math.sin(now / 120); g.fillStyle = bondCol(V, b, '#ff8fd8'); g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr); g.beginPath(); g.arc(pq[0] * k, pq[1] * k, Math.max(3, 3.4 * dpr) * (1 + .25 * pu), 0, TAU); g.fill(); g.stroke(); } }   // Bonded: the other side's dot for as long as the reveal lasts
   if (myRole() === 'killer' && S.wo.k5 && S.wo.k5.pg) for (const q of S.wo.k5.pg) if (now < q.end) { const pq = posOf(q.id); if (!pq) continue; g.fillStyle = '#ff3b30'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr); g.beginPath(); g.arc(pq[0] * k, pq[1] * k, Math.max(2.8, 3.2 * dpr), 0, TAU); g.fill(); g.stroke(); }   // killer_5: survivors pinged by a full condemn bar
   { const X = S.wo.k3x; if (X && X.lid >= 0 && now < X.le && S.phase === 'hunt') { const kid = killerId(), pq = myRole() === 'killer' ? posOf(X.lid) : S.me === X.lid && kid >= 0 ? posOf(kid) : null; if (pq) { const pu = .5 + .5 * Math.sin(now / 200); g.fillStyle = '#ff8a1f'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, dpr); g.beginPath(); g.arc(pq[0] * k, pq[1] * k, Math.max(3, 3.4 * dpr) * (1 + .25 * pu), 0, TAU); g.fill(); g.stroke(); } } }   // "bind a soul": the chosen survivor <-> her
   const dm = S.map.doors || [];   // doorways: dim brown = can still be barricaded, bright = barricaded; broken ones disappear
@@ -11036,6 +11058,9 @@ function soloSightShown(now) {   // LAST STAND: walk the pulse cycles from the s
 }
 const BOND = [];   // client: Bonded reveals { id (holder), kid (killer), end, sh (killer sees the holder), sk (holder sees the killer) }
 function bondTarget(V, b) { return V.id === b.id && b.sk ? posOf(b.kid) : V.id === b.kid && b.sh && !k7Hid(b.id) ? posOf(b.id) : b.all && b.sk && V.role === 'survivor' ? posOf(b.kid) : null; }   // (b.all = Banesberry's mark: every survivor sees the killer)   // the other side's position, if I am one of the two and it is revealed to me
+function bondCol(V, b, def) {   // Bonded only (b.bd): the pin takes the colour of the player it points at (the killer for the holder, the holder for the killer); every other reveal keeps its usual colour
+  if (!b.bd) return def; const pid = V.id === b.id && b.sk ? b.kid : b.id, pl = S.players.find(x => x.id === pid); return pl && pl.color ? pl.color : def;
+}
 function twinMate(id) { const w = S.wo.tw; return w ? (id === w.a ? w.b : id === w.b ? w.a : -1) : -1; }   // client: my twin's id, or -1
 function twinNearC(id) {   // client: my twin's id if both are alive and within twinR(), else -1
   const o = twinMate(id); if (o < 0) return -1; const sa = (S.st[id] || {}).s, sb = (S.st[o] || {}).s; if (!twinAlive(sa) || !twinAlive(sb)) return -1;
@@ -11052,7 +11077,7 @@ function drawTwinLink(now) {   // Long Last Twin: a thin pixel line between the 
 }
 function drawBondPings(me, k, W, H, now) {   // Bonded: the same pin marker as the monster-form sight, for as long as the reveal lasts
   if (S.phase !== 'hunt' || !BOND.length) return; const V = pickView(), bx = pinBox(me, k, W, H); ctx.save();
-  for (const b of BOND) { if (now >= b.end) continue; const q = bondTarget(V, b); if (q) pinAt(me, bx, q, b.all ? '#ff5a63' : '#ff8fd8', 48, now); }
+  for (const b of BOND) { if (now >= b.end) continue; const q = bondTarget(V, b); if (q) pinAt(me, bx, q, b.all ? '#ff5a63' : bondCol(V, b, '#ff8fd8'), 48, now); }
   ctx.restore();
 }
 function drawKillerSight(me, k, W, H, now, vRole) {
@@ -11214,7 +11239,7 @@ function onEv(m) {
     case 'k3tpw': K3FX.push({ type: 'tpw', x: m.x, y: m.y, t0: now, end: now + m.ms }); try { const v = Math.max(.3, evVol(m.x, m.y, 1000)); sfxTone(160, 900, m.ms / 1000, v * .28, 'sawtooth'); sfxTone(320, 1800, m.ms / 1000, v * .14, 'sine'); } catch (e) {} break;
     case 'k3shot': K3FX.push({ type: 'shot', x0: m.x0, y0: m.y0, x1: m.x1, y1: m.y1, hit: m.hit, t0: now, end: now + 240 }); try { const v = Math.max(.35, evVol(m.x0, m.y0, 1200)); sfxNoise(.1, v * .8, 'lowpass', 3200, 400); sfxTone(240, 55, .13, v * .5, 'square'); } catch (e) {} break;
     case 'snap': ifx({ type: 'snap', x: m.x, y: m.y, t0: now, end: now + 450 }); sfxSnap(Math.max(.3, evVol(m.x, m.y, 1000))); trigNotify(m, 0, V); break;
-    case 'bond': { const ex = m.q ? BOND.find(b => b.id === m.id && b.kid === m.kid && !b.all && now < b.end) : null; if (ex) { ex.end = Math.max(ex.end, now + m.ms); break; } BOND.push({ id: m.id, kid: m.kid, end: now + m.ms, sh: m.sh, sk: m.sk, all: m.all }); if (BOND.length > 8) BOND.shift(); if (!m.q && V && (m.all ? V.role === 'survivor' : (V.id === m.id || V.id === m.kid))) { try { sfxTone(660, 660, .1, .22, 'sine'); sfxTone(990, 990, .14, .2, 'sine', .11); } catch (e) {} } break; }
+    case 'bond': { const ex = m.q ? BOND.find(b => b.id === m.id && b.kid === m.kid && !b.all && now < b.end) : null; if (ex) { ex.end = Math.max(ex.end, now + m.ms); break; } BOND.push({ id: m.id, kid: m.kid, end: now + m.ms, sh: m.sh, sk: m.sk, all: m.all, bd: m.bd }); if (BOND.length > 8) BOND.shift(); if (!m.q && V && (m.all ? V.role === 'survivor' : (V.id === m.id || V.id === m.kid))) { try { sfxTone(660, 660, .1, .22, 'sine'); sfxTone(990, 990, .14, .2, 'sine', .11); } catch (e) {} } break; }
     case 'toss': ifx({ type: 'toss', x0: m.x0, y0: m.y0, x1: m.x1, y1: m.y1, ti: m.ti, t0: now, end: now + 240 });
       setTimeout(() => { try { const v = evVol(m.x1, m.y1, 800); if (m.ti === 1) sfxTone(900, 500, .06, v * .3, 'square'); } catch (e) {} }, 220); break;
     case 'bang': ifx({ type: 'bang', x: m.x, y: m.y, t0: now, end: now + 700 }); sfxBang(Math.max(.25, evVol(m.x, m.y, 1100))); flashCheck(m); break;
@@ -11322,6 +11347,11 @@ const PERK_ART = {
   reaction: r => {   // yellow lightning bolt
     r(8, 0, 5, 2, '#ffd23a'); r(7, 2, 5, 2, '#ffd23a'); r(6, 4, 5, 2, '#ffd23a'); r(4, 6, 9, 2, '#ffd23a'); r(7, 8, 5, 2, '#ffd23a'); r(6, 10, 4, 2, '#ffd23a'); r(5, 12, 3, 2, '#ffd23a'); r(4, 14, 2, 1, '#ffd23a');
     r(8, 0, 5, 1, '#fff3b0'); r(7, 2, 2, 2, '#fff3b0'); r(4, 6, 6, 1, '#fff3b0'); r(10, 8, 2, 2, '#ff9a3a'); r(8, 10, 2, 2, '#ff9a3a'); r(11, 4, 1, 2, '#ff9a3a'); },
+  groupproject: r => {   // three little figures around a golden gear (teamwork)
+    r(1, 8, 3, 3, '#ffd9b0'); r(0, 11, 5, 4, '#5db8ff'); r(0, 11, 2, 4, '#9fd8ff'); r(1, 8, 3, 1, '#8a5a3a');
+    r(12, 8, 3, 3, '#ffd9b0'); r(11, 11, 5, 4, '#ff8fd8'); r(11, 11, 2, 4, '#ffc4ec'); r(12, 8, 3, 1, '#8a5a3a');
+    r(6, 1, 4, 2, '#ffd23a'); r(5, 3, 6, 6, '#ffd23a'); r(6, 9, 4, 1, '#ffd23a'); r(4, 4, 1, 4, '#ffd23a'); r(11, 4, 1, 4, '#ffd23a'); r(7, 4, 2, 4, '#14161c'); r(6, 3, 4, 1, '#fff3b0'); r(5, 3, 1, 3, '#fff3b0'); r(10, 6, 1, 3, '#e8a31a');
+    r(5, 11, 6, 3, '#3dd16a'); r(5, 11, 6, 1, '#b8ffd2'); r(3, 12, 2, 1, '#3dd16a'); r(11, 12, 2, 1, '#3dd16a'); },
   sabotage: r => {   // wrench with an orange spark
     r(2, 2, 4, 2, '#9aa3b8'); r(1, 3, 2, 3, '#9aa3b8'); r(3, 4, 3, 3, '#9aa3b8'); r(4, 5, 8, 2, '#b8c0d8'); r(5, 7, 8, 2, '#b8c0d8'); r(10, 9, 3, 3, '#9aa3b8'); r(11, 11, 4, 3, '#9aa3b8'); r(13, 10, 2, 2, '#9aa3b8');
     r(4, 5, 8, 1, '#eef2fb'); r(5, 7, 8, 1, '#7a84a6'); r(2, 2, 3, 1, '#dfe6f7'); r(12, 12, 3, 1, '#7a84a6'); r(2, 3, 2, 2, '#14161c');
@@ -11629,6 +11659,12 @@ function perkActiveNow(id, now) {   // the perk icon glows while the perk is doi
   if (id === 'demonicdeal') { const f = S.fx2[S.me]; return !!f && f.ddg > now; }   // just after a tap
   if (id === 'reforming') return S.phase === 'hunt' && (st === 'healthy' || st === 'injured') && reformLeft(now) <= 0;   // glows while Reforming is READY (off cooldown and I can act)
   if (id === 'longlasttwin') return S.phase === 'hunt' && twinNearC(S.me) >= 0;   // while my twin is close (the bonus is on)
+  if (id === 'groupproject') {   // glows while I am repairing a generator with at least one other survivor on it
+    if (S.phase !== 'hunt' || !ctxHeld || ctxHeldKind !== 'repair' || ctxKind !== 'repair' || (st !== 'healthy' && st !== 'injured')) return false;
+    const mp = posOf(S.me), gens = S.map.gens || []; if (!mp) return false; let bi = -1, bd = CFG.GEN_R * pkRangeMul(S.me) + CFG.ACT_SLACK;
+    for (let i = 0; i < gens.length; i++) { const e = S.gs.g[i]; if (!e || e.st !== 1) continue; const d = Math.hypot(gens[i][0] - mp[0], gens[i][1] - mp[1]); if (d <= bd) { bd = d; bi = i; } }
+    return bi >= 0 && S.gs.g[bi].rep >= 2;
+  }
   if (id === 'sabotage') return S.phase === 'hunt' && (st === 'healthy' || st === 'injured') && sabCd(now) <= 0;   // glows while Sabotage is READY (off cooldown and I can act)
   if (id === 'bonded') { const f = S.fx2[S.me]; return !!f && f.bondg > now; }   // 1 s before the reveal and during it
   if (id === 'banesberry') { const f = S.fx2[S.me]; return !!f && f.bbfx > now; }   // while a Banesberry effect is active
@@ -11747,7 +11783,7 @@ function updateControls(now) {
   const abil = hunt && role === 'killer' && !dead && abilitiesOn();   // the killer can't hold items: he gets an ABILITY button in the item button's place (does nothing yet)
   const itI = hunt && !dead && !abil && S.item ? ITEMS.findIndex(x => x.id === S.item) : -1;   // held item -> button on the right side
   const J = abil && isK0(S.me) ? S.wo.k0 : null, J1 = abil && isK1(S.me) ? S.wo.k1 : null, J3 = abil && isK3(S.me) ? (S.wo.k3 || { n: 0 }) : null, J6 = abil && isK6(S.me) ? S.wo.k6 : null, J5 = abil && isK5(S.me) ? S.wo.k5 : null, J2 = abil && isK2(S.me) ? S.wo.k2 : null, J4 = abil && isK4(S.me) ? S.wo.k4 : null, J7 = abil && isK7(S.me) ? S.wo.k7 : null, J8 = abil && isK8(S.me) ? S.wo.k8 : null, m1 = J1 ? k1Mode() : 0, itK = abil ? (J8 ? -900 - (J8.cam ? 1 : 0) : J7 ? -800 - J7.form : J ? -10 - J.held : J1 ? -20 - m1 : J6 ? -400 - J6.form : J5 ? -500 - (J5.act ? 1 : 0) : J2 ? -600 : J4 ? -700 : J3 ? -30 - J3.n * 10 - (J3.gun | 0) : -3) : itI >= 0 ? itI + 100 * (S.itemC | 0) : itI;
-  if (itK !== UIC.item) { UIC.item = itK; UIC.k0t = null; const b = $('itm'); b.classList.toggle('hidden', itK === -1); b.classList.toggle('abil', abil && !J && !J1 && !J3 && !J6 && !J5 && !J2 && !J4 && !J7 && !J8);
+  if (itK !== UIC.item) { UIC.item = itK; UIC.k0t = null; UIC.k8t = null; const b = $('itm'); b.classList.toggle('hidden', itK === -1); b.classList.toggle('abil', abil && !J && !J1 && !J3 && !J6 && !J5 && !J2 && !J4 && !J7 && !J8);
     if (abil) { $('itmN').textContent = J8 ? (J8.cam ? 'Exit Cam' : 'Camera') : J7 ? (J7.form ? 'Knife' : 'Rifle') : J ? 'Traps' : J1 ? (m1 ? 'Guard' : 'Wail') : J3 ? (J3.n ? 'Wish x' + J3.n : 'No wish') : J6 ? (J6.form === 1 ? 'Chaos' : 'Transform') : J5 ? (J5.act ? 'Trail ON' : 'Trail') : J2 ? 'Recast' : J4 ? 'Lunge' : 'Ability'; if (J) $('itmI').src = k0Icon(J.held || 1); else if (J1) $('itmI').src = k1Icon(m1 ? 'guard' : 'wail'); else if (J3) $('itmI').src = k3Icon(); else if (J6) $('itmI').src = k6Icon(J6.form === 1 ? 'ch' : 'tf'); else if (J5) $('itmI').src = k5Icon(J5.act ? 'on' : 'off'); else if (J2) $('itmI').src = k2Icon(); else if (J4) $('itmI').src = k4Icon(0); else if (J7) $('itmI').src = k7Icon(J7.form ? 'knife' : 'rifle'); else if (J8) $('itmI').src = k8Icon(J8.cam); b.style.setProperty('--ic', J1 ? '#3affd0' : J6 ? '#e9e6dc' : J2 ? '#c2412e' : J4 ? K4_COL[0] : '#ff4f57'); }   // killer_4: the icon is Huggy's face
     else if (itI >= 0) { $('itmI').src = itemSprite(itI).toDataURL(); $('itmN').textContent = ITEMS[itI].name + ((S.itemC | 0) > 1 ? ' x' + S.itemC : ''); b.style.setProperty('--ic', ITEMS[itI].col); } }
   if (abil && J1) { const cdl = Math.max(0, (m1 ? J1.gd : J1.wail) - now), t1 = k1WailFx(S.me) ? 'Reveal' : (m1 ? 'Guard' : 'Wail') + (cdl > 0 ? ' ' + Math.ceil(cdl / 1000) + 's' : ''); if (t1 !== UIC.k1t) { UIC.k1t = t1; $('itmN').textContent = t1; $('itm').style.opacity = cdl > 0 ? .55 : ''; } }   // killer_1: cooldown shown in the label
@@ -11760,6 +11796,7 @@ function updateControls(now) {
   if (abil && J4) { const rd4 = k4ReadyC(J4, now), t4 = rd4 < 1 ? Math.ceil(Math.max(0, Math.min.apply(null, J4.cds) - now) / 1000) + 's' : 'Lunge x' + rd4, o4 = rd4 < 1 || J4.sb > now ? .55 : ''; if (t4 !== UIC.k4t) { UIC.k4t = t4; $('itmN').textContent = t4; } if (o4 !== UIC.k4o) { UIC.k4o = o4; $('itm').style.opacity = o4; } }   // killer_4: label = Lunge x(charges ready); with none left it shows only the seconds until the next charge (e.g. 8s); greyed out with no charge or while the swing slow runs
   else if (UIC.k4t) { UIC.k4t = ''; UIC.k4o = ''; $('itm').style.opacity = ''; }
   if (abil && J6) { const cd6 = J6.form === 0 ? Math.max(0, J6.cd - now) : 0, lk6 = J6.form === 0 ? Math.max(0, J6.chEnd - now) : 0, cc6 = J6.form === 1 ? Math.max(0, J6.chCd - now) : 0, t6 = J6.form === 2 ? 'Changing...' : J6.form === 1 ? 'Chaos' + (cc6 > 0 ? ' ' + Math.ceil(cc6 / 1000) + 's' : '') : lk6 > 0 ? 'Chaos ' + Math.ceil(lk6 / 1000) + 's' : 'Transform' + (cd6 > 0 ? ' ' + Math.ceil(cd6 / 1000) + 's' : ''); if (t6 !== UIC.k6t) { UIC.k6t = t6; $('itmN').textContent = t6; $('itm').style.opacity = cd6 > 0 || lk6 > 0 || cc6 > 0 || J6.form === 2 ? .55 : ''; } }   // transform is greyed out while CHAOS runs   // killer_6: label + cooldown
+  if (abil && J8) { const cd8 = J8.cam ? 0 : Math.max(0, J8.cd - now), t8 = J8.cam ? 'Exit Cam' : 'Camera' + (cd8 > 0 ? ' ' + Math.ceil(cd8 / 1000) + 's' : ''); if (t8 !== UIC.k8t) { UIC.k8t = t8; $('itmN').textContent = t8; $('itm').style.opacity = cd8 > 0 ? .55 : ''; } }   // killer_8: the camera is greyed out with a countdown while it recharges after a picture
   else if (UIC.k6t) { UIC.k6t = ''; $('itm').style.opacity = ''; }
   if (abil && J5) {   // killer_5: label + 2 s toggle cooldown, greyed out while the cooldown runs or the torment is under 20% (and the trail is off); the torment bar above the button
     const cd5 = Math.max(0, J5.cd - now), fu = k5Torment(J5, now), low = !J5.act && fu < K5_MIN, t5 = (J5.act ? 'Trail ON' : 'Trail') + (cd5 > 0 ? ' ' + Math.ceil(cd5 / 1000) + 's' : '');
@@ -12111,7 +12148,7 @@ function draw() {
   if (!realm && S.phase === 'hunt') drawK6World(me, vw, vh, now);
   if (!realm && (S.phase === 'hunt' || S.phase === 'headstart')) drawK4World(me, vw, vh, now, role, vId);
   if(!realm){drawDecoys(now,me,vw,vh,role,vId);drawK3Min(now,me,vw,vh,role,vId);drawFx(now,me,vw,vh,role,vId);try{drawTkWisps(now,me,vw,vh,role,vId);drawPotBars(now,me,vw,vh,role,vId);drawMeterBars(now,me,vw,vh,role,vId);drawReactLines(now,me,vw,vh,role,vId);}catch(e){}drawIFx(now,me,vw,vh,role,false);drawSmokes(now,me,vw,vh);}   // slash / impact bursts / floating text: under the darkness so lighting applies
-  if (!realm && S.phase === 'hunt' && S.wo.k8) { try { drawK8Images(now, vId); if (role === 'survivor') { drawK8Shades(now, vId, 'world'); drawK8Crosses(now, vId); } else if (role === 'killer' && vId === S.me && isK8(S.me)) drawK8Shades(now, vId, 'lit'); } catch (e) {} }   // (a shade is drawn only for the survivor it hunts)   // killer_8: the afterimages a capture leaves behind, for the killer AND the survivors: drawn under the darkness, so they only show where it is lit
+  if (!realm && S.phase === 'hunt' && S.wo.k8) { try { drawK8Images(now, vId); if (role === 'survivor') { drawK8Shades(now, vId, 'world'); drawK8Crosses(now, vId); } else if (role === 'killer' && vId === S.me && isK8(S.me)) drawK8Shades(now, vId, 'lit'); drawK8Flick(now, vId, role); } catch (e) {} }   // (a shade is drawn only for the survivor it hunts)   // killer_8: the afterimages a capture leaves behind, for the killer AND the survivors: drawn under the darkness, so they only show where it is lit
   // ---- darkness on top, then warm beam glow, then eyes ----
   if (role) {
     renderDarkness(me, k, W, H); worldTf();
@@ -12121,7 +12158,7 @@ function draw() {
     if (VIS.mins) for (const v of VIS.mins) tintCone(v, 1);
     if (!realm && role === 'killer' && vId === S.me && isK8(S.me)) { try { drawK8Over(now, vId); } catch (e) {} }   // killer_8: the survivors his camera caught, redrawn above the darkness
     const kid = killerId(), kp = kid >= 0 ? posOf(kid) : null, kidR = killerIdRaw(), kpT = kp || (kidR >= 0 && k2Hid(kidR) ? posOf(kidR) : null);   // kpT: the Demogorgon keeps his terror radius and heartbeat while he is hidden inside a portal (everything else about him stays hidden)
-    if (!realm && role === 'survivor' && ph === 'hunt' && kp && S.eyesStart && !k2Blind(role, vId) && !k1InvisFx(kid) && !k8MadHide(kid)) {   // (Wail: no eyes while she is invisible) red eyes reveal: visible through walls, only if the killer is NOT already lit
+    if (!realm && role === 'survivor' && ph === 'hunt' && kp && S.eyesStart && !k2Blind(role, vId) && !k1InvisFx(kid) && !k8Hide(kid)) {   // (Wail: no eyes while she is invisible) red eyes reveal: visible through walls, only if the killer is NOT already lit
       const t = now - S.eyesStart;
       if (t >= 0 && t < S.eyesMs && !canSee(role, vId, kid)) {
         // Only if the killer is inside the visible world rectangle (inner margin EYE_GLOW so the glow isn't clipped); off-screen = no eyes at all.
@@ -12836,7 +12873,7 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   K(3, "Command: the drowned pond", "k3.frog_speed", "Frog speed", "Movement speed of a frog (x of a normal survivor)", "mult", 0.2, 1.5, 0.05, () => K3_FROG_SPEED, v => { K3_FROG_SPEED = v; });
   K(3, "Command: the drowned pond", "k3.frog_wind", "Cast time", "Time the ritual circle shows before the spell lands (seconds)", "ms", 100, 5000, 50, () => K3_FROG_WIND_MS, v => { K3_FROG_WIND_MS = v; });
   // ---- perk pool: one switch per perk (a switched-off perk is never offered, see perkPool) ----
-  const PERK_NAMES = [["telekinetic", "Telekinetic"], ["undying", "Undying"], ["potential", "Potential"], ["lastlight", "Last Light"], ["reaction", "Reaction"], ["sabotage", "Sabotage"], ["banesberry", "Banesberry"], ["reforming", "Reforming"], ["longlasttwin", "Long Last Twin"], ["bonded", "Bonded"], ["demonicdeal", "Demonic Deal"], ["magicianshat", "Magician's Hat"], ["blink", "Blink"], ["nightmarefuel", "Nightmare Fuel"], ["smokebombperk", "Smoke Bomb"]];
+  const PERK_NAMES = [["telekinetic", "Telekinetic"], ["undying", "Undying"], ["potential", "Potential"], ["lastlight", "Last Light"], ["reaction", "Reaction"], ["groupproject", "Group Project"], ["sabotage", "Sabotage"], ["banesberry", "Banesberry"], ["reforming", "Reforming"], ["longlasttwin", "Long Last Twin"], ["bonded", "Bonded"], ["demonicdeal", "Demonic Deal"], ["magicianshat", "Magician's Hat"], ["blink", "Blink"], ["nightmarefuel", "Nightmare Fuel"], ["smokebombperk", "Smoke Bomb"]];
   for (const [pid, pname] of PERK_NAMES) TUNE.add({ id: 'pk.' + pid + '.on', group: 'Perks', sub: pname, perk: pid, label: 'In the pool', desc: 'Can this perk be offered to survivors', kind: 'bool', def: true, get: () => !PERK_OFF[pid], set: v => { PERK_OFF[pid] = !v; } });
   // ---- passive perks: Telekinetic, Undying, Potential, Last Light, Reaction, Sabotage ----
   P("telekinetic", "Telekinetic", "pk.telekinetic.mult", "Reach multiplier", "Repair and unhook reach while standing still (x)", "mult", 1, 5, 0.05, () => CFG.PK_TK_MULT, v => { CFG.PK_TK_MULT = v; });
@@ -12845,11 +12882,13 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   P("potential", "Potential", "pk.potential.cap", "Bank size", "Repair progress the holder can bank, in generator percent", "num", 5, 100, 1, () => CFG.PK_POT_CAP, v => { CFG.PK_POT_CAP = v; }, "%");
   P("potential", "Potential", "pk.potential.hi", "Direct repair above", "Above this generator progress the holder repairs it directly (percent)", "num", 10, 100, 1, () => CFG.PK_POT_HI, v => { CFG.PK_POT_HI = v; }, "%");
   P("potential", "Potential", "pk.potential.bonus", "Bonus banked above that", "Share of the work banked as a bonus while repairing directly (0.10 = 10%)", "num", 0, 1, 0.05, () => CFG.PK_POT_BONUS, v => { CFG.PK_POT_BONUS = v; });
+  P("groupproject", "Group Project", "pk.groupproject.mult", "Repair boost", "Repair speed multiplier while two or more survivors work the same generator (1.035 = 3.5% faster)", "mult", 1, 2, 0.005, () => CFG.PK_GP_MULT, v => { CFG.PK_GP_MULT = v; });
+  TUNE.add({ id: 'pk.groupproject.all', group: 'Perks', perk: 'groupproject', sub: 'Group Project', label: 'Boost everyone', desc: 'On: every survivor repairing with the holder gets the boost. Off: only the holder does', kind: 'bool', def: true, get: () => !!CFG.PK_GP_ALL, set: v => { CFG.PK_GP_ALL = !!v; } });
   P("lastlight", "Last Light", "pk.lastlight.blind", "Blind time", "How long the thrown Holy Light blinds the killer (seconds)", "ms", 200, 15000, 100, () => CFG.PK_LL_BLIND_MS, v => { CFG.PK_LL_BLIND_MS = v; });
   P("lastlight", "Last Light", "pk.lastlight.ab", "Ability lock", "How long the killer's ability is locked by it (seconds)", "ms", 0, 30000, 100, () => CFG.PK_LL_AB_MS, v => { CFG.PK_LL_AB_MS = v; });
   P("lastlight", "Last Light", "pk.lastlight.vis", "Extra sight", "The holder's sight radius (x1.15 = 15% further)", "mult", 1, 2.5, 0.05, () => CFG.PK_LL_VIS, v => { CFG.PK_LL_VIS = v; });
-  P("reaction", "Reaction", "pk.reaction.mult", "Speed boost", "Speed right after an action (x1.00 = no boost)", "mult", 1, 3, 0.05, () => CFG.PK_REACT_MULT, v => { CFG.PK_REACT_MULT = v; });
-  P("reaction", "Reaction", "pk.reaction.ms", "Boost time", "How long the speed boost lasts (seconds)", "ms", 100, 10000, 50, () => CFG.PK_REACT_MS, v => { CFG.PK_REACT_MS = v; });
+  P("reaction", "Reaction", "pk.reaction.mult", "Speed boost", "Starting speed after an action; it fades back to normal over the boost time (x1.00 = no boost)", "mult", 1, 3, 0.05, () => CFG.PK_REACT_MULT, v => { CFG.PK_REACT_MULT = v; });
+  P("reaction", "Reaction", "pk.reaction.ms", "Boost time", "How long the speed boost takes to fade away (seconds)", "ms", 100, 10000, 50, () => CFG.PK_REACT_MS, v => { CFG.PK_REACT_MS = v; });
   P("sabotage", "Sabotage", "pk.sabotage.cd", "Cooldown", "Wait after a successful sabotage before the next (seconds)", "ms", 3000, 300000, 1000, () => CFG.PK_SAB_CD_MS, v => { CFG.PK_SAB_CD_MS = v; });
   P("sabotage", "Sabotage", "pk.sabotage.dis", "Hook disabled time", "How long a sabotaged hook stays disabled (seconds)", "ms", 3000, 300000, 1000, () => CFG.PK_SAB_DIS_MS, v => { CFG.PK_SAB_DIS_MS = v; });
   P("sabotage", "Sabotage", "pk.sabotage.mark", "Failed-check mark", "How long the killer sees you after a failed check (seconds)", "ms", 0, 15000, 100, () => CFG.PK_SAB_MARK_MS, v => { CFG.PK_SAB_MARK_MS = v; });
@@ -12995,7 +13034,11 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   TUNE.add({ id: 'k8.fh', group: "Killer 8", killer: 8, sub: 'Camera', label: 'Camera frame height', desc: 'Height of the VHS camera frame', kind: 'num', min: 160, max: 1200, step: 20, unit: 'units', get: () => K8_FH, set: v => { K8_FH = v; } });
   TUNE.add({ id: 'k8.spd', group: "Killer 8", killer: 8, sub: 'Camera', label: 'Camera speed', desc: 'How fast the camera moves around', kind: 'num', min: 100, max: 1200, step: 10, unit: 'units/s', get: () => K8_CAM_SPD, set: v => { K8_CAM_SPD = v; } });
   TUNE.add({ id: 'k8.range', group: "Killer 8", killer: 8, sub: 'Camera', label: 'Camera range', desc: 'How far from his body the camera can go', kind: 'num', min: 200, max: 4000, step: 50, unit: 'units', get: () => K8_CAM_R, set: v => { K8_CAM_R = v; } });
-  TUNE.add({ id: 'k8.shot_cd', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Picture cooldown', desc: 'Wait between two pictures', kind: 'ms', min: 500, max: 15000, step: 100, unit: '', get: () => K8_SHOT_CD, set: v => { K8_SHOT_CD = v; } });
+  TUNE.add({ id: 'k8.shot_cd', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Camera cooldown', desc: 'After a picture, how long before the camera can be raised again', kind: 'ms', min: 500, max: 15000, step: 100, unit: '', get: () => K8_SHOT_CD, set: v => { K8_SHOT_CD = v; } });
+  TUNE.add({ id: 'k8.fl_vis_min', group: "Killer 8", killer: 8, sub: 'Flicker', label: 'Visible time (min)', desc: 'Shortest time he stays visible to survivors between flickers', kind: 'ms', min: 250, max: 20000, step: 250, unit: '', get: () => K8_FL_VIS_MIN, set: v => { K8_FL_VIS_MIN = v; } });
+  TUNE.add({ id: 'k8.fl_vis_max', group: "Killer 8", killer: 8, sub: 'Flicker', label: 'Visible time (max)', desc: 'Longest time he stays visible to survivors between flickers', kind: 'ms', min: 250, max: 20000, step: 250, unit: '', get: () => K8_FL_VIS_MAX, set: v => { K8_FL_VIS_MAX = v; } });
+  TUNE.add({ id: 'k8.fl_hid_min', group: "Killer 8", killer: 8, sub: 'Flicker', label: 'Hidden time (min)', desc: 'Shortest time he is hidden from survivors (his terror radius stays)', kind: 'ms', min: 100, max: 10000, step: 100, unit: '', get: () => K8_FL_HID_MIN, set: v => { K8_FL_HID_MIN = v; } });
+  TUNE.add({ id: 'k8.fl_hid_max', group: "Killer 8", killer: 8, sub: 'Flicker', label: 'Hidden time (max)', desc: 'Longest time he is hidden from survivors (his terror radius stays)', kind: 'ms', min: 100, max: 10000, step: 100, unit: '', get: () => K8_FL_HID_MAX, set: v => { K8_FL_HID_MAX = v; } });
   TUNE.add({ id: 'k8.ai_max', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Afterimages at once', desc: 'How many afterimages can exist at the same time (a new picture pushes the oldest out)', kind: 'int', min: 1, max: 10, step: 1, unit: '', get: () => K8_AI_MAX, set: v => { K8_AI_MAX = v; } });
   TUNE.add({ id: 'k8.see_ms', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Normal vision after reveal', desc: 'How long after a reveal his normal vision (flashlight / lit areas) works on that survivor', kind: 'ms', min: 0, max: 30000, step: 500, unit: '', get: () => K8_SEE_MS, set: v => { K8_SEE_MS = v; } });
   TUNE.add({ id: 'k8.rev_ms', group: "Killer 8", killer: 8, sub: 'Picture', label: 'Reveal time', desc: 'How long everyone caught in a picture is visible to him (also in the dark)', kind: 'ms', min: 500, max: 20000, step: 250, unit: '', get: () => K8_REV_MS, set: v => { K8_REV_MS = v; } });
