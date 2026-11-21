@@ -712,7 +712,7 @@ const CFG = {
   CRAWL_SPEED: 63,                     // downed survivors
   PICKUP_R: 70, CARRY_SPEED: 213.84, CARRY_OFFSET: 14,  // pickup range, killer speed while carrying (0.8 x the killer speed = 213.84; was 223.6), carried dot's offset behind the killer
   HOOK_R: 104, HOOK_STAGE_MS: 56000, HOOK_BREAK_MS: 48000, HOOK_AUTO_MS: 0, HOOK_BLINK_MS: 3000,   /* AUTO-RELEASE (0 = OFF, since hook stages): a hooked survivor nobody has tried to unhook for HOOK_AUTO_MS drops off the hook by itself as INJURED; the model blinks for the last HOOK_BLINK_MS */    // killer-to-hook range to hang someone (was 80, +30%); DBD HOOK STAGES: every survivor has a stage count (hkS): 1st hook = stage 1, 2nd hook = stage 2, 3rd hook = dead on the spot. HOOK_STAGE_MS = time one stage lasts (DBD 70 s x 0.8; stage 1 running out moves to stage 2 on the same hook, stage 2 running out = dead); the timer is PAUSED while a rescuer is unhooking. HOOK_BREAK_MS = a hook where a survivor was sacrificed is broken (unusable) this long (DBD 60 s x 0.8)
-  CAMP_R: 622, CAMP_FILL_MS: 48000, CAMP_SLOW_MULT: 0.5, CAMP_DELAY_MS: 1000,   // CAMP_DELAY_MS: the camp meter only starts filling this long after the survivor was hooked (1 s)
+  CAMP_R: 435, CAMP_FILL_MS: 48000, CAMP_SLOW_MULT: 0.5, CAMP_DELAY_MS: 1000,   // CAMP_DELAY_MS: the camp meter only starts filling this long after the survivor was hooked (1 s)
     // ANTI-CAMP (DBD camp meter): while the killer stands within CAMP_R of a hooked survivor (DBD 16 m x 48.6 = 778 units) that survivor's private meter fills, faster the closer he is (CAMP_TABLE, x0.5 at the edge up to x5 within 4 m); CAMP_FILL_MS = time for a full meter at x1; x CAMP_SLOW_MULT while another survivor (not dead / hooked) is within CAMP_R of the hook; paused while he carries someone inside the zone. At 100% the hooked survivor can self-unhook (hold RESCUE_HOLD_MS)
   RESCUE_R: 80, RESCUE_HOLD_MS: 800, RESCUE_MULT_BY_N: [1, 1, 1, 1, 1, 1.3, 1.6, 1.9, 2.2, 2.5],   // unhook time x this, indexed by survivors in the round (<= 4 survivors: base time; each survivor beyond 4 adds +30% of the base time)
  
@@ -775,7 +775,7 @@ const CFG = {
   GEN_BODY_W: 80, GEN_BODY_H: 44,      // solid collision body (units, centred on the generator). Collision ONLY: never blocks light, sight or attacks
   GEN_KICK_HOLD_MS: 913,               // killer holds KICK this long to complete a kick
   GEN_KICK_KEEP: 0.8,                  // progress multiplier after a kick (lose 20 percent)
-  GEN_REG_RATE: 1, GEN_REG_FIX_MS: 5000,   // REGRESSION: a KICKED generator loses GEN_REG_RATE percent points per second while nobody repairs it, until survivors have repaired it for GEN_REG_FIX_MS in total
+  GEN_REG_MIN: 0.03, GEN_REG_PCT: 0.3, GEN_REG_FIX_MS: 5000,   // REGRESSION: a KICKED generator loses GEN_REG_RATE percent points per second while nobody repairs it, until survivors have repaired it for GEN_REG_FIX_MS in total
   GSC_GEN_DISABLE_MS: 1500,            // a MISSED repair skill check disables that generator this long (repairers released)
   GEN_DISABLE_MS: 8000,                // a kicked generator is disabled this long (repairers released, nobody can repair)
   GEN_KICK_CD_MS: 20000,               // per-generator cooldown before it can be kicked again
@@ -3087,7 +3087,7 @@ function genStep(now, dtMs, killer) {   // every hunt tick: expire disabled time
     const g = G[i]; if (!g.reg) continue;
     if (g.st !== 1 || g.prog <= 0) { g.reg = false; g.regT = 0; continue; }
     if (cnt[i].length) { g.regT = (g.regT || 0) + dtMs; if (g.regT >= CFG.GEN_REG_FIX_MS) { g.reg = false; g.regT = 0; } }
-    else { g.prog = Math.max(0, g.prog - CFG.GEN_REG_RATE * dt); if (g.prog <= 0) { g.reg = false; g.regT = 0; } }
+    else { g.prog = Math.max(0, g.prog - (CFG.GEN_REG_MIN + g.prog * CFG.GEN_REG_PCT / 100) * dt); if (g.prog <= 0) { g.reg = false; g.regT = 0; } }
   }
   let a = 0; for (const c of cnt) if (c.length) a++;
   const split = CFG.GEN_SPLIT_MULT[clampN(a, 1, 3)], charges = CFG.GEN_CHARGES_BY_N[clampN(TSH.N, 1, 9)], fixes = [];
@@ -3509,7 +3509,8 @@ function campStep(v, now, dtMs) {   // host, every tick for a HOOKED survivor: a
   let done = false;
   if (full) {
     if (v.bot) v.hold = true;   // survivor bots self-unhook as soon as it appears
-    if (v.hold && now >= (v.stunEnd || 0)) { v.hookEnd += dtMs; v.hkLast = now; v.selfP = (v.selfP || 0) + dtMs; if (v.selfP >= CFG.RESCUE_HOLD_MS) { rescueDone(v, now); msgTo(v, 'You freed yourself'); done = true; } }   // the stage timer waits while he works free (like a normal unhook)
+    if (v.hold && now >= (v.stunEnd || 0)) { rescueDone(v, now); msgTo(v, 'You freed yourself'); done = true; }   // TAP to self-unhook: one press frees him instantly
+    else if (v.hold) { v.hold = false; v.selfP = 0; }   // tapped while stunned: the tap is lost   // the stage timer waits while he works free (like a normal unhook)
     else v.selfP = 0;
   } else v.selfP = 0;
   if (!done) campSend(v, now);
@@ -5058,7 +5059,7 @@ function k6Ev(m, now) {
       - buttons + torment:   updateControls (J5), #k5f (the torment bar above the ability button), abilityPress
    ################################################################################################ */
 let K5_CD = 700, K5_MIN = 20, K5_DRAIN = 5, K5_REGEN = 1.5;   // toggle cooldown (ms) / torment needed to START a trail (%) / torment burned per second while on (%; 4 = a full bar lasts 25 s of walking; standing still burns nothing) / torment refilled per second while off (%)
-let K5_TRAIL_MS = 40000, K5_STEP = 26, K5_W = 110, K5_SEND_MS = 150;   // lifetime of a thorn patch / distance between patches / trail width / patches are sent in batches this often
+let K5_TRAIL_MS = 30000, K5_STEP = 26, K5_W = 110, K5_SEND_MS = 150;   // lifetime of a thorn patch / distance between patches / trail width / patches are sent in batches this often
 let K5_BASE = 1, K5_TRAIL_SLOW = .9;   // killer_5's base speed: 5% faster than the survivors (as a multiplier of the normal killer speed) / speed multiplier while TRAIL is toggled on (10% slower)
 let K5_DRAIN_DELAY = 5000, K5_TSLOW = .76, K5_WORK = .6, K5_COND_WORK = .6, K5_FILL = 8, K5_DECAY = 1;   // K5_DRAIN_DELAY: the condemn bar only starts draining after the survivor has been clear of every source (thorns, their own exit trail, a condemned survivor's radius, a shockwave hit) for this many ms
    // survivors on thorns: speed (40% slower) / generator repair + unhook speed (40% slower; K5_COND_WORK = the same 40% for a CONDEMNED survivor, not stacked with the thorns one)  / condemn bar fill per second on thorns (full in 10 s) / bar drain per second when nothing fills it
@@ -5255,10 +5256,10 @@ const k5StoneBmp = () => cachedSpr('k5stone', () => {   // the Boiled One's own 
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; if (!a[i + 3]) continue; const L = .3 * a[i] + .59 * a[i + 1] + .11 * a[i + 2];
     let v = edge[y * w + x] ? 22 : L < 6 ? 26 : Math.min(205, 78 + L * 1.4 + ((x * 7 + y * 13) % 5) * 3 - 6); a[i] = v * .97; a[i + 1] = v * .97; a[i + 2] = v * 1.05; }
   g.putImageData(im, 0, 0); return c; });
-const k5ShrHead = (x, y) => { const sc = PSK * 2.2; return [x + sc, y + 6 - 25 * sc, sc]; };   // where the statue's head is (world units): the sprite is drawn 2.2x the killer's size with its feet at the shrine
-function drawK5Shrine(J, me, vw, vh, now) {   // the shrine: the Boiled One petrified, 2.2x bigger, on a cracked slab, with the repent circle on the floor
+const k5ShrHead = (x, y) => { const sc = PSK * 1.7; return [x + sc, y + 6 - 25 * sc, sc]; };   // where the statue's head is (world units): the sprite is drawn 1.7x the killer's size with its feet at the shrine
+function drawK5Shrine(J, me, vw, vh, now) {   // the shrine: the Boiled One petrified, 1.7x bigger, on a cracked slab, with the repent circle on the floor
   const sh = J && J.sh; if (!sh || Math.abs(sh[0] - me[0]) > vw / 2 + 260 || Math.abs(sh[1] - me[1]) > vh / 2 + 260) return;
-  const x = sh[0], y = sh[1], pu = .5 + .5 * Math.sin(now / 500), nr = k5ShrNear(J, now), sc = PSK * 2.2;
+  const x = sh[0], y = sh[1], pu = .5 + .5 * Math.sin(now / 500), nr = k5ShrNear(J, now), sc = PSK * 1.7;
   ctx.save(); ctx.setLineDash([8, 10]); ctx.lineDashOffset = -now / 80; ctx.lineWidth = 2; ctx.strokeStyle = `rgba(255,80,60,${(.28 + .22 * pu + (nr ? .25 : 0)).toFixed(3)})`; ctx.beginPath(); ctx.arc(x, y, K5_SHR_R, 0, TAU); ctx.stroke(); ctx.setLineDash([]);   // repent circle
   ctx.fillStyle = '#25242b'; ctx.beginPath(); ctx.ellipse(x, y + 8, 70, 24, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#3d3c45'; ctx.beginPath(); ctx.ellipse(x, y + 4, 62, 19, 0, 0, TAU); ctx.fill();   // slab
   ctx.strokeStyle = '#17161b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 30, y + 1); ctx.lineTo(x - 16, y + 9); ctx.lineTo(x - 22, y + 18); ctx.moveTo(x + 24, y - 6); ctx.lineTo(x + 36, y + 4); ctx.stroke();   // cracks in the slab
@@ -7397,7 +7398,7 @@ addEventListener('popstate', () => {
 const AIM = { active: false, id: null, ox: 0, oy: 0, a: 0, go: false, sendAt: 0, kind: 5 };   // the touch aim stick (killer_5 charged / killer_7 rifle)
 const keys = {}, joy = { active: false, id: null, x: 0, y: 0, ox: 0, oy: 0 }; let cur = [0, 0], sent = [NaN, NaN];
 let ctxKind = null, ctxHeld = false, keyRescue = false, ctxHeldKind = 'rescue';   // current context action (pickup | hook | rescue | repair | kick | task | block | breakdoor | null), whether a HELD action is being held, and which one
-const HOLD_KINDS = { selfunhook: 1, rescue: 1, heal: 1, repair: 1, kick: 1, rbt: 1, disarm: 1, sabrep: 1 };   // context actions that are held down (sent as {t:'act', a, down})
+const HOLD_KINDS = { rescue: 1, heal: 1, repair: 1, kick: 1, rbt: 1, disarm: 1, sabrep: 1 };   // context actions that are held down (sent as {t:'act', a, down})
 function readInput() {
   if (k0CamOn()) return [0, 0];   // killer_0: the stick / keys steer the trap CAMERA (k8Raw), his body stands still
   return k8Raw();
@@ -11059,7 +11060,7 @@ function drawDoorsOn(ctx, vx, vy, vw, vh, now, role, MP, DS, pass) {   // also u
 }
 /* ---------- generators: pixel sprites (56x40 grid, drawn 2x = 112x80 units), cached lazily, drawn under the darkness like the stations ---------- */
 const PF = { A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111', F: '111100110100100', H: '101101111101101', I: '111010010010111',
-  K: '101101110101101', L: '100100100100111', N: '111101101101101', O: '111101101101111', P: '111101111100100', R: '110101110101101', S: '011100010001110', T: '111010010010010',
+  G: '011100101101011', J: '001001001101010', K: '101101110101101', M: '101111111101101', V: '101101101101010', X: '101101010101101', Z: '111001010100111', L: '100100100100111', N: '111101101101101', O: '111101101101111', P: '111101111100100', R: '110101110101101', S: '011100010001110', T: '111010010010010',
   U: '101101101101111', Y: '101101010010010', 0: '111101101101111', 1: '010110010010111', 2: '110001010100111', 3: '110001010001110', 4: '101101111001001', 5: '111100110001110',
   6: '011100111101111', 7: '111001010010010', 8: '111101111101111', 9: '111101111001110' };   // 3x5 pixel font, row-major
 const PXL = {};
@@ -12931,7 +12932,8 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   for (let n = 1; n <= 9; n++) CI(GN, 'Repair time by team size', 'GEN_CHARGES_BY_N', n, 'Repair time, ' + one(n), 'Seconds one survivor alone needs to fix a generator when the round starts with ' + one(n), 'num', 5, 300, 1, 's');
   C(GN, 'Kicking', 'GEN_KICK_HOLD_MS', 'Kick hold time', 'How long the killer must hold KICK to kick a generator (seconds)', 'ms', 100, 5000, 50);
   C(GN, 'Kicking', 'GEN_KICK_KEEP', 'Progress kept after a kick', 'Share of repair progress left after a kick (0.8 = the generator loses 20%)', 'num', 0, 1, 0.05);
-  C(GN, 'Kicking', 'GEN_REG_RATE', 'Regression speed', 'A kicked generator keeps losing this much progress every second while nobody repairs it (percent points)', 'num', 0, 10, 0.05, '');
+  C(GN, 'Kicking', 'GEN_REG_MIN', 'Regression base speed', 'Flat progress lost per second (percent points) by a kicked generator while nobody repairs it; the % of progress below is added on top', 'num', 0, 10, 0.01, '');
+  C(GN, 'Kicking', 'GEN_REG_PCT', 'Regression speed (% of progress)', 'A kicked generator loses this percent of its current progress every second (added to the base speed above)', 'num', 0, 10, 0.05, '');
   C(GN, 'Kicking', 'GEN_REG_FIX_MS', 'Time to stop regression', 'How long survivors must repair a kicked generator to stop it regressing (seconds)', 'ms', 0, 60000, 500);
   C(GN, 'Kicking', 'GEN_DISABLE_MS', 'Disabled time after a kick', 'A kicked generator cannot be repaired for this long (seconds)', 'ms', 0, 60000, 500);
   C(GN, 'Kicking', 'GEN_KICK_CD_MS', 'Kick cooldown', 'Time before the same generator can be kicked again (seconds)', 'ms', 0, 120000, 1000);
