@@ -217,7 +217,15 @@ const beat = setInterval(() => {
   for (const ws of wss.clients) { if (ws.isAlive === false) { ws.terminate(); continue; } ws.isAlive = false; try { ws.ping(); } catch (e) {} }
 }, PING_MS);
 
-const stop = () => { clearInterval(beat); for (const r of [...hosted.values()]) r.destroy('server stopping'); for (const ws of wss.clients) safeClose(ws, 1001, 'restart'); server.close(); setTimeout(() => process.exit(0), 300); };
+/* ---- stall watchdog: logs (visible in the Render dashboard Logs tab) whenever this process is frozen for a while, and how big each room is.
+   If a lag spike in the game lines up with one of these lines, the SERVER froze (CPU starved / GC); if it does not, the stall is on the network between the phone and the server. ---- */
+let lagLast = Date.now(), lagLogged = 0;
+const lagWatch = setInterval(() => {
+  const now = Date.now(), late = now - lagLast - 100; lagLast = now;
+  if (late > 200 && lagLogged++ < 500) console.log(`[stall] event loop was blocked ~${late} ms  (relay rooms ${rooms.size}, hosted rooms ${hosted.size}, sockets ${wss.clients.size}, cpu ${(process.cpuUsage().user / 1e6 | 0)}s user)`);
+}, 100);
+
+const stop = () => { clearInterval(lagWatch); clearInterval(beat); for (const r of [...hosted.values()]) r.destroy('server stopping'); for (const ws of wss.clients) safeClose(ws, 1001, 'restart'); server.close(); setTimeout(() => process.exit(0), 300); };
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => console.log(`Death by Dawn relay + page listening on port ${PORT}  (game file: ${path.join('public', 'index.html')})`));
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
