@@ -668,7 +668,7 @@ const CFG = {
   SELECT_MS: 15000,                    // cosmetic character select (ends early when everyone has locked in)
   // ---- survivor perks (host setting "Survivor perks"; every number here is a starting guess, tune freely) ----
   PK_KILLER_MS: 20000, PK_CHAR_MS: 10000, PK_PICK_MS: 10000,   // perks ON, pre-match: the killer has PK_KILLER_MS for the character; survivors have PK_CHAR_MS for the character, then PK_PICK_MS for the perk (parallel, they end together)
-  PK_LL_BLIND_MS: 1500, PK_LL_AB_MS: 3000, PK_LL_GLOW_MS: 3000, PK_LL_VIS: 1.15, PK_GP_SPD_MULT: 1.3, PK_GP_SPD_MS: 3000, PK_GP_GLOW_MS: 3000, PK_ALT_RECV: 0.7, PK_ALT_GIVE: 1.4, PK_UB_MS: 2000, PK_DEL_FILL_MS: 25000, PK_DEL_DIST: 55, GSC_CHANCE_GEN: 0.08, GSC_CHANCE_HEAL: 0.08, GSC_ZONE: 0.18, GSC_GREAT: 0.03, GSC_REV_MS: 1100, GSC_DELAY_MS: 400, GSC_GEN_LOSS: 5, GSC_HEAL_LOSS: 0.05, GSC_GEN_BONUS: 1, GSC_HEAL_BONUS: 0.01, GSC_STALL_MS: 2000,   // SKILL CHECKS (repair / heal), DBD numbers: a roll every second of work (8%); success zone = GSC_ZONE of the dial (GSC_GREAT of it is the white great zone); one full turn takes GSC_REV_MS after a GSC_DELAY_MS pause; a miss costs GSC_GEN_LOSS % of the generator / GSC_HEAL_LOSS of the heal bar, pings the killer and stops that survivor working for GSC_STALL_MS; a great check adds a little progress
+  PK_LL_BLIND_MS: 1500, PK_LL_AB_MS: 3000, PK_LL_GLOW_MS: 3000, PK_LL_VIS: 1.15, PK_GP_SPD_MULT: 1.3, PK_GP_SPD_MS: 3000, PK_GP_GLOW_MS: 3000, PK_ALT_RECV: 0.7, PK_ALT_GIVE: 1.4, PK_UB_MS: 2000, PK_UB_CAMP_MS: 20000, PK_DEL_FILL_MS: 25000, PK_DEL_DIST: 55, GSC_CHANCE_GEN: 0.08, GSC_CHANCE_HEAL: 0.08, GSC_ZONE: 0.18, GSC_GREAT: 0.03, GSC_REV_MS: 1100, GSC_DELAY_MS: 400, GSC_GEN_LOSS: 5, GSC_HEAL_LOSS: 0.05, GSC_GEN_BONUS: 1, GSC_HEAL_BONUS: 0.01, GSC_STALL_MS: 2000,   // SKILL CHECKS (repair / heal), DBD numbers: a roll every second of work (8%); success zone = GSC_ZONE of the dial (GSC_GREAT of it is the white great zone); one full turn takes GSC_REV_MS after a GSC_DELAY_MS pause; a miss costs GSC_GEN_LOSS % of the generator / GSC_HEAL_LOSS of the heal bar, pings the killer and stops that survivor working for GSC_STALL_MS; a great check adds a little progress
   PK_REACT_MULT: 1.5, PK_REACT_MS: 2000, PK_POT_CAP: 25, PK_POT_HI: 75, PK_POT_BONUS: .1, PK_REFORM_CD_MS: 30000, PK_REFORM_GLOW_MS: 3000, PK_SAB_CD_MS: 30000, PK_SAB_DIS_MS: 20000, PK_SAB_MARK_MS: 3000, PK_SAB_KMULT: 3, PK_SAB_GLOW_MS: 3000, PK_SAB_R: 96,   // Sabotage: holder cooldown after a success (ready from the start) / how long a sabotaged hook stays off / how long a missed check marks the holder to the killer / killer hand-repair speed multiplier / icon glow / reach to a hook
     PK_BOND_EVERY_MS: 7000, PK_BOND_SURV_MS: 1500, PK_BOND_KILL_MS: 1000, PK_BOND_GAP_MS: 3000, PK_BOND_WARN_MS: 1000,   // Reforming: ONE cooldown after each use (starts ready) / icon glow after using it. Bonded (alternating, never at the same time): first wait PK_BOND_EVERY_MS, then the HOLDER sees the killer for PK_BOND_SURV_MS, PK_BOND_GAP_MS of pause, then the KILLER sees the holder for PK_BOND_KILL_MS, PK_BOND_GAP_MS of pause, and round again; the icon glows from PK_BOND_WARN_MS before each reveal until it ends
     // Last Light: blind time (ms) / ability-lock time (ms) of its thrown Holy Light / icon glow after it is thrown (ms) / the holder's ambient vision multiplier (+15%); Reaction: speed multiplier and duration (ms) after leaving a generator / an unhook or using the block / break button; Potential: the bar's size, as % of one generator (dumped on the generator the moment it is full) / a generator at or above this % takes the holder's repair directly, and the holder banks BONUS (10%) of that repair on top
@@ -950,12 +950,12 @@ const PERKS = [
   { id: 'lastlight', name: 'Last Light', type: 'passive', desc: "When hit or hooked, you throw a Holy Light at the killer. You also see further.", implemented: true },
   { id: 'groupproject', name: 'Group Project', type: 'passive', desc: "When you heal someone or someone heals you, both of you are healed, and finishing the heal gives you both a brief speed boost.", implemented: true },
   { id: 'altruism', name: 'Altruism', type: 'passive', desc: "The healing you receive is slower, but your healing and unhooking are faster.", implemented: true },
-  { id: 'unbreakablewill', name: 'Unbreakable Will', type: 'passive', desc: "The first time you are downed, you get back up after a short wait.", implemented: true },
+  { id: 'unbreakablewill', name: 'Unbreakable Will', type: 'passive', desc: "Get back up the first time you are downed. Your first hook lets you unhook yourself after a delay.", implemented: true },
   { id: 'deliverance', name: 'Deliverance', type: 'special', desc: "Healing teammates and repairing generators fills a green bar above your head. When it is full, a random item lands near you.", implemented: true },
-  { id: 'sabotage', name: 'Sabotage', type: 'special', desc: "Interact with hooks to disable them on a cooldown.", implemented: true },
+  { id: 'sabotage', name: 'Sabotage', type: 'special', desc: "Go near hooks and disable them on a cooldown.", implemented: true },
   { id: 'banesberry', name: 'Banesberry', type: 'special', desc: "Find hidden berries that grant random effects.", implemented: true },
   { id: 'reforming', name: 'Reforming', type: 'special', desc: "Reset a broken barricade so it can be used again.", implemented: true },
-  { id: 'longlasttwin', name: 'Long Last Twin', type: 'special', desc: "Linked to a random teammate: you share every hit, you both repair faster and see farther while close together, and you heal each other faster.", implemented: true, maxHolders: 1, offerChance: .5 },
+  { id: 'longlasttwin', name: 'Long Last Twin', type: 'special', desc: "Linked to a teammate: you share hits, and repair, heal and see better when close.", implemented: true, maxHolders: 1, offerChance: .5 },
   { id: 'demonicdeal', name: 'Demonic Deal', type: 'special', desc: "Enchant a totem to gain better repairs, and make your generator unkickable. Failing to enchant will be fatal.", implemented: true },
   { id: 'magicianshat', name: "Magician's Hat", type: 'item', item: 'hat', desc: "Start with Magician's Hat; it can appear in drops. Increases team item drop rates.", implemented: true },
   { id: 'blink', name: 'Blink', type: 'item', item: 'teleport', desc: "Start with Blink; it can appear in drops. Increases team item drop rates.", implemented: true },
@@ -1752,7 +1752,7 @@ function copy(text) { try { navigator.clipboard.writeText(text).catch(() => fall
 
 /* ================= HOST SIMULATION ================= */
 // Combat/status fields on every sim player. st: healthy | injured | downed | carried | hooked | dead (killer stays 'healthy' forever).
-function resetCombat(p) { p.heal = false; p.healMs = 0; p.healOn = false; p.healRate = 0; p.healPing = 0; p.lk = -1; p.lkT = 0; p.k7OpenAt = 0; p.st = 'healthy'; p.injAt = 0; p.mods = []; p.cd = p.wind = p.pickupImmuneUntil = 0; p.bleedUsed = 0; p.healN = 0; p.hlAt = 0; p.carry = p.carriedBy = null; p.hold = false; p.hookIdx = -1; p.hookEnd = 0; p.sentHook = -1; p.sentEnd = 0; p.udC = null; p.udMs = 0; p.prog = 0; p.rpOn = false; p.task = -1; p.rep = p.kick = false; p.kickT = 0; p.kickGen = -1; p.esc = false; p.gateT = 0; p.hookCount = 0; p.hkS = 0; p.h2 = 0; p.udn = 0; p.pot = p.potAt = 0; p.ddOn = p.ddInit = 0; p.ddV = 0; p.ddTapAt = 0; p.item = null; p.hatLeft = 0; p.hatRate = 1; p.hatWork = false; p.adrEnd = 0; p.snakeEnd = 0; p.ubUsed = 0; p.ubAt = 0; p.dv = 0; p.gscPend = null; p.gscAcc = 0; p.gscStall = 0; p.gscG = p.gscH = 0; p.rpMul = 1; p.camp = p.selfP = 0; p.campC = p.campSP = -1; p.campSentAt = 0; p.slideUntil = 0; p.slickImm = 0; p.frogEnd = 0; p.frogMsgAt = 0; p.ldx = p.ldy = 0; p.ch = p.role === 'killer' ? 0 : dfltCh(p.id); }
+function resetCombat(p) { p.heal = false; p.healMs = 0; p.healOn = false; p.healRate = 0; p.healPing = 0; p.lk = -1; p.lkT = 0; p.k7OpenAt = 0; p.st = 'healthy'; p.injAt = 0; p.mods = []; p.cd = p.wind = p.pickupImmuneUntil = 0; p.bleedUsed = 0; p.healN = 0; p.hlAt = 0; p.carry = p.carriedBy = null; p.hold = false; p.hookIdx = -1; p.hookEnd = 0; p.sentHook = -1; p.sentEnd = 0; p.udC = null; p.udMs = 0; p.prog = 0; p.rpOn = false; p.task = -1; p.rep = p.kick = false; p.kickT = 0; p.kickGen = -1; p.esc = false; p.gateT = 0; p.hookCount = 0; p.hkS = 0; p.h2 = 0; p.udn = 0; p.pot = p.potAt = 0; p.ddOn = p.ddInit = 0; p.ddV = 0; p.ddTapAt = 0; p.item = null; p.hatLeft = 0; p.hatRate = 1; p.hatWork = false; p.adrEnd = 0; p.snakeEnd = 0; p.ubUsed = 0; p.ubAt = 0; p.ubHook = 0; p.dv = 0; p.gscPend = null; p.gscAcc = 0; p.gscStall = 0; p.gscG = p.gscH = 0; p.rpMul = 1; p.camp = p.selfP = 0; p.campC = p.campSP = -1; p.campSentAt = 0; p.slideUntil = 0; p.slickImm = 0; p.frogEnd = 0; p.frogMsgAt = 0; p.ldx = p.ldy = 0; p.ch = p.role === 'killer' ? 0 : dfltCh(p.id); }
 function addPlayer(name, connId, token, host) {
   let id = 0; while (HP.has(id)) id++;
   const used = new Set([...HP.values()].map(p => p.color));
@@ -2515,7 +2515,9 @@ function perkSetup() {   // host, when the reveal ends: decide whether this matc
   for (const p of survs) {
     const avail = inPlay.filter(x => !x.maxHolders || (used[x.id] || 0) < x.maxHolders);
     for (let i = avail.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [avail[i], avail[j]] = [avail[j], avail[i]]; }
-    P.off[p.id] = avail.slice(0, CFG.PK_OFFER_N).map(x => x.id); for (const id of P.off[p.id]) used[id] = (used[id] || 0) + 1;
+    const seenT = {}, pick = [], anyGroup = CFG.PK_OFFER_N >= 3;   // offering 1-2 perks: never two of the same group (passive / special / item); offering 3-4: fully random, no group rule
+    for (const x of avail) { if (pick.length >= CFG.PK_OFFER_N) break; if (!anyGroup) { if (seenT[x.type]) continue; seenT[x.type] = 1; } pick.push(x); }
+    P.off[p.id] = pick.map(x => x.id); for (const id of P.off[p.id]) used[id] = (used[id] || 0) + 1;
   }
   if (!survs.some(p => P.off[p.id].length)) { S.perk = perkEmpty(); return; }
   P.on = true; T.broadcast({ t: 'pkoff', ...perkPack() });
@@ -3414,7 +3416,7 @@ function hostAct(p, a, down, n) {   // validates range, state and cooldowns; cli
   if (a === 'barricade') { if (down) doorBuild(p); return; }
   if (a === 'breakdoor') { if (down) doorBreakSurv(p); return; }
   if (a === 'reform') { if (down) doorReform(p); return; }
-  if (a === 'sab') { if (down && p.role === 'survivor') p.sb = true; return; }   // SABOTAGE: one tap next to a hook starts the 3 skill checks on THEIR client (see sbStep); no need to keep holding
+  if (a === 'sab') { if (down && p.role === 'survivor') p.sb = true; return; }   // SABOTAGE: one tap next to a hook starts the skill check on THEIR client (see sbStep); no need to keep holding
   if (a === 'sabrep') { p.sbr = !!down && p.role === 'killer' && !K6.form; return; }   // the killer repairs a disabled hook by hand while holding it
   if (a === 'sabfail') { if (down && p.sbSC) { const K = sbKiller(), nw = performance.now(); if (K) { if (!hatHid(p, nw)) evSend({ k: 'bond', id: p.id, kid: K.id, ms: CFG.PK_SAB_MARK_MS, sh: 1, sk: 0 }); msgTo(K, 'A survivor failed a Sabotage check!'); } } return; }   // a missed check: marked on the killer's screen for 3 s
   if (a === 'sabdone') { if (down && p.sbSC) { const i = p.sbSC - 1, nw = performance.now(); p.sbSC = 0; if (MAP.hooks[i] && !SBH[i].arm && !SBH[i].on && nw >= (p.sbAt || 0) && Math.hypot(MAP.hooks[i][0] - p.x, MAP.hooks[i][1] - p.y) <= CFG.PK_SAB_R + 20) sbArm(p, i, nw); } return; }
@@ -3494,7 +3496,8 @@ function hangSurvivor(v, bi, now) {   // THE way a survivor is hung (the killer'
   const h = MAP.hooks[bi]; v.x = h[0]; v.y = h[1];
   if ((v.hkS | 0) >= 2) { v.hookIdx = bi; hookSacrifice(v, bi, now); return; }
   v.hkS = (v.hkS | 0) + 1; if (v.hkS === 2) v.h2 = 1; v.hookIdx = bi; HU[bi] = v.id;   // h2 = hung a SECOND time (not stage 1 running out on the same hook): the status chip's red outline
-   try { k5Ring(1, bi, h[0], h[1], now); } catch (e) {} v.hookEnd = now + CFG.HOOK_STAGE_MS; v.hkLast = now; v.prog = 0; v.rpOn = false; v.camp = v.selfP = 0; v.campAt = now; v.hold = false; v.campC = v.campSP = -1;   // a fresh hook = a fresh (empty) camp meter
+   try { k5Ring(1, bi, h[0], h[1], now); } catch (e) {} v.hookEnd = now + CFG.HOOK_STAGE_MS; v.hkLast = now; v.prog = 0; v.rpOn = false; v.camp = v.selfP = 0; v.campAt = now; v.hold = false; v.campC = v.campSP = -1; v.ubHook = (v.hkS === 1 && v.role === 'survivor' && hasPerk(v.id, 'unbreakablewill')) ? 1 : 0;   // UNBREAKABLE WILL: only the FIRST hook gets the self-filling camp meter
+   // a fresh hook = a fresh (empty) camp meter
   setSt(v, 'hooked', { hk: bi, ms: CFG.HOOK_STAGE_MS, ai: CFG.HOOK_AUTO_MS, hs: v.hkS }); try { k8Spawn(v, now); } catch (e) {} checkWin();
 }
 function rescueMs() { let n = 0; for (const p of S.players) if (p.role === 'survivor') n++; return CFG.RESCUE_HOLD_MS * CFG.RESCUE_MULT_BY_N[Math.max(0, Math.min(9, n))]; }   // same answer on host and clients (roster)
@@ -3503,11 +3506,16 @@ function campMult(d) { if (!(d <= CFG.CAMP_R)) return 0; const m = d / CFG.CAMP_
 function campKiller() { for (const q of HP.values()) if (q.role === 'killer' && q.on) return q; return null; }   // the (one) killer player; killer_3's minions and killer_1's clones are not him
 function campStep(v, now, dtMs) {   // host, every tick for a HOOKED survivor: advances the private camp meter (v.camp 0..1) and the self-unhook hold (v.selfP ms). Returns true when the survivor got off the hook
   const h = MAP.hooks[v.hookIdx], K = campKiller(); let full = (v.camp || 0) >= 1;
-  if (!full && h && K && now - (v.campAt || 0) >= CFG.CAMP_DELAY_MS) {   // nothing fills during the first CAMP_DELAY_MS after the hook
-    let m = campMult(Math.hypot(K.x - h[0], K.y - h[1]));
-    if (m > 0 && K.carry != null) m = 0;   // carrying someone inside the zone: paused
-    if (m > 0) { for (const q of HP.values()) if (q !== v && q.role === 'survivor' && q.on && q.st !== 'dead' && q.st !== 'hooked' && q.st !== 'sent' && Math.hypot(q.x - h[0], q.y - h[1]) <= CFG.CAMP_R) { m *= CFG.CAMP_SLOW_MULT; break; } }   // another survivor nearby: slowed (x0.5), not stacked
-    if (m > 0) { v.camp = Math.min(1, (v.camp || 0) + dtMs / CFG.CAMP_FILL_MS * m); full = v.camp >= 1; }
+  if (!full && h) {
+    let rate = 0;   // meter fill per ms
+    if (K && now - (v.campAt || 0) >= CFG.CAMP_DELAY_MS) {   // nothing fills from the killer during the first CAMP_DELAY_MS after the hook
+      let m = campMult(Math.hypot(K.x - h[0], K.y - h[1]));
+      if (m > 0 && K.carry != null) m = 0;   // carrying someone inside the zone: paused
+      if (m > 0) { for (const q of HP.values()) if (q !== v && q.role === 'survivor' && q.on && q.st !== 'dead' && q.st !== 'hooked' && q.st !== 'sent' && Math.hypot(q.x - h[0], q.y - h[1]) <= CFG.CAMP_R) { m *= CFG.CAMP_SLOW_MULT; break; } }   // another survivor nearby: slowed (x0.5), not stacked
+      if (m > 0) rate = m / CFG.CAMP_FILL_MS;
+    }
+    if (v.ubHook && CFG.PK_UB_CAMP_MS > 0) rate = Math.max(rate, 1 / CFG.PK_UB_CAMP_MS);   // UNBREAKABLE WILL: first hook only: the meter fills on its own over PK_UB_CAMP_MS, killer near or not (never slower than the normal camp fill)
+    if (rate > 0) { v.camp = Math.min(1, (v.camp || 0) + dtMs * rate); full = v.camp >= 1; }
   }
   let done = false;
   if (full) {
@@ -4193,7 +4201,7 @@ function k0Icon(k) { if (K0_URL[k]) return K0_URL[k]; return (K0_URL[k] = k0Spr(
 })();
 function k0SurvOKc() { return S.players.filter(q => q.role === 'survivor' && !['dead', 'hooked'].includes((S.st[q.id] || {}).s)).length; }
 addEventListener('keydown', e => { if (e.code === 'Escape' && SC && (SC.bar || SC.dis || SC.sab)) scCancel(); });
-let PK_SAB_CHECKS = 3, PK_SAB_ZONE = .75, PK_SAB_SPEED = 3;   // TUNE: Sabotage perk skill check: checks to pass / green zone (rad) / needle speed (rad per s)
+let PK_SAB_CHECKS = 1, PK_SAB_ZONE = .75, PK_SAB_SPEED = 3;   // TUNE: Sabotage perk skill check: checks to pass / green zone (rad) / needle speed (rad per s)
 let SC = null;
 function scStart(mode) {
   if (GSC) gscAbort();
@@ -11568,9 +11576,12 @@ const PERK_ART = {
   altruism: r => {   // pink heart with a white plus (giving care)
     r(3, 3, 4, 1, '#ff6f91'); r(9, 3, 4, 1, '#ff6f91'); r(2, 4, 6, 3, '#ff6f91'); r(8, 4, 6, 3, '#ff6f91'); r(2, 7, 12, 1, '#ff6f91'); r(3, 8, 10, 1, '#e8486a'); r(4, 9, 8, 1, '#e8486a'); r(5, 10, 6, 1, '#e8486a'); r(6, 11, 4, 1, '#c8344f'); r(7, 12, 2, 1, '#c8344f');
     r(3, 4, 2, 2, '#ffc2d1'); r(7, 5, 2, 6, '#fffaf0'); r(5, 7, 6, 2, '#fffaf0'); },
-  unbreakablewill: r => {   // golden arrow rising out of a cracked floor (getting back up)
-    r(7, 1, 2, 2, '#ffd23a'); r(6, 3, 4, 2, '#ffd23a'); r(5, 5, 6, 1, '#ffd23a'); r(7, 6, 2, 6, '#ffd23a'); r(7, 1, 1, 5, '#fff3b0'); r(6, 3, 1, 2, '#fff3b0'); r(9, 7, 1, 5, '#e8a31a');
-    r(1, 12, 14, 3, '#6a4a2a'); r(1, 12, 14, 1, '#8a6a3a'); r(3, 13, 3, 1, '#14161c'); r(6, 14, 2, 1, '#14161c'); r(10, 13, 3, 1, '#14161c'); },
+  unbreakablewill: r => {   // a golden fist (an unbreakable will)
+    r(2, 2, 12, 1, '#ffd23a'); r(1, 3, 14, 6, '#ffd23a'); r(2, 9, 12, 3, '#ffd23a'); r(4, 12, 8, 3, '#e8a31a');
+    r(3, 2, 2, 1, '#fff3b0'); r(6, 2, 2, 1, '#fff3b0'); r(9, 2, 2, 1, '#fff3b0'); r(12, 3, 1, 1, '#fff3b0'); r(2, 3, 1, 3, '#fff3b0'); r(5, 3, 1, 2, '#fff3b0'); r(8, 3, 1, 2, '#fff3b0'); r(11, 3, 1, 2, '#fff3b0');
+    r(4, 3, 1, 5, '#b87a10'); r(7, 3, 1, 5, '#b87a10'); r(10, 3, 1, 5, '#b87a10'); r(13, 4, 1, 4, '#b87a10');
+    r(1, 8, 14, 1, '#b87a10'); r(3, 9, 8, 3, '#ffe27a'); r(3, 9, 8, 1, '#fff3b0'); r(3, 11, 8, 1, '#e8a31a'); r(11, 9, 1, 3, '#b87a10'); r(2, 10, 1, 2, '#e8a31a'); r(12, 10, 2, 2, '#e8a31a');
+    r(4, 12, 8, 1, '#b87a10'); r(4, 13, 8, 1, '#ffd23a'); r(4, 14, 8, 1, '#b87a10'); },
   deliverance: r => {   // green gift box with a gold ribbon (a free item)
     r(3, 7, 10, 7, '#3dd16a'); r(3, 7, 10, 1, '#b8ffd2'); r(3, 13, 10, 1, '#2a9a4a'); r(2, 5, 12, 3, '#5dff9a'); r(2, 5, 12, 1, '#d8ffe6'); r(2, 7, 12, 1, '#2a9a4a');
     r(7, 5, 2, 9, '#ffd23a'); r(7, 5, 1, 9, '#fff3b0'); r(5, 3, 2, 2, '#ffd23a'); r(9, 3, 2, 2, '#ffd23a'); r(7, 4, 2, 1, '#e8a31a'); r(5, 3, 1, 1, '#fff3b0'); r(10, 3, 1, 1, '#fff3b0'); },
@@ -12504,7 +12515,7 @@ T.ready().then(bootReady, bootHide); bootSafe = setTimeout(bootHide, 100000);   
   ['Match', 'Perk selection', 'PK_KILLER_MS', 'Killer pick time', 'Perks on: time the killer has to choose a character (seconds)', 'ms', 3000, 60000, 1000],
   ['Match', 'Perk selection', 'PK_CHAR_MS', 'Survivor character time', 'Perks on: time survivors have to choose a character (seconds)', 'ms', 3000, 60000, 1000],
   ['Match', 'Perk selection', 'PK_PICK_MS', 'Perk pick time', 'Perks on: time survivors have to pick a perk (seconds)', 'ms', 3000, 60000, 1000],
-  ['Match', 'Perk selection', 'PK_OFFER_N', 'Perks offered per player', 'Perks on: how many perks each survivor can choose from', 'int', 1, 4, 1],
+  ['Match', 'Perk selection', 'PK_OFFER_N', 'Perks offered per player', 'Perks on: how many perks each survivor can choose from (with 1-2 offered, never two of the same group: passive, special or item; with 3-4 it is fully random)', 'int', 1, 4, 1],
   ['Match', 'Perk selection', 'PK_OFFER_CHANCE', 'Limited perk chance', 'Perks on: chance that a limited perk shows up in a match (0 to 1)', 'num', 0, 1, 0.05],
 
   ['Movement', 'Speeds', 'SURVIVOR_SPEED', 'Survivor speed', 'Survivor running speed in world units per second', 'num', 80, 600, 5, 'u/s'],
@@ -13127,6 +13138,7 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   P("altruism", "Altruism", "pk.altruism.recv", "Healing received", "Speed of the healing you receive (0.7 = 30% slower)", "mult", 0.1, 1.5, 0.05, () => CFG.PK_ALT_RECV, v => { CFG.PK_ALT_RECV = v; });
   P("altruism", "Altruism", "pk.altruism.give", "Healing and unhook speed", "Speed of the healing you give and your unhooks (1.4 = 40% faster)", "mult", 1, 3, 0.05, () => CFG.PK_ALT_GIVE, v => { CFG.PK_ALT_GIVE = v; });
   P("unbreakablewill", "Unbreakable Will", "pk.unbreakablewill.ms", "Get-up time", "How long after the first time you are downed before you stand up injured (seconds)", "ms", 250, 20000, 250, () => CFG.PK_UB_MS, v => { CFG.PK_UB_MS = v; });
+  P("unbreakablewill", "Unbreakable Will", "pk.unbreakablewill.camp", "Hook self-fill time", "On your FIRST hook the camp meter fills by itself over this long, even if the killer is far away (seconds). 0 = off", "ms", 0, 60000, 500, () => CFG.PK_UB_CAMP_MS, v => { CFG.PK_UB_CAMP_MS = v; });
   P("deliverance", "Deliverance", "pk.deliverance.fill", "Bar fill time", "Seconds of healing or repairing needed to fill the bar and drop an item (seconds)", "ms", 2000, 120000, 500, () => CFG.PK_DEL_FILL_MS, v => { CFG.PK_DEL_FILL_MS = v; });
   P("deliverance", "Deliverance", "pk.deliverance.dist", "Item distance", "How far from you the item lands (units)", "num", 20, 200, 5, () => CFG.PK_DEL_DIST, v => { CFG.PK_DEL_DIST = v; });
   P("lastlight", "Last Light", "pk.lastlight.blind", "Blind time", "How long the thrown Holy Light blinds the killer (seconds)", "ms", 200, 15000, 100, () => CFG.PK_LL_BLIND_MS, v => { CFG.PK_LL_BLIND_MS = v; });
