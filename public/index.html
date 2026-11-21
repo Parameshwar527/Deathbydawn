@@ -2,6 +2,8 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0b0e14">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
 <title>Death by Dawn</title>
 <style>
 :root{--sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);
@@ -573,8 +575,24 @@ html #fear .fbar{height:5px;border-width:1px}
 html #fear b{min-width:24px;font-size:9px}
 html #k5c{left:calc(var(--sal,0px) + 8px + var(--mmw,0px) + 6px);top:calc(var(--sat,0px) + 6px);transform:none;width:100px;height:11px;border-width:1px;opacity:.92}
 html #k5c b{font-size:8px;line-height:9px;letter-spacing:.02em}
+/* ---- boot / server-wake loading screen (static, shows before any script runs; hidden by bootHide()) ---- */
+#boot{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;background:radial-gradient(ellipse at 50% 40%,#101a3a 0,#06091a 70%);color:#cfe0ff;font-family:'DBD Mini','Silkscreen','Courier New',ui-monospace,monospace;transition:opacity .45s;animation:bootOut 1s linear 120s forwards}
+#boot.out{opacity:0;pointer-events:none}
+#boot h1{margin:0;font-family:'DBD Pixel','Press Start 2P','Courier New',ui-monospace,monospace;font-weight:400;font-size:min(7vw,9dvh,40px);line-height:1.3;letter-spacing:.04em;text-shadow:3px 3px 0 #000}
+#boot h1 em{color:#ff3b4a;font-style:normal}
+#boot .bar{width:min(70vw,320px);height:14px;border:3px solid #cfe0ff;box-shadow:inset 0 0 0 2px #000,4px 4px 0 #000;background:#000;overflow:hidden;position:relative}
+#boot .bar i{position:absolute;top:0;bottom:0;width:30%;background:#ff3b4a;animation:bootBar 1.1s steps(8) infinite}
+#boot .msg{font-size:min(3.8vw,5dvh,15px);letter-spacing:.08em;text-transform:uppercase;text-shadow:2px 2px 0 #000;min-height:1.5em}
+#boot .sub{font-size:min(3vw,4dvh,12px);letter-spacing:.05em;opacity:.65;max-width:min(88vw,420px);line-height:1.6;min-height:3.2em}
+#boot.tap{cursor:pointer;animation:none}
+#boot.tap .bar{display:none}
+#boot.tap .msg{font-family:'DBD Pixel','Press Start 2P','Courier New',ui-monospace,monospace;font-size:min(5vw,7dvh,22px);color:#ffe27a;animation:bootBlink 1s steps(1) infinite}
+@keyframes bootBlink{50%{opacity:.25}}
+@keyframes bootBar{from{left:-30%}to{left:100%}}
+@keyframes bootOut{to{opacity:0;visibility:hidden;pointer-events:none}}
 </style>
 </head><body>
+<div id="boot"><h1>Death <em>by</em> Dawn</h1><div class="bar"><i></i></div><div class="msg" id="bootMsg">Cleaning the hooks…</div><div class="sub" id="bootSub"></div></div>
 <div id="bgw"><canvas id="bg"></canvas></div>
 <button id="musBtn" class="sec" aria-label="Toggle music">🎵</button><button id="setBtn" aria-label="Settings"></button>
 <div id="rot"><div class="ph"></div><b>Rotate your phone</b><span>Death by Dawn plays in landscape</span></div>
@@ -1577,6 +1595,31 @@ const PeerT = (() => {
 })();
 
 /* ---- Router: relay server if there is one, PeerJS if not. Add ?net=peer or ?net=relay to the URL to force one. ---- */
+/* boot loading screen: the static #boot div is in the page from the first byte; these only change its text / remove it.
+   While loading it cycles game-flavoured lines; on a touch device, once the server is ready it turns into TAP TO PLAY (that tap goes fullscreen + landscape lock). */
+let bootT0 = 0, bootInt = 0, bootSafe = 0;
+const BOOT_LINES = ['Cleaning the hooks', 'Oiling the generators', 'Sharpening the cleaver', 'Hiding the bear traps', 'Waxing the floors', 'Charging the flashbangs', 'Loading the rifle', 'Dimming the lights', 'Fuelling the flares', 'Dragging out the barricades', 'Tuning the TVs', 'Scattering the scent trail', 'Counting the survivors', 'Hiding the exit gates', 'Setting out the decoys', 'Stirring the smoke', 'Counting down to dawn'];
+function bootMsg(msg, sub) { try { const m = document.getElementById('bootMsg'); if (m) m.textContent = msg; if (sub !== undefined) bootSub(sub); } catch (e) {} }
+function bootSub(t) { try { const u = document.getElementById('bootSub'); if (u) u.textContent = t || ''; } catch (e) {} }
+function bootCycle() {   // first two lines in a fixed order, the rest shuffled
+  const rest = BOOT_LINES.slice(2); for (let i = rest.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [rest[i], rest[j]] = [rest[j], rest[i]]; }
+  const q = BOOT_LINES.slice(0, 2).concat(rest); let i = 0; bootMsg(q[0] + '…');
+  bootInt = setInterval(() => { i = (i + 1) % q.length; bootMsg(q[i] + '…'); }, 2000);
+}
+function bootHide() { try { clearInterval(bootInt); clearTimeout(bootSafe); const b = document.getElementById('boot'); if (!b || b.className === 'out') return; b.className = 'out'; setTimeout(() => { try { b.remove(); } catch (e) {} }, 600); } catch (e) {} }
+function bootReady() {
+  clearInterval(bootInt); clearTimeout(bootSafe);
+  const b = document.getElementById('boot'); if (!b) return;
+  let touch = false, already = false;
+  try { touch = matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0; already = matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; } catch (e) {}
+  if (!touch || already) return bootHide();   // desktop (or an installed full-screen app): straight in
+  b.className = 'tap'; bootMsg('Tap to play', '');
+  b.addEventListener('click', () => {   // a tap is the only moment a browser allows fullscreen; the landscape lock follows from the fullscreenchange listener
+    try { if (typeof fsReq === 'function' && !fsEl()) { const p = fsReq.call(document.documentElement); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+    bootHide();
+  }, { once: true });
+}
+try { bootCycle(); } catch (e) {}
 const T = (() => {
   const R = { onReady() {}, onPeerJoin() {}, onPeerLeave() {}, onMessage() {}, onStatus() {}, onError() {}, mode: '' };
   let cur = null, probing = null, tok = 0;
@@ -1585,7 +1628,7 @@ const T = (() => {
   const base = () => RELAY_HOST ? ((/^(localhost|127\.|192\.168\.|10\.)/.test(RELAY_HOST) ? 'http://' : 'https://') + RELAY_HOST) : '';
   async function ping() {   // -> { ok, html, text } or null when nothing answers
     try {
-      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
       const r = await fetch(base() + '/ping', { cache: 'no-store', signal: ctl.signal }); clearTimeout(t);
       const html = /html/i.test(r.headers.get('content-type') || ''); let text = ''; try { text = html ? '' : (await r.text()).slice(0, 40); } catch (e) {}
       return { ok: r.ok, html, text };
@@ -1594,7 +1637,15 @@ const T = (() => {
   async function probe() {
     if (forced === 'peer') return 'peer';
     if (!RELAY_HOST && forced !== 'relay' && !/^https?:$/.test(location.protocol)) return 'peer';   // opened as a file: nothing to relay through
-    const r = await ping();
+    let r = await ping();
+    if (!r && forced !== 'relay') {   // nothing answered at all (a timeout, not a 404): the server is most likely asleep / restarting, so wait for it instead of silently falling back to peer-to-peer
+      bootT0 = Date.now();
+      while (!r && Date.now() - bootT0 < 90000) {
+        const sec = Math.round((Date.now() - bootT0) / 1000);
+        bootSub(sec < 20 ? 'Setting up the match… (' + sec + 's)' : 'Almost there, this can take up to a minute (' + sec + 's)');
+        await new Promise(x => setTimeout(x, 1500)); r = await ping();
+      }
+    }
     hostable = !!r && r.ok && !r.html && /hosted/.test(r.text) && !/[?&]hostmode=browser\b/.test(location.search);   // server.js answers "ok hosted": it can run the game itself
     if (forced === 'relay' || RELAY_HOST) return 'relay';
     return r && r.ok && !r.html ? 'relay' : 'peer';   // a plain static host answers 404 (or the page itself as HTML)
@@ -12538,6 +12589,7 @@ if (/[?&]layout=1(&|$)/.test(location.search)) {
 
 try { bgBuild(); bgShow(true); } catch (e) { console.warn('bg', e); }
 netReady = true; busy(false); $('mStatus').textContent = ''; T.warm();
+T.ready().then(bootReady, bootHide); bootSafe = setTimeout(bootHide, 100000);   // hide the loading screen once we know which server mode to use (a safety timer removes it regardless)
 
 // ---------- landscape lock (works on Android Chrome once fullscreen; iOS just shows the rotate overlay) ----------
 (function () {
