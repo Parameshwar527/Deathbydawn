@@ -89,6 +89,7 @@ small{opacity:.6}
 .si{display:inline-flex;align-items:center;gap:3px;padding:1px 5px;background:rgba(0,0,0,.55);border-radius:9px;font-size:11px;line-height:14px}
 .si i{width:9px;height:9px;border-radius:50%;display:block}.si b{font-size:11px;min-width:8px;text-align:center}
 .si.me{outline:1.5px solid #fff}.si.away{opacity:.45}
+.si.last{box-shadow:0 0 0 1.5px #ff1744,0 0 6px 1px rgba(255,23,68,.55)}.si.me.last{outline-offset:1.5px}   /* red outline once a survivor has been hung a second time */
 .si{position:relative}.si .bl{position:absolute;left:5px;right:5px;bottom:-4px;height:3px;border-radius:2px;background:rgba(255,214,0,.25);overflow:hidden}.si .bl>span{display:block;height:100%;width:100%;background:#ffd600;transform-origin:left center}
 #specL{padding:3px 10px;background:rgba(0,0,0,.6);border-radius:12px;font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #banner{background:#c62828;padding:4px 12px;border-radius:8px;font-size:13px;text-align:center;max-width:100%}
@@ -775,7 +776,7 @@ const CFG = {
   GEN_BODY_W: 80, GEN_BODY_H: 44,      // solid collision body (units, centred on the generator). Collision ONLY: never blocks light, sight or attacks
   GEN_KICK_HOLD_MS: 913,               // killer holds KICK this long to complete a kick
   GEN_KICK_KEEP: 0.8,                  // progress multiplier after a kick (lose 20 percent)
-  GEN_REG_PCT: 0.3, GEN_REG_FLOOR: 0.03, GEN_REG_FIX_MS: 5000,   // REGRESSION: a KICKED generator loses GEN_REG_PCT percent of its CURRENT progress per second (never less than GEN_REG_FLOOR points per second, so it always reaches zero) while nobody repairs it, until survivors have repaired it for GEN_REG_FIX_MS in total
+  GEN_REG_PCT: 0.3, GEN_REG_FLOOR: 0.03, GEN_REG_FIX_MS: 3000,   // REGRESSION: a KICKED generator loses GEN_REG_PCT percent of its CURRENT progress per second (never less than GEN_REG_FLOOR points per second, so it always reaches zero) while nobody repairs it, until survivors have repaired it for GEN_REG_FIX_MS in total
   GSC_GEN_DISABLE_MS: 1500,            // a MISSED repair skill check disables that generator this long (repairers released)
   GEN_DISABLE_MS: 8000,                // a kicked generator is disabled this long (repairers released, nobody can repair)
   GEN_KICK_CD_MS: 20000,               // per-generator cooldown before it can be kicked again
@@ -1751,7 +1752,7 @@ function copy(text) { try { navigator.clipboard.writeText(text).catch(() => fall
 
 /* ================= HOST SIMULATION ================= */
 // Combat/status fields on every sim player. st: healthy | injured | downed | carried | hooked | dead (killer stays 'healthy' forever).
-function resetCombat(p) { p.heal = false; p.healMs = 0; p.healOn = false; p.healRate = 0; p.healPing = 0; p.lk = -1; p.lkT = 0; p.k7OpenAt = 0; p.st = 'healthy'; p.injAt = 0; p.mods = []; p.cd = p.wind = p.pickupImmuneUntil = 0; p.bleedUsed = 0; p.healN = 0; p.hlAt = 0; p.carry = p.carriedBy = null; p.hold = false; p.hookIdx = -1; p.hookEnd = 0; p.sentHook = -1; p.sentEnd = 0; p.udC = null; p.udMs = 0; p.prog = 0; p.rpOn = false; p.task = -1; p.rep = p.kick = false; p.kickT = 0; p.kickGen = -1; p.esc = false; p.gateT = 0; p.hookCount = 0; p.hkS = 0; p.udn = 0; p.pot = p.potAt = 0; p.ddOn = p.ddInit = 0; p.ddV = 0; p.ddTapAt = 0; p.item = null; p.hatLeft = 0; p.hatRate = 1; p.hatWork = false; p.adrEnd = 0; p.snakeEnd = 0; p.ubUsed = 0; p.ubAt = 0; p.dv = 0; p.gscPend = null; p.gscAcc = 0; p.gscStall = 0; p.gscG = p.gscH = 0; p.rpMul = 1; p.camp = p.selfP = 0; p.campC = p.campSP = -1; p.campSentAt = 0; p.slideUntil = 0; p.slickImm = 0; p.frogEnd = 0; p.frogMsgAt = 0; p.ldx = p.ldy = 0; p.ch = p.role === 'killer' ? 0 : dfltCh(p.id); }
+function resetCombat(p) { p.heal = false; p.healMs = 0; p.healOn = false; p.healRate = 0; p.healPing = 0; p.lk = -1; p.lkT = 0; p.k7OpenAt = 0; p.st = 'healthy'; p.injAt = 0; p.mods = []; p.cd = p.wind = p.pickupImmuneUntil = 0; p.bleedUsed = 0; p.healN = 0; p.hlAt = 0; p.carry = p.carriedBy = null; p.hold = false; p.hookIdx = -1; p.hookEnd = 0; p.sentHook = -1; p.sentEnd = 0; p.udC = null; p.udMs = 0; p.prog = 0; p.rpOn = false; p.task = -1; p.rep = p.kick = false; p.kickT = 0; p.kickGen = -1; p.esc = false; p.gateT = 0; p.hookCount = 0; p.hkS = 0; p.h2 = 0; p.udn = 0; p.pot = p.potAt = 0; p.ddOn = p.ddInit = 0; p.ddV = 0; p.ddTapAt = 0; p.item = null; p.hatLeft = 0; p.hatRate = 1; p.hatWork = false; p.adrEnd = 0; p.snakeEnd = 0; p.ubUsed = 0; p.ubAt = 0; p.dv = 0; p.gscPend = null; p.gscAcc = 0; p.gscStall = 0; p.gscG = p.gscH = 0; p.rpMul = 1; p.camp = p.selfP = 0; p.campC = p.campSP = -1; p.campSentAt = 0; p.slideUntil = 0; p.slickImm = 0; p.frogEnd = 0; p.frogMsgAt = 0; p.ldx = p.ldy = 0; p.ch = p.role === 'killer' ? 0 : dfltCh(p.id); }
 function addPlayer(name, connId, token, host) {
   let id = 0; while (HP.has(id)) id++;
   const used = new Set([...HP.values()].map(p => p.color));
@@ -2710,6 +2711,7 @@ function setSt(p, s, ex) {   // THE way a state changes: store, broadcast {t:'st
   if (s === 'injured' && p.st !== 'injured') p.injAt = performance.now();   // (the blood trail window starts now)
   p.st = s; const m = Object.assign({ t: 'st', id: p.id, s }, ex);
   if (p.role === 'survivor' && (s === 'downed' || (p.bleedUsed || 0) > 0)) m.bl = bleedLeft(p);   // bleed-out time left (ms): clients count it down while the state is 'downed'
+  if (p.role === 'survivor' && p.h2) m.h2 = 1;   // hung a second time: the status chip keeps its red outline in every state
   T.broadcast(m); applyStatus(m);
 }
 function freeHold(v) {   // release the hook / the killer's arms when a survivor stops being hooked/carried (death, leave)
@@ -2941,9 +2943,10 @@ function genKick(i, now) {   // (a kick also starts REGRESSION, see genStep)   /
   g.reg = true; g.regT = 0; g.prog *= ddKickKeep(); g.dis = now + CFG.GEN_DISABLE_MS + (k2Player() ? Math.min(K2.n | 0, K2_KICK_MAX) * K2_KICK_PER_MS : 0); g.kcd = now + CFG.GEN_KICK_CD_MS; genRelease(g);
   try { const gp = MAP.gens[i]; if (gp) k5Ring(2, i, gp[0], gp[1], now); } catch (e) {}   // killer_5: a thorn circle around the kicked generator (costs torment)
 }
-function k2SendKick(p, now) {   // killer_2: every send (a survivor hung = sent to the Upside Down) kicks the open, working generator with the MOST progress (the normal kick: -20% progress, disabled 8 s + 0.7 s per scent, max 10 scents, 20 s kick cooldown). The kick cooldown does not stop it.
-  let bi = -1, bp = 0; GH.g.forEach((g, i) => { if (g.st === 1 && g.prog > bp && !(g.dis > now) && !(g.ddp > now)) { bp = g.prog; bi = i; } });
-  if (bi < 0) return; genKick(bi, now); msgTo(p, 'Generator kicked');
+function k2SendKick(p, now) {   // killer_2: every send (a survivor hung = sent to the Upside Down) makes ALL open generators start REGRESSING and disables them for K2_SEND_DIS_PER_MS (0.15 s) per scent he has collected (no progress is removed up front, no kick cooldown is set; Demonic Deal's protected generators are skipped)
+  const dis = (K2.n | 0) * K2_SEND_DIS_PER_MS; let hit = 0;
+  GH.g.forEach(g => { if (g.st !== 1 || g.ddp > now) return; g.reg = true; g.regT = 0; if (dis > 0) { g.dis = Math.max(g.dis || 0, now + dis); genRelease(g); } hit++; });
+  if (hit) msgTo(p, 'Generators regressing');
 }
 function botGen(p, dt, now) {   // debug (autogen): this bot repairs a random open generator as if in range
   p.gt = (p.gt === undefined ? 0 : p.gt) - dt; const cur = GH.g[p.gi];
@@ -3134,6 +3137,7 @@ function stList(now) {   // compact status of everyone, for welcome/start (recon
   return [...HP.values()].map(p => { const e = { id: p.id, s: p.st || 'healthy' };
     if(e.s==='sent'){e.hk=p.sentHook;e.ms=Math.max(0,Math.round(p.sentEnd-now));e.tot=p.udMs||CFG.UD_MS;}
     if (e.s === 'hooked') { e.hk = p.hookIdx; e.hs = p.hkS | 0; e.ms = Math.max(0, Math.round(p.hookEnd - now)); e.rp = Math.round(p.prog); e.ro = p.rpOn ? 1 : 0; e.rr = p.rpMul || 1; e.ai = CFG.HOOK_AUTO_MS <= 0 ? 0 : p.rpOn ? CFG.HOOK_AUTO_MS : Math.max(0, Math.round((p.hkLast || now) + CFG.HOOK_AUTO_MS - now)); }
+    if (p.role === 'survivor' && p.h2) e.h2 = 1;   // hung a second time (red outline on the status chip)
     if (e.s === 'downed' && now < p.pickupImmuneUntil) e.prot = Math.round(p.pickupImmuneUntil - now);   // pickup immunity left
     if (p.role === 'survivor' && (e.s === 'downed' || (p.bleedUsed || 0) > 0)) e.bl = bleedLeft(p);   // bleed-out time left
     if (healSt(e.s) && p.healMs > 0) { e.hp = Math.round(p.healMs); e.ho = p.healOn ? 1 : 0; e.hr = p.healRate || 0; e.hc = Math.round(healCapMs(p, e.hr)); }   // heal progress (or the downed recover bar)
@@ -3489,7 +3493,8 @@ function hookSacrifice(v, bi, now) {   // dies on the hook (a 3rd hook, or stage
 function hangSurvivor(v, bi, now) {   // THE way a survivor is hung (the killer's hook action and the Neighbour's): DBD hook stages. hkS = stages already used: >= 2 = dead on the spot, else the stage is hkS + 1
   const h = MAP.hooks[bi]; v.x = h[0]; v.y = h[1];
   if ((v.hkS | 0) >= 2) { v.hookIdx = bi; hookSacrifice(v, bi, now); return; }
-  v.hkS = (v.hkS | 0) + 1; v.hookIdx = bi; HU[bi] = v.id; try { k5Ring(1, bi, h[0], h[1], now); } catch (e) {} v.hookEnd = now + CFG.HOOK_STAGE_MS; v.hkLast = now; v.prog = 0; v.rpOn = false; v.camp = v.selfP = 0; v.campAt = now; v.hold = false; v.campC = v.campSP = -1;   // a fresh hook = a fresh (empty) camp meter
+  v.hkS = (v.hkS | 0) + 1; if (v.hkS === 2) v.h2 = 1; v.hookIdx = bi; HU[bi] = v.id;   // h2 = hung a SECOND time (not stage 1 running out on the same hook): the status chip's red outline
+   try { k5Ring(1, bi, h[0], h[1], now); } catch (e) {} v.hookEnd = now + CFG.HOOK_STAGE_MS; v.hkLast = now; v.prog = 0; v.rpOn = false; v.camp = v.selfP = 0; v.campAt = now; v.hold = false; v.campC = v.campSP = -1;   // a fresh hook = a fresh (empty) camp meter
   setSt(v, 'hooked', { hk: bi, ms: CFG.HOOK_STAGE_MS, ai: CFG.HOOK_AUTO_MS, hs: v.hkS }); try { k8Spawn(v, now); } catch (e) {} checkWin();
 }
 function rescueMs() { let n = 0; for (const p of S.players) if (p.role === 'survivor') n++; return CFG.RESCUE_HOLD_MS * CFG.RESCUE_MULT_BY_N[Math.max(0, Math.min(9, n))]; }   // same answer on host and clients (roster)
@@ -3696,7 +3701,7 @@ const DIAG = { wo: 0, stale: 0, err: [] };   // developer diagnostics (shown onl
 const diagErr = (w, e) => { try { DIAG.err.push(w + ': ' + (e && e.message || e)); if (DIAG.err.length > 4) DIAG.err.shift(); } catch (x) {} };
 const k2On = () => !!(S.wo && S.wo.k2) && charsFinal() && isK2(killerIdRaw());   // Demogorgon's rules / visuals (TV hooks, only-the-prey-sees-him) are live ONLY while he is the active killer
 let K2_SC_MS = 1500, K2_SC_LIFE = 40000, K2_SC_MAX = 40, K2_SC_R = 34, K2_GLOW_MS = 5000;   // SCENT: the prey drops one every 1.5 s / it lasts / max at once / pick-up radius / each scent flares once per this long (killer only)
-let K2_KICK_MAX = 10, K2_KICK_PER_MS = 700, K2_SWAP_FAIL_CD = 5000;   // TUNE: promoted magic numbers - disable time per scent on a kick / cooldown after a failed swap   // gen-kick disable bonus stops growing after this many scents (10 x 0.7 s = +7 s)
+let K2_SEND_DIS_PER_MS = 150, K2_KICK_MAX = 10, K2_KICK_PER_MS = 700, K2_SWAP_FAIL_CD = 5000;   // TUNE: promoted magic numbers - disable time per scent on a kick / cooldown after a failed swap   // gen-kick disable bonus stops growing after this many scents (10 x 0.7 s = +7 s)
 let K2_SPD_BASE = 1 / 1.1, K2_BASE = .9, K2_SPD_PER = 1.03, K2_SPD_MAX = 1.35, K2_VIS_PER = 1.02, K2_VIS_MAX = 1.5;   // he starts (and restarts after every SEND) at 90% speed and vision; each scent he collects: +3% speed and +2% vision (compounding, permanent until the next SEND; capped)
 let K2_SWAP_WIND = 1500, K2_SWAP_CD = 10000;   // RECAST (his default ability, a.k.a. Swap): windup / cooldown
 let K2_BLEED = 1.3;   // his hits make survivors bleed 30% longer
@@ -3799,7 +3804,7 @@ const K4_PAL = [   // fur colours: [normal base, shade, highlight, gates-open ba
 const K4_COL = ['#6c8ff2'];
 let K4_BL_R = 80, K4_BL_MS = 2000, K4_BL_SPD = 1.1, K4_BL_CD = 1, K4_BL_HIT_MS = 3000;   // BLOOD LUST (passive): within K4_BL_R units of a blood trail drop of an injured survivor he gets K4_BL_SPD x speed and his lunge charges recover K4_BL_CD (100% = twice as fast) faster, for K4_BL_MS after the last time he was near (and K4_BL_HIT_MS after he hits or hooks someone: k4Lust3)   // marker / effect colour (a bit brighter than the fur)
 let K4_BASE = 1;   // killer_4 (Huggy) base speed multiplier (= 5% faster than a survivor)
-let K4_TAP_MS = 220, K4_CH_FULL = 550, K4_CH_MAX_MS = 4000, K4_CH_SLOW = .9;   // LUNGE: a hold shorter than K4_TAP_MS is the short dash / full charge after this many ms of holding / a charge held this long fires the lunge by itself (at full charge) / walking speed while charging (x0.9 = a 10% movement penalty while charging)
+let K4_TAP_MS = 220, K4_CH_FULL = 825, K4_CH_MAX_MS = 4000, K4_CH_SLOW = .9;   // LUNGE: a hold shorter than K4_TAP_MS is the short dash / full charge after this many ms of holding / a charge held this long fires the lunge by itself (at full charge) / walking speed while charging (x0.9 = a 10% movement penalty while charging)
 let K4_LG_MIN = 75, K4_LG_MAX = 177.75, K4_LG_SPD = 900, K4_LG_W = 60, K4_LG_CD = 12000, K4_CHARGES = 3, K4_LG_SLOW = .3, K4_LG_SLOW_MS = 3000;   // LUNGE: short dash distance / longest distance (a full charge) / dash speed (units per s) / width of the path (survivors inside are hit) / time each charge takes to come back, one after another (ms, 12 s) / number of charges / survivor speed multiplier after being caught (x0.3 = 70% slower) / for how long
 function k4Empty() { return { at: 0, cds: new Array(K4_CHARGES).fill(0), ch: 0, lg: null, lt: 0, bt: [], tr: {}, bl: 0, lb: 0, slU: 0 }; }   // bt = live blood drops [{x, y, t}] / tr = per survivor trail bookkeeping / bl = Blood Lust ends at / slU = when his swing slow ends (synced so the client greys the button)   // cds = per charge: when it is ready again (0 / past = ready) / ch = when the current charge started (0 = not charging) / lg = the lunge in flight
 let K4 = k4Empty();
@@ -4792,8 +4797,8 @@ let K6_SCREAM_R = 300, K6_STUN_MS = 300, K6_BACK_MS = 300, K6_CD = 3000;   // sc
 let K6_CHAOS_MS = 15000, K6_CHAOS_CD = 45000, K6_HUSK_MS = 4000, K6_UNREP = .5, K6_SEND_MS = 250;   // chaos: duration (ends early on his first hit) / cooldown;  shed-skin husk lifetime;  un-repair speed (x one survivor);  state is sent at most 4x a second while he fakes a rescue
 function k6Empty() { return { on: false, init: false, form: 0, tid: -1, tfEnd: 0, cd: 0, chAt: 0, chEnd: 0, fh: -1, fp: 0, fo: false, sendAt: 0, dirty: false }; }   // form: 0 Skinwalker, 1 disguised, 2 changing back
 let K6 = k6Empty();
-const K5_CHASE_BONUS = .03;   // The Boiled One's and Huggy's own chase-boost cap (+3%); every other killer gets the full CFG.CHASE_MAX_BONUS
-const chaseMulOf = p => isK5(p.id) || isK4(p.id) ? (CFG.CHASE_MAX_BONUS > 0 ? Math.min(1, K5_CHASE_BONUS / CFG.CHASE_MAX_BONUS) : 0) : 1;   // chase-momentum speed bonus (CFG.CHASE_MAX_BONUS) per killer: The Boiled One and Huggy get none, everyone else (Freaky Nikki included) gets all of it
+const K5_CHASE_BONUS = .03;   // The Boiled One's own chase-boost cap (+3%; Huggy has no chase boost at all); every other killer gets the full CFG.CHASE_MAX_BONUS
+const chaseMulOf = p => isK4(p.id) ? 0 : isK5(p.id) ? (CFG.CHASE_MAX_BONUS > 0 ? Math.min(1, K5_CHASE_BONUS / CFG.CHASE_MAX_BONUS) : 0) : 1;   // chase-momentum speed bonus (CFG.CHASE_MAX_BONUS) per killer: Huggy gets none at all, The Boiled One only K5_CHASE_BONUS (+3%), everyone else (Freaky Nikki included) gets all of it
 const isK6 = id => kAbIdx(id) === 6;   // killer_6 = the seventh KILLERS entry; its ability code never mentions the character's name
 function k6Player() { for (const p of HP.values()) if (p.role === 'killer' && p.on && isK6(p.id)) return p; return null; }
 const k6Disg = p => !!p && p.role === 'killer' && K6.form === 1;
@@ -6795,7 +6800,7 @@ function applyStatus(m) {
   if (m.id === S.me && TK) closeTask('');   // any state change of mine (hit, downed, carried...) ends my task
   if (m.id === S.me && ctxHeld && ctxHeldKind !== 'rescue' && ctxHeldKind !== 'selfunhook') ctxRelease();   // ...and my REPAIR / KICK hold
   const now = performance.now(), prev = S.st[m.id];
-  S.st[m.id] = { s: m.s, by: m.by == null ? -1 : m.by, hk: m.hk == null ? -1 : m.hk, hookEnd: m.s === 'hooked' ? now + (+m.ms || 0) : 0, autoEnd: m.s === 'hooked' && !m.ro && (m.ai != null ? +m.ai : CFG.HOOK_AUTO_MS) > 0 ? now + (m.ai != null ? +m.ai : CFG.HOOK_AUTO_MS) : 0, hs: +m.hs || 0, udEnd: m.s === 'sent' ? now + (+m.ms || 0) : 0, udTot: m.s === 'sent' ? (+m.tot || CFG.UD_MS) : 0, protEnd: m.prot > 0 ? now + m.prot : 0,
+  S.st[m.id] = { s: m.s, by: m.by == null ? -1 : m.by, hk: m.hk == null ? -1 : m.hk, hookEnd: m.s === 'hooked' ? now + (+m.ms || 0) : 0, autoEnd: m.s === 'hooked' && !m.ro && (m.ai != null ? +m.ai : CFG.HOOK_AUTO_MS) > 0 ? now + (m.ai != null ? +m.ai : CFG.HOOK_AUTO_MS) : 0, hs: +m.hs || 0, h2: m.h2 ? 1 : 0, udEnd: m.s === 'sent' ? now + (+m.ms || 0) : 0, udTot: m.s === 'sent' ? (+m.tot || CFG.UD_MS) : 0, protEnd: m.prot > 0 ? now + m.prot : 0,
     hkAt: m.s === 'hooked' ? (prev && prev.s === 'hooked' && prev.hk === (m.hk == null ? -1 : m.hk) && prev.hkAt ? prev.hkAt : now) : 0, flashAt: m.hit ? now : 0, bl: m.bl != null ? +m.bl : -1, blAt: now, rp: +m.rp || 0, rpAt: now, rpOn: !!m.ro, holdAt: m.ro ? now : 0, rr: +m.rr || 1, hp: +m.hp || 0, hpAt: now, hpOn: !!m.ho, hr: +m.hr || 0, hc: +m.hc || 0, esc: !!m.esc };
   if (!bulkApply && inGame && S.map && m.s !== (prev ? prev.s : 'healthy')) { try { stateSound(m, prev); } catch (e) {} }
   if (m.id === S.me && m.s === 'dead' && (!prev || prev.s !== 'dead')) S.sacAt = now;   // (an escape shows 'You escaped!' in the same overlay)
@@ -7181,7 +7186,7 @@ function refreshStatus() {   // survivors and the killer: one small chip per sur
   box.replaceChildren(); BLH = [];
   S.players.filter(p => p.role === 'survivor').forEach(p => {
     const g = SI[(S.st[p.id] || {}).s || 'healthy'] || SI.healthy, el = document.createElement('span');
-    el.className = 'si' + (p.id === S.me ? ' me' : '') + (p.on ? '' : ' away');
+    el.className = 'si' + (p.id === S.me ? ' me' : '') + (p.on ? '' : ' away') + ((S.st[p.id] || {}).h2 && (S.st[p.id] || {}).s !== 'dead' ? ' last' : '');   // 'last' = hung a second time (hooked, rescued, hooked again)
     const d = document.createElement('i'); d.style.background = p.color; const b = document.createElement('b'); const fg = false /* DISABLED (was: K1C.fog && myRole() === 'survivor') = the Banshee '?' on everyone's status chips; put that condition back to re-enable */; b.textContent=fg?'?':((S.st[p.id]||{}).s==='sent'?'◉ '+Math.ceil(Math.max(0,((S.st[p.id]||{}).udEnd||0)-performance.now())/1000)+'s':((S.st[p.id]||{}).s==='hooked'&&(S.st[p.id]||{}).hs?'H'+(S.st[p.id]).hs:g[0]));b.style.color=fg?'#9aa0b0':g[1];   // killer_1 fear: unknown states
     el.append(d, b);
     const sx = S.st[p.id] || {}; if (sx.s !== 'dead' && sx.bl >= 0) { const bw = document.createElement('span'); bw.className = 'bl'; const bf = document.createElement('span'); bw.append(bf); el.append(bw); BLH.push({ id: p.id, f: bf }); }   // BLEED-OUT: thin yellow bar under the status icon (only once the survivor has been downed)
@@ -13058,6 +13063,7 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   K(2, "Scent (passive)", "k2.sc_max", "Most scents at once", "Oldest scents vanish when there are more than this", "int", 5, 80, 1, () => K2_SC_MAX, v => { K2_SC_MAX = v; });
   K(2, "Scent (passive)", "k2.sc_r", "Scent pick-up radius", "How close he must walk to a scent to collect it (units)", "num", 10, 150, 1, () => K2_SC_R, v => { K2_SC_R = v; }, "u");
   K(2, "Scent (passive)", "k2.bleed", "Longer bleeding", "How much longer his hits make survivors bleed (x)", "mult", 1, 3, 0.05, () => K2_BLEED, v => { K2_BLEED = v; });
+  K(2, "Scent (passive)", "k2.send_dis", "Send disable per scent", "Every send: all generators regress and are disabled this long per scent (ms)", "ms", 0, 1000, 10, () => K2_SEND_DIS_PER_MS, v => { K2_SEND_DIS_PER_MS = v; });
   K(2, "Scent (passive)", "k2.kick_max", "Kick bonus cap", "Scents that count towards the generator kick bonus", "int", 0, 40, 1, () => K2_KICK_MAX, v => { K2_KICK_MAX = v; });
   K(2, "Scent (passive)", "k2.kick_per", "Kick bonus per scent", "Extra generator disable time per scent (seconds)", "ms", 0, 5000, 50, () => K2_KICK_PER_MS, v => { K2_KICK_PER_MS = v; });
   K(2, "Recast (swap prey)", "k2.swap_wind", "Swap windup", "Time to change prey after pressing the button (seconds)", "ms", 200, 10000, 100, () => K2_SWAP_WIND, v => { K2_SWAP_WIND = v; });
