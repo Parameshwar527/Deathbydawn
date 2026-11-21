@@ -616,6 +616,7 @@ html #k5c b{font-size:8px;line-height:9px;letter-spacing:.02em}
   <button id="leaveL" class="sec">Leave</button><small id="dbg"></small></div>
  <div class="lB"><div id="rules"><div class="rrow"><span>Killer abilities</span><button id="rAb" class="sec"></button></div><div class="rrow"><span>Survivor perks</span><button id="rPk" class="sec"></button></div><div class="rrow"><span>Map</span><button id="rMap" class="sec"></button></div><button id="rTune" class="sec">Game settings</button><div id="rBan" class="hidden"></div><button id="rTest" class="sec hidden"></button></div><div id="plist"></div></div></div></div>
 <div id="game" class="screen hidden"><canvas id="cv"></canvas>
+ <div id="stt"></div>
  <div id="under"><div id="chips" class="hidden"><div id="thud" class="hidden"></div><div id="gchip" class="hidden"></div></div><div id="stat"></div><div id="coin" class="hidden"></div><div id="gpill" class="hidden"></div><div id="specL" class="hidden"></div><div id="udBanner" class="hidden" style="background:rgba(22,5,8,.88);border:1px solid #c4504c;color:#ffd9d4;padding:5px 12px;border-radius:4px;font:800 13px Courier New,monospace;text-align:center"></div><div id="banner" class="hidden"></div></div>
  <div id="topbar"><div id="tbL"><div id="hud"></div><div id="chip" class="hidden"></div></div><div id="cd"></div><button id="menuBtn" class="sec" aria-label="Menu">☰</button></div>
  <div id="dead" class="hidden">You were sacrificed<small>Spectating the survivors…</small></div>
@@ -647,6 +648,18 @@ html #k5c b{font-size:8px;line-height:9px;letter-spacing:.02em}
   <button id="mEnd" class="sec si dng hidden">End round</button><button id="mLeave" class="sec si dng">Leave</button>
  </div></div>
 <div id="info" class="hidden"><div class="ibox"><div class="ihead"><span>Guide</span><button id="infoClose" class="sec" aria-label="Close">✕</button></div><div class="itabs" id="infoTabs"></div><div class="ilist" id="infoList"></div></div></div>
+<style>
+/* ===== STATUS EFFECT HUD (top-right): pixel-art icons for every speed / repair / heal / status effect on the viewed player ===== */
+#stt{position:absolute;z-index:6;right:calc(var(--sar) + 8px);top:calc(var(--sat) + var(--bar) + 6px);display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:216px;pointer-events:none}
+.stc{position:relative;width:48px;height:64px;box-sizing:border-box;padding-top:3px;background:#17110f;color:#e8dfcc;display:flex;flex-direction:column;align-items:center;gap:1px;box-shadow:0 -2px 0 #54483f,0 2px 0 #54483f,-2px 0 0 #54483f,2px 0 0 #54483f,inset 0 0 0 2px #0a0706;animation:sttIn .18s steps(3)}
+.stc img{width:40px;height:40px;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.stc b{margin-top:4px;font:700 9px/1 'DBD Mini','Silkscreen','Courier New',monospace;letter-spacing:.04em;color:#e8dfcc;text-shadow:1px 1px 0 #000;white-space:nowrap}
+.stc i{position:absolute;left:0;bottom:3px;height:2px;width:100%;background:#e8dfcc;transform-origin:left center}
+.stc::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--c)}
+.stc.low{animation:sttIn .18s steps(3),sttFlash .32s steps(2,jump-none) infinite}
+@keyframes sttIn{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes sttFlash{0%{opacity:1}50%{opacity:.3}100%{opacity:1}}
+</style>
 <script>
 'use strict';
 /* ================= CONFIG (all tunables here) ================= */
@@ -668,8 +681,8 @@ const CFG = {
   SELECT_MS: 15000,                    // cosmetic character select (ends early when everyone has locked in)
   // ---- survivor perks (host setting "Survivor perks"; every number here is a starting guess, tune freely) ----
   PK_KILLER_MS: 20000, PK_CHAR_MS: 10000, PK_PICK_MS: 10000,   // perks ON, pre-match: the killer has PK_KILLER_MS for the character; survivors have PK_CHAR_MS for the character, then PK_PICK_MS for the perk (parallel, they end together)
-  PK_LL_BLIND_MS: 1500, PK_LL_AB_MS: 3000, PK_LL_GLOW_MS: 3000, PK_LL_VIS: 1.15, PK_GP_SPD_MULT: 1.3, PK_GP_SPD_MS: 3000, PK_GP_GLOW_MS: 3000, PK_ALT_RECV: 0.7, PK_ALT_GIVE: 1.4, PK_UB_MS: 2000, PK_UB_CAMP_MS: 20000, PK_DEL_FILL_MS: 25000, PK_DEL_DIST: 55, GSC_CHANCE_GEN: 0.08, GSC_CHANCE_HEAL: 0.08, GSC_ZONE: 0.18, GSC_GREAT: 0.03, GSC_REV_MS: 1100, GSC_DELAY_MS: 400, GSC_GEN_LOSS: 5, GSC_HEAL_LOSS: 0.05, GSC_GEN_BONUS: 1, GSC_HEAL_BONUS: 0.01, GSC_STALL_MS: 2000,   // SKILL CHECKS (repair / heal), DBD numbers: a roll every second of work (8%); success zone = GSC_ZONE of the dial (GSC_GREAT of it is the white great zone); one full turn takes GSC_REV_MS after a GSC_DELAY_MS pause; a miss costs GSC_GEN_LOSS % of the generator / GSC_HEAL_LOSS of the heal bar, pings the killer and stops that survivor working for GSC_STALL_MS; a great check adds a little progress
-  PK_REACT_MULT: 1.5, PK_REACT_MS: 2000, PK_POT_CAP: 25, PK_POT_HI: 75, PK_POT_BONUS: .1, PK_REFORM_CD_MS: 30000, PK_REFORM_GLOW_MS: 3000, PK_SAB_CD_MS: 30000, PK_SAB_DIS_MS: 20000, PK_SAB_MARK_MS: 3000, PK_SAB_KMULT: 3, PK_SAB_GLOW_MS: 3000, PK_SAB_R: 96,   // Sabotage: holder cooldown after a success (ready from the start) / how long a sabotaged hook stays off / how long a missed check marks the holder to the killer / killer hand-repair speed multiplier / icon glow / reach to a hook
+  PK_LL_BLIND_MS: 1500, PK_LL_AB_MS: 3000, PK_LL_GLOW_MS: 3000, PK_LL_VIS: 1.15, PK_GP_SPD_MULT: 1.3, PK_GP_SPD_MS: 3000, PK_GP_GLOW_MS: 3000, PK_ALT_RECV: 0.7, PK_ALT_GIVE: 1.6, PK_UB_MS: 2000, PK_UB_CAMP_MS: 20000, PK_DEL_FILL_MS: 25000, PK_DEL_DIST: 55, GSC_CHANCE_GEN: 0.08, GSC_CHANCE_HEAL: 0.08, GSC_ZONE: 0.18, GSC_GREAT: 0.03, GSC_REV_MS: 1100, GSC_DELAY_MS: 400, GSC_GEN_LOSS: 5, GSC_HEAL_LOSS: 0.05, GSC_GEN_BONUS: 1, GSC_HEAL_BONUS: 0.01, GSC_STALL_MS: 2000,   // SKILL CHECKS (repair / heal), DBD numbers: a roll every second of work (8%); success zone = GSC_ZONE of the dial (GSC_GREAT of it is the white great zone); one full turn takes GSC_REV_MS after a GSC_DELAY_MS pause; a miss costs GSC_GEN_LOSS % of the generator / GSC_HEAL_LOSS of the heal bar, pings the killer and stops that survivor working for GSC_STALL_MS; a great check adds a little progress
+  PK_REACT_MULT: 1.5, PK_REACT_MS: 2000, PK_POT_CAP: 25, PK_POT_HI: 75, PK_POT_BONUS: .1, PK_REFORM_CD_MS: 50000, PK_REFORM_INV_MS: 1000, PK_REFORM_GLOW_MS: 3000, PK_SAB_CD_MS: 30000, PK_SAB_DIS_MS: 12000, PK_SAB_MARK_MS: 3000, PK_SAB_KMULT: 3, PK_SAB_GLOW_MS: 3000, PK_SAB_R: 96,   // Sabotage: holder cooldown after a success (ready from the start) / how long a sabotaged hook stays off / how long a missed check marks the holder to the killer / killer hand-repair speed multiplier / icon glow / reach to a hook
     PK_BOND_EVERY_MS: 7000, PK_BOND_SURV_MS: 1500, PK_BOND_KILL_MS: 1000, PK_BOND_GAP_MS: 3000, PK_BOND_WARN_MS: 1000,   // Reforming: ONE cooldown after each use (starts ready) / icon glow after using it. Bonded (alternating, never at the same time): first wait PK_BOND_EVERY_MS, then the HOLDER sees the killer for PK_BOND_SURV_MS, PK_BOND_GAP_MS of pause, then the KILLER sees the holder for PK_BOND_KILL_MS, PK_BOND_GAP_MS of pause, and round again; the icon glows from PK_BOND_WARN_MS before each reveal until it ends
     // Last Light: blind time (ms) / ability-lock time (ms) of its thrown Holy Light / icon glow after it is thrown (ms) / the holder's ambient vision multiplier (+15%); Reaction: speed multiplier and duration (ms) after leaving a generator / an unhook or using the block / break button; Potential: the bar's size, as % of one generator (dumped on the generator the moment it is full) / a generator at or above this % takes the holder's repair directly, and the holder banks BONUS (10%) of that repair on top
   PK_TK_MULT: 1.632,   // Telekinetic: repair / unhook reach x this (1.7 + 20% = 2.04)
@@ -719,7 +732,7 @@ const CFG = {
  
   HOOK_WARN_FRAC: 0.5,                 // when the hook timer ring has this fraction of the CURRENT STAGE left (per stage) it changes colour (visual warning only)
   PICKUP_IMMUNITY_MS: 3000,            // after a rescue the (downed) survivor can't be picked up by the killer for this long; shown as a shield ring
-  REC_CAP: 0.9, REC_SELF_RATE: 0.5,    // DOWNED RECOVER BAR (0..1 of HEAL_MS): standing still it fills by itself at REC_SELF_RATE (x heal speed) but only up to REC_CAP (never 100% alone); crawling pauses it; allies heal it at heal speed up to 100% (then INJURED). No automatic stand-up
+  REC_CAP: 0.9, REC_SELF_RATE: 0.7,    // DOWNED RECOVER BAR (0..1 of HEAL_MS): standing still it fills by itself at REC_SELF_RATE (x heal speed) but only up to REC_CAP (never 100% alone); crawling pauses it; allies heal it at heal speed up to 100% (then INJURED). No automatic stand-up
   BLEED_OUT_MS: 192000,                // BLEED-OUT: total time one survivor can spend DOWNED in a round (counts only while downed, not while carried / hooked, kept across downs); at 0 they die
   HEAL_MS: 12800, HEAL_R: 80, HEAL_MAX_HEALERS: 2,   // ALLY HEALING: injured -> healthy. HEAL_MS = time for ONE healer (rate 1.0; 2 healers = rate 2.0; a 3rd adds nothing: HEAL_MAX_HEALERS). HEAL_R = reach (units). Progress is kept on the target
   HEAL_PING_R: 600, HEAL_PING_MS: 6000,   // a healing survivor pings a killer within HEAL_PING_R units (same ping as a generator): when the heal starts, then every HEAL_PING_MS while it goes on
@@ -925,14 +938,15 @@ const ITEMS = [   // index = sprite index = network id; w = spawn weight (all eq
   { id: 'trap', name: 'Bear Trap', col: '#c0c6d8', w: 10 }, { id: 'flashbang', name: 'Holy Light', col: '#ffffff', w: 10 }, { id: 'decoy', name: 'Phantoms', col: '#ff9a3a', w: 10 },
   { id: 'snakeoil', name: 'Snake Oil', col: '#5dff9a', w: 10 }, { id: 'teleport', name: 'Blink', col: '#4a9bff', w: 10 }, { id: 'nightmare', name: 'Nightmare Fuel', col: '#9b3dff', w: 10 },
   { id: 'hat', name: "Magician's Hat", col: '#ff5a7a', w: 10 },
-  { id: 'smokebomb', name: 'Smoke Bomb', col: '#b8c0d0', w: 10 }];   // Smoke Bomb (index 7) only exists with survivor perks ON (see ITEM_POOL_PERKS)
+  { id: 'smokebomb', name: 'Smoke Bomb', col: '#b8c0d0', w: 10 }, { id: 'handsaw', name: 'Handsaw', col: '#d8a04a', w: 10 }];   // Handsaw (index 8) is perk-only too (Handsaw perk).    // Smoke Bomb (index 7) only exists with survivor perks ON (see ITEM_POOL_PERKS)
 const HAT_TI = ITEMS.findIndex(it => it.id === 'hat');
 // ITEM PERK CARDS: each item perk shows its ITEM's name and a one-line description of the item (ITEM_LINE), plus one shared line for what the perk itself does (PK_ITEM_EXTRA).
 const ITEM_LINE = {
   get hat() { return 'Become invisible to the killer for a while. Working a generator or a hook drains it faster.'; },
   get teleport() { return 'Teleport a short distance forward.'; },
   nightmare: 'Throw it to deafen your enemies and limit their vision.',
-  smokebomb: 'Throw a smoke cloud that blocks sight for a while.'
+  smokebomb: 'Throw a smoke cloud that blocks sight for a while.',
+  handsaw: 'Saw through the chain next to a hook. The next survivor the killer tries to hang there drops down, and the hook is disabled for a short time.'
 };
 const PK_ITEM_EXTRA = 'You start with this item. It also drops for the whole team, and items drop a little more often.';
 const perkItemOf = pk => pk && pk.item ? ITEMS.find(x => x.id === pk.item) || null : null;
@@ -952,19 +966,19 @@ const PERKS = [
   { id: 'altruism', name: 'Altruism', type: 'passive', desc: "The healing you receive is slower, but your healing and unhooking are faster.", implemented: true },
   { id: 'unbreakablewill', name: 'Unbreakable Will', type: 'passive', desc: "Get back up the first time you are downed. Your first hook lets you unhook yourself after a delay.", implemented: true },
   { id: 'deliverance', name: 'Deliverance', type: 'special', desc: "Healing teammates and repairing generators fills a green bar above your head. When it is full, a random item lands near you.", implemented: true },
-  { id: 'sabotage', name: 'Sabotage', type: 'special', desc: "Go near hooks and disable them on a cooldown.", implemented: true },
   { id: 'banesberry', name: 'Banesberry', type: 'special', desc: "Find hidden berries that grant random effects.", implemented: true },
-  { id: 'reforming', name: 'Reforming', type: 'special', desc: "Reset a broken barricade so it can be used again.", implemented: true },
+  { id: 'reforming', name: 'Reforming', type: 'special', desc: "Using a barricade gives you invisibility. Reset broken barricades. All broken barricades are revealed to you.", implemented: true },
   { id: 'longlasttwin', name: 'Long Last Twin', type: 'special', desc: "Linked to a teammate: you share hits, and repair, heal and see better when close.", implemented: true, maxHolders: 1, offerChance: .5 },
   { id: 'demonicdeal', name: 'Demonic Deal', type: 'special', desc: "Enchant a totem to gain better repairs, and make your generator unkickable. Failing to enchant will be fatal.", implemented: true },
   { id: 'magicianshat', name: "Magician's Hat", type: 'item', item: 'hat', desc: "Start with Magician's Hat; it can appear in drops. Increases team item drop rates.", implemented: true },
   { id: 'blink', name: 'Blink', type: 'item', item: 'teleport', desc: "Start with Blink; it can appear in drops. Increases team item drop rates.", implemented: true },
   { id: 'nightmarefuel', name: 'Nightmare Fuel', type: 'item', item: 'nightmare', desc: "Start with Nightmare Fuel; it can appear in drops. Increases team item drop rates.", implemented: true },
-  { id: 'smokebombperk', name: 'Smoke Bomb', type: 'item', item: 'smokebomb', desc: "Start with Smoke Bomb; it can appear in drops. Increases team item drop rates.", implemented: true }
+  { id: 'smokebombperk', name: 'Smoke Bomb', type: 'item', item: 'smokebomb', desc: "Start with Smoke Bomb; it can appear in drops. Increases team item drop rates.", implemented: true },
+  { id: 'sabotage', name: 'Handsaw', type: 'item', item: 'handsaw', desc: "Start with a Handsaw; it can appear in drops. Increases team item drop rates.", implemented: true }
 ];
 const HAT_HIDE_MS = 1500, HAT_BLINK_MS = 500;   // Magician's Hat: invisible for HAT_HIDE_MS, then visible for HAT_BLINK_MS, repeating from the moment it is put on
 const hatPhaseHidden = (t0, now) => ((now - t0) % (HAT_HIDE_MS + HAT_BLINK_MS) + HAT_HIDE_MS + HAT_BLINK_MS) % (HAT_HIDE_MS + HAT_BLINK_MS) < HAT_HIDE_MS;
-const hatHid = (q, now) => !!q && ((q.hatLeft > 0 && hatPhaseHidden(q.hatT0 || 0, now)) || q.lk >= 0);   // host: is this survivor invisible RIGHT NOW (hat on and not in its blink)
+const hatHid = (q, now) => !!q && ((q.hatLeft > 0 && hatPhaseHidden(q.hatT0 || 0, now)) || q.lk >= 0 || now < (q.bhEnd || 0));   // (bhEnd = Reforming passive: invisible for PK_REFORM_INV_MS after placing a barricade)   // host: is this survivor invisible RIGHT NOW (hat on and not in its blink)
 const COLORS = ['#ff5252', '#40c4ff', '#69f0ae', '#ffd740', '#e040fb', '#ff9100', '#00e5ff', '#b2ff59', '#ff80ab', '#ffffff'];
 
 /* ================= MAP (pure data, sent to clients in 'start') ================= */
@@ -2654,6 +2668,7 @@ function hostTick() {
   let killer = null;
   for (const p of HP.values()) if (p.role === 'killer') killer = p;
   chaseStep(killer, dt);
+  try { sttStep(now); } catch (e) { console.warn('[stt]', e); }
   for (const p of HP.values()) {
     if (p.role === 'killer') killer = p;
     if (!p.on) continue;
@@ -2792,6 +2807,7 @@ function doorBuild(p) {   // request: barricade the nearest ready doorway in rea
   MAP.doors.forEach((d, i) => { if (DH.st[i] !== 0 || i >= MAP.nb) return; const dd = Math.hypot(d[0] + d[2] / 2 - p.x, d[1] + d[3] / 2 - p.y); if (dd <= bd) { bd = dd; bi = i; } });
   if (bi < 0) return;
   DH.st[bi] = 1; DH.arm[bi] = performance.now() + CFG.DOOR_ARM_MS; DH.at[bi] = performance.now(); doorRebuild();
+  if (hasPerk(p.id, 'reforming')) { p.bhEnd = performance.now() + CFG.PK_REFORM_INV_MS; sxSend(p.id, 'bh', CFG.PK_REFORM_INV_MS); }   // REFORMING passive: placing a barricade makes you invisible for a moment
   for (const q of HP.values()) if (q.role) resolve(q);   // the killer standing in the doorway is pushed out at once (survivors may stay: they can pass for DOOR_ARM_MS)
   dsSend(-1);
 }
@@ -2811,8 +2827,8 @@ const k2PortalBlocked = i => SB_RIFT_ALL ? SBH.some(h => h.on) : sbOn(i);
 function sbKiller() { for (const q of HP.values()) if (q.role === 'killer' && q.on) return q; return null; }
 function sbMsgOff(p, i) { msgTo(p, isK2(p.id) ? 'A Portal is Disabled, Fix it' : (SBH[i].brk ? 'Hook broken - ' : 'Hook disabled - ') + Math.ceil(SBH[i].left / 1000) + 's left'); }
 function sbArm(p, i, now) {   // the survivor finished the checks: the hook is TRAPPED (red ritual oval for survivors only). Nothing is disabled until the killer tries to hang someone on it
-  const h = SBH[i], hk = MAP.hooks[i]; h.arm = 1; p.sbAt = now + CFG.PK_SAB_CD_MS;
-  sxSend(p.id, 'sabcd', CFG.PK_SAB_CD_MS); sxSend(p.id, 'sabg', CFG.PK_SAB_GLOW_MS); evSend({ k: 'sab', m: 0, x: hk[0], y: hk[1] });
+  const h = SBH[i], hk = MAP.hooks[i]; h.arm = 1; if (p.item === 'handsaw') { p.item = null; p.ch = 0; sendItem(p); }   // the Handsaw is used up
+  sxSend(p.id, 'sabg', CFG.PK_SAB_GLOW_MS); evSend({ k: 'sab', m: 0, x: hk[0], y: hk[1] });
   woSend('sb');
 }
 function sbTrigger(c, v, bi, now) {   // a killer (or his minion) tries to hang a survivor on a trapped hook: the carried survivor is dropped as downed and the hook is disabled for PK_SAB_DIS_MS
@@ -2829,7 +2845,7 @@ function sbStep(now, dt) {   // host, every tick of the hunt: hand repairs, self
   SBH.forEach((h, i) => { if (!h.on) return; const r = rep[i] ? CFG.PK_SAB_KMULT : 1; if (r !== h.rate) { h.rate = r; ch = true; }
     h.left -= dt * r; if (h.left <= 0) { h.on = 0; h.brk = 0; h.left = 0; h.rate = 1; ch = true; evSend({ k: 'sab', m: 1, x: MAP.hooks[i][0], y: MAP.hooks[i][1] }); } });   // self-repairs after 100 s, so the game can never get stuck
   for (const p of HP.values()) { if (p.role !== 'survivor') continue;
-    const ok = p.on && (p.st === 'healthy' || p.st === 'injured') && hasPerk(p.id, 'sabotage') && now >= (p.sbAt || 0) && !k3FrogOn(p); let tg = -1;
+    const ok = p.on && (p.st === 'healthy' || p.st === 'injured') && p.item === 'handsaw' && !k3FrogOn(p); let tg = -1;
     if (ok && (p.sb || p.sbSC)) { const cur = p.sbSC ? p.sbSC - 1 : -1;
       if (cur >= 0 && MAP.hooks[cur] && Math.hypot(MAP.hooks[cur][0] - p.x, MAP.hooks[cur][1] - p.y) <= CFG.PK_SAB_R + 8) tg = cur;
       else { let bd = CFG.PK_SAB_R; MAP.hooks.forEach((h, i) => { if (HU[i] !== -1 || SBH[i].arm || SBH[i].on) return; const d = Math.hypot(h[0] - p.x, h[1] - p.y); if (d <= bd) { bd = d; tg = i; } }); } }
@@ -4041,7 +4057,7 @@ function throwPt(p, d) {   // where a thrown grenade lands: ahead of the thrower
    Up to 7 trap charges (he STARTS with 3, +1 every 20 s, +1 per landed hit). Each placement uses 1 charge: one permanent trap type (0.5 s full stop, then a slow wearing off over 3 s + 50 s reverse bear trap, up to 7 on the map; the next placement replaces the oldest). One IR Scanner is planted for free at the start of the hunt (K0.free). */
 let K0_COST = [0, 1, 0, 0], K0_NAME = ['', 'Trap', 'IR Scanner', 'Reverse Trap'],   // the IR Scanner is no longer in the shop: he places ONE for free at the start (cost 0)
    
-    K0_W = 2.4, K0_TRAP_R = 32.4, K0_SPOT_R = 84 * .7 * 1.2 * .97 * 1.3 * 1.5, K0_DIS_R = K0_SPOT_R,   /* traps are seen from 50% further away, and the disarm reach matches it */ K0_DIS_MS = 1500, K0_R = 290, K0_HA = .09, K0_RBT_MS = 50000, K0_RBT_PEN = 2500;   // each failed removal skill check takes 2.5 s off the reverse trap's timer
+    K0_W = 2.4, K0_TRAP_R = 32.4, K0_SPOT_R = 84 * .7 * 1.2 * .97 * 1.3 * 1.5 * .9, K0_DIS_R = K0_SPOT_R,   /* traps are seen from 50% further away, and the disarm reach matches it */ K0_DIS_MS = 1500, K0_R = 290, K0_HA = .09, K0_RBT_MS = 50000, K0_RBT_PEN = 2500;   // each failed removal skill check takes 2.5 s off the reverse trap's timer
 let K0_TRAP_PAY = 0, K0_PAY_CD = 6000, K0_TRACK_MS = 2000, K0_STOP_MS = 0, K0_SLOW_MS = 3000;   // trap payoff: coins per sprung trap (same as a landed hit) / min gap between payouts / tracking time after the last refresh / how long the trap's slow takes to wear off (starts at a 100% slow)
 let K0_ARM_MS = 800, K0_REARM_MS = 1500, K0_IMM_EXTRA_MS = 1000, K0_RB_REACH = 90, K0_RB_MIN_SURV = 2, K0_BLAST_PING_MS = 1000, K0_RBT_CHECKS = 4, K0_RBT_ZONE = 1.1, K0_RBT_SPEED = 2.6;   // TUNE: promoted magic numbers - a new trap arms after K0_ARM_MS / a sprung trap re-arms after K0_REARM_MS / the victim cannot spring another for this long after the slow / a teammate must stand within K0_RB_REACH to remove a reverse trap / survivors that must be up for one to clamp / the blast pings the victim this long / removal skill check: checks, green zone (rad), needle speed (rad/s)
 let K0_MAX_STOCK = 7, K0_CHARGE_MS = 20000, K0_START_STOCK = 3, K0_MAX_TRAPS = 7, K0_SCAN_DELAY = 3000, K0_SCAN_REVEAL_MS = 6000;   // trap charges he can carry (8) / ms to charge one trap (20 s) / charges he starts with / max traps kept on the map; placing beyond the cap replaces the oldest / the scanner wakes this long after it is placed
@@ -4200,8 +4216,56 @@ function k0Icon(k) { if (K0_URL[k]) return K0_URL[k]; return (K0_URL[k] = k0Spr(
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 })();
 function k0SurvOKc() { return S.players.filter(q => q.role === 'survivor' && !['dead', 'hooked'].includes((S.st[q.id] || {}).s)).length; }
-addEventListener('keydown', e => { if (e.code === 'Escape' && SC && (SC.bar || SC.dis || SC.sab)) scCancel(); });
-let PK_SAB_CHECKS = 1, PK_SAB_ZONE = .75, PK_SAB_SPEED = 3;   // TUNE: Sabotage perk skill check: checks to pass / green zone (rad) / needle speed (rad per s)
+addEventListener('keydown', e => { if (e.code === 'Escape' && SAW) sawCancel(); else if (e.code === 'Escape' && SC && (SC.bar || SC.dis || SC.sab)) scCancel(); });
+/* ===== HANDSAW MINI-GAME: a chain lies across the screen; drag the saw back and forth along it until the chain is cut (PK_SAW_STROKES full strokes). Then 'sabdone' is sent (the host curses the hook and uses the saw up). The X / Esc / walking away from the hook / going down cancels it ('sabcancel', the saw is kept). ===== */
+let PK_SAW_STROKES = 10;   // TUNE: how many full back-and-forth strokes it takes to cut the chain
+let SAW = null;
+function sawStart() {
+  if (SAW) return; if (GSC) gscAbort(); if (SC) scClose();
+  const el = document.createElement('div'); el.id = 'saw';
+  el.innerHTML = '<style>#saw{position:fixed;inset:0;z-index:47;background:rgba(6,3,3,.62);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:ew-resize}#saw canvas{display:block;width:100%;image-rendering:pixelated}#saw .sT{font:900 20px/1 \'DBD Gothic\',\'Courier New\',monospace;letter-spacing:.12em;color:#e8dfcc;text-shadow:2px 2px 0 #000}#saw .sI{font:700 12px/1.2 \'Courier New\',monospace;color:#a89c86}#saw .sB{width:min(320px,80%);height:12px;background:#17110f;box-shadow:0 0 0 2px #54483f;margin-top:4px}#saw .sB i{display:block;height:100%;width:0;background:#d8a04a}#saw button{position:absolute;top:calc(10px + var(--sat,0px));right:calc(10px + var(--sar,0px));width:38px;height:38px;font:900 18px monospace;color:#e8dfcc;background:#17110f;border:0;box-shadow:0 0 0 2px #54483f;cursor:pointer}#saw.done .sT{color:#7dff5a}</style><div class="sT">SAW THROUGH THE CHAIN</div><canvas></canvas><div class="sB"><i></i></div><div class="sI">Drag the saw back and forth</div><button aria-label="Cancel">✕</button>';
+  document.body.appendChild(el);
+  const cv = el.querySelector('canvas'), W = Math.max(280, Math.min(innerWidth, 900)), H = 170; cv.width = W; cv.height = H;
+  SAW = { el, cv, g: cv.getContext('2d'), W, H, off: 0, R: Math.min(120, W * .3), travel: 0, last: null, sparks: [], done: 0, nt: 0, snd: 0, bar: el.querySelector('.sB i') };
+  const mv = e => { if (!SAW || SAW.done) return; if (SAW.last === null) { SAW.last = e.clientX; return; } const dx = e.clientX - SAW.last; SAW.last = e.clientX; sawMove(dx); };
+  el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; SAW.last = e.clientX; try { el.setPointerCapture(e.pointerId); } catch (x) {} });
+  el.addEventListener('pointermove', e => { if (e.buttons || e.pointerType === 'touch') mv(e); });
+  el.addEventListener('pointerup', () => { if (SAW) SAW.last = null; }); el.addEventListener('pointercancel', () => { if (SAW) SAW.last = null; });
+  el.querySelector('button').addEventListener('click', sawCancel);
+  requestAnimationFrame(sawLoop);
+}
+function sawMove(dx) {
+  const S2 = SAW, o = Math.max(-S2.R, Math.min(S2.R, S2.off + dx)), d = Math.abs(o - S2.off); S2.off = o; if (d <= 0) return;
+  S2.travel += d; const now = performance.now();
+  for (let i = 0; i < Math.min(3, 1 + (d / 6 | 0)); i++) S2.sparks.push({ x: S2.W / 2 + S2.off + (Math.random() - .5) * 20, y: S2.H / 2 - 2, vx: (Math.random() - .5) * 120 - Math.sign(dx) * 40, vy: -40 - Math.random() * 90, t: 0 });
+  if (now > S2.snd) { S2.snd = now + 80; try { sfxNoise(.07, .1, 'bandpass', 2400, 1700); } catch (e) {} }
+  if (S2.travel >= S2.R * 2 * PK_SAW_STROKES) { S2.done = now; S2.el.classList.add('done'); S2.el.querySelector('.sT').textContent = 'CHAIN CUT'; sendAct('sabdone', true); }
+}
+function sawClose() { if (!SAW) return; SAW.el.remove(); SAW = null; }
+function sawCancel() { if (!SAW || SAW.done) return; sawClose(); sendAct('sabcancel', true); }
+function sawLoop() {
+  const S2 = SAW; if (!S2) return; const st = myState(), now = performance.now();
+  if (S.phase !== 'hunt' || (st !== 'healthy' && st !== 'injured')) { sawClose(); return; }
+  if (!S2.done) { const mp = posOf(S.me), hs = S.map.hooks || []; if (mp && hs.some(h => Math.hypot(h[0] - mp[0], h[1] - mp[1]) <= CFG.PK_SAB_R + 12)) S2.nt = 0; else if (!S2.nt) S2.nt = now; else if (now - S2.nt > 600) { sawCancel(); return; } }   // walked away from the hook
+  else if (now - S2.done > 800) { sawClose(); return; }
+  const g = S2.g, W = S2.W, H = S2.H, cx = W / 2, cy = H / 2, p = Math.min(1, S2.travel / (S2.R * 2 * PK_SAW_STROKES)), brk = S2.done ? Math.min(1, (now - S2.done) / 500) : 0;
+  g.clearRect(0, 0, W, H); g.imageSmoothingEnabled = false;
+  const pitch = 26, n = Math.ceil(W / pitch) + 2;   // the chain: alternating flat and edge-on links
+  for (let i = -1; i < n; i++) {
+    let x = i * pitch + 6, y = cy, flat = i % 2 === 0; const mid = Math.abs(x + 13 - cx) < pitch * .6;
+    if (brk) { const side = x + 13 < cx ? -1 : 1; x += side * 22 * brk; y += 16 * brk * brk; }
+    g.lineWidth = 5; g.strokeStyle = '#8f98b4'; g.fillStyle = '#c9d0e0';
+    if (flat) { g.beginPath(); g.ellipse(x + 13, y, 15, 9, 0, 0, 7); g.stroke(); g.lineWidth = 2; g.strokeStyle = '#eef2fb'; g.beginPath(); g.ellipse(x + 13, y - 1, 13, 7, 0, 3.4, 5.9); g.stroke(); }
+    else { g.fillStyle = '#6a7288'; g.fillRect(x + 8, y - 8, 10, 16); g.fillStyle = '#c9d0e0'; g.fillRect(x + 8, y - 8, 3, 16); }
+    if (mid && p > 0 && !brk) { g.fillStyle = '#1a0a0a'; const nw = Math.round(4 + p * 18); g.fillRect(cx - nw / 2, y - 12, nw, Math.round(4 + p * 12)); g.fillStyle = '#d8283a'; g.fillRect(cx - nw / 2, y - 12 + Math.round(4 + p * 12) - 2, nw, 2); }   // the notch the saw is cutting (the damage grows with the progress)
+  }
+  for (let i = S2.sparks.length - 1; i >= 0; i--) { const s = S2.sparks[i]; s.t += 1 / 60; s.x += s.vx / 60; s.y += s.vy / 60; s.vy += 6; if (s.t > .4) { S2.sparks.splice(i, 1); continue; } g.fillStyle = s.t < .2 ? '#ffe27a' : '#ff9a3a'; g.fillRect(Math.round(s.x), Math.round(s.y), 3, 3); }
+  const spr = itemSprite(ITEMS.findIndex(x => x.id === 'handsaw')), sc = 5, sx = cx + S2.off, bob = S2.done ? 0 : Math.sin(now / 60) * (S2.last === null ? 0 : 1.5);
+  g.save(); g.translate(sx, cy - 4 + bob + (S2.done ? 30 * brk : 0)); g.rotate(S2.done ? brk * .6 : 0); g.drawImage(spr, -spr.width * sc / 2, -10 * sc, spr.width * sc, spr.height * sc); g.restore();   // the saw: its teeth rest on the chain
+  S2.bar.style.width = Math.round(p * 100) + '%';
+  requestAnimationFrame(sawLoop);
+}
+let PK_SAB_CHECKS = 2, PK_SAB_ZONE = .75, PK_SAB_SPEED = 3;   // TUNE: Sabotage perk skill check: checks to pass / green zone (rad) / needle speed (rad per s)
 let SC = null;
 function scStart(mode) {
   if (GSC) gscAbort();
@@ -4506,7 +4570,7 @@ function k1TerrifyFire(B, now) {   // the scream: every survivor in the cone (ra
   woSend('k1');
 }
 function k1Slow(p, now) {   // speed factor for a survivor's generator repair + unhook: 0.95 / 0.90 / 0.85 / 0.80 by fear level (1 when she is not in the round)
-  if (!K1.on || !p || !k1Player()) return 1; const f = K1.f[p.id] || 0, lv = (K1.brk[p.id] || 0) > now ? 3 : f >= K1_TIERS[2] ? 2 : f >= K1_TIERS[1] ? 1 : 0; return 1 - K1_SLOW[lv];
+  if (!K1.on || !p || !k1Player()) return 1; const f = K1.f[p.id] || 0, lv = (K1.brk[p.id] || 0) > now ? 3 : f >= K1_TIERS[2] ? 2 : f >= K1_TIERS[1] ? 1 : 0; if (f <= 0 && lv === 0) return 1; return 1 - K1_SLOW[lv];   // 0 fear = no debuffs at all
 }
 function k1GuardNear(B) {   // the generator (not repaired yet) or hook (free or with someone hanging) she stands at that has no guard yet: { k: 0 hook | 1 generator, i: index }, or null. The nearest one wins
   let best = null, bd = 1e9; const taken = (k, i) => K1.clones.some(c => c.tk === k && c.ti === i);
@@ -5787,7 +5851,7 @@ function k8Step(now, dtMs) {   // host, every tick
   for (const id in K8.rev) if (now >= K8.rev[id]) { delete K8.rev[id]; ch = true; }
   if (S.phase !== 'hunt') { if (K8.sh.length) { K8.sh = []; ch = true; } } else if (k8ShStep(now, dtMs)) ch = true;
   if (K8.sh.some(s => s.st === 1) && now - K8.shT >= 100) { K8.shT = now; ch = true; }   // the hunting spawns' positions go out 10x a second (clients extrapolate in between)
-  if (S.phase === 'hunt') { if (!K8.hidEnd) { K8.hid = false; K8.hidEnd = now + rnd(K8_FL_VIS_MIN, K8_FL_VIS_MAX); ch = true; } else if (now >= K8.hidEnd) { K8.hid = !K8.hid; K8.hidEnd = now + (K8.hid ? rnd(K8_FL_HID_MIN, K8_FL_HID_MAX) : rnd(K8_FL_VIS_MIN, K8_FL_VIS_MAX)); ch = true; } }   // GLITCH: survivors see him visible for a while, then hidden for a moment, over and over
+  if (false && S.phase === 'hunt') { if (!K8.hidEnd) { K8.hid = false; K8.hidEnd = now + rnd(K8_FL_VIS_MIN, K8_FL_VIS_MAX); ch = true; } else if (now >= K8.hidEnd) { K8.hid = !K8.hid; K8.hidEnd = now + (K8.hid ? rnd(K8_FL_HID_MIN, K8_FL_HID_MAX) : rnd(K8_FL_VIS_MIN, K8_FL_VIS_MAX)); ch = true; } }   // GLITCH: survivors see him visible for a while, then hidden for a moment, over and over
   else if (K8.hid || K8.hidEnd) { K8.hid = false; K8.hidEnd = 0; ch = true; }
   if (ch) woSend('k8');
 }
@@ -6512,7 +6576,7 @@ function k3GrantFx() {   // a command was granted: gold-red bloom, a rising chim
 }
 /* ---- command effects on the client ---- */
 const k3GunOn = () => { const J = S.wo.k3; return !!J && isK3(S.me) && J.gun > 0; };
-const hatOn = id => { if (k7Hid(id)) return true; const f = S.fx2[id], n = performance.now(); return !!f && f.hat > n && hatPhaseHidden(f.hatT0 || n, n); };   // Magician's Hat is on (killer can't see them, survivors see them see-through)
+const hatOn = id => { if (k7Hid(id)) return true; const f = S.fx2[id], n = performance.now(); return !!f && ((f.hat > n && hatPhaseHidden(f.hatT0 || n, n)) || f.bh > n); };   // Magician's Hat is on (killer can't see them, survivors see them see-through)
 const k1WailFx = id => { const f = S.fx2[id], t = performance.now(); return !!f && f.k1inv > t && !(f.k1stl > t); };   // the WAIL invisibility (her attack = the reveal), not the passive stillness one
 const k1InvisFx = id => { const f = S.fx2[id]; return !!f && f.k1inv > performance.now(); };   // Wail: she is invisible until her ATTACK reveals her
 const k3Invis = id => { const f = S.fx2[id]; return !!f && (f.k3inv > performance.now() || f.k1inv > performance.now()); };   // "fold the earth" / Wail: invisible to everyone but herself (she sees a faded ghost)   // "fold the earth": she is invisible for a moment after landing
@@ -6628,6 +6692,9 @@ function useItem(p, now) {
     if (!found) { ok = false; msgTo(p, 'No room to teleport'); }
     else { const ox = p.x, oy = p.y; p.x = found[0]; p.y = found[1]; resolve(p); evSend({ k: 'tp', id: p.id, x0: ox, y0: oy, x1: p.x, y1: p.y }); }
   }
+  else if (id === 'handsaw') {   // Handsaw: only works next to a free hook (anywhere else the tap does nothing). It starts the skill checks (see sbStep); the saw is only used up when the checks are passed (sbArm)
+    ok = false; if (!p.sbSC) { let near = false; MAP.hooks.forEach((h, i) => { if (HU[i] === -1 && SBH[i] && !SBH[i].arm && !SBH[i].on && Math.hypot(h[0] - p.x, h[1] - p.y) <= CFG.PK_SAB_R) near = true; }); if (near) p.sb = true; }
+  }
   if (ok) { if ((p.ch | 0) > 1) { p.ch--; sendItem(p, true); } else { p.item = null; p.ch = 0; sendItem(p); } }   // multi-charge items (Snake Oil x2, Blink x3) keep the item until the last charge
 }
 function detonate(f, now) {   // the flash itself is decided on each client: whoever has the flashbang on their screen (except the thrower) is blinded
@@ -6711,6 +6778,7 @@ function itemStep(now, dtMs) {
   if (dch) woSend('dc');
 }
 function botUseItem(p, now) {
+  if (p.item === 'handsaw') return;   // bots don't use the Handsaw (it needs a skill check)
   if (p.itemSeen !== p.item) { p.itemSeen = p.item; p.itemAt = now; }
   if (Math.random() > .3) return;
   const K = botKiller(); let use = false;
@@ -6780,6 +6848,7 @@ function clientMsg2(m) {
     case 'itr': S.itemRrAt = performance.now() + (+m.ms || 0); break;
     case 'it': S.itemRrAt = 0; S.item = ITEMS[m.i] ? ITEMS[m.i].id : null; S.itemC = m.c | 0; if (S.item && !m.q) toast('Got ' + ITEMS[m.i].name + ' - tap the item button'); break;
     case 'sx': applySx(m); break;
+    case 'stt': applyStt(m); break;
     case 'ev': onEv(m); break;
     case 'msg': toast(m.m); break;
     case 'reject': resetToMenu(m.msg); break;
@@ -6865,8 +6934,8 @@ function hookRemain(st, now) { return st.hookEnd - (st.rpOn && st.holdAt ? st.ho
 function applyHl(m) { const o = S.st[m.id]; if (!o) return; o.hp = +m.p || 0; o.hpAt = performance.now(); o.hpOn = !!m.on; o.hr = +m.r || 0; o.hc = +m.hc || 0; }   // heal progress (ms at rate 1) of an injured survivor; o.hr = healers' combined rate
 function applyRp(m) { const o = S.st[m.id]; if (!o) return; const nw = performance.now(); if (m.on && !o.rpOn) { o.holdAt = nw; o.autoEnd = 0; } else if (!m.on && o.rpOn && o.holdAt) { o.hookEnd += nw - o.holdAt; o.holdAt = 0; o.autoEnd = CFG.HOOK_AUTO_MS > 0 ? nw + CFG.HOOK_AUTO_MS : 0; } o.rp = +m.p || 0; o.rpAt = performance.now(); o.rpOn = !!m.on; o.rr = +m.r || 1; }
 function setCd(ms) { S.cdEnd = performance.now() + ms; S.cdTot = ms; }
-function clearRoundState() { try { gscClose(); } catch (e) {} S.pot = {}; POT.sig = ''; POT.at = 0; S.pick = {}; S.perk = perkEmpty(); S.ts = tsEmpty(); S.gs = gcEmpty(); S.ds = dcEmpty(); S.gping = {}; for (const k in GPOS) delete GPOS[k]; S.powAt = 0; S.monAt = 0; S.pannAt = 0; S.lsAt = 0; S.sightAt = 0; S.itemRrAt = 0; S.eg = { on: false, final: false, endAt: 0, solo: false, soloAt: 0 }; S.res = null; S.gateT0 = 0; EG = egEmpty(); genHumStopAll(); closeTask(''); S.st = {}; CAMP.c = CAMP.sp = 0; S.spec = -1; S.sacAt = 0; S.cdEnd = S.cdTot = 0; TRAIL.clear(); TERROR.clear(); FX.length = 0; BOND.length = 0; for (const k in AN) delete AN[k]; for (const k in LAUGH) delete LAUGH[k]; S.item = null; S.itemC = 0; S.wo = woEmpty(); S.smokeW = []; S.smSig = ''; S.fx2 = {}; S.blindEnd = 0; IFX.length = 0; ALERTS.length = 0; ctxRelease(); try { k1Reset(); } catch (e) {} try { K2C.fx = {}; k2ArrowsHide(); } catch (e) {} try { K3FX.length = 0; K3UI.open = false; k3UiClose(); } catch (e) {} try { k6Reset(); } catch (e) {} try { k5Reset(); } catch (e) {}
-  try { K0C.was = false; scClose(); K3MF = {}; } catch (e) { diagErr('cleanup', e); }   // killer overlays / aim state of the previous round
+function clearRoundState() { try { gscClose(); } catch (e) {} S.pot = {}; POT.sig = ''; POT.at = 0; S.pick = {}; S.perk = perkEmpty(); S.ts = tsEmpty(); S.gs = gcEmpty(); S.ds = dcEmpty(); S.gping = {}; for (const k in GPOS) delete GPOS[k]; S.powAt = 0; S.monAt = 0; S.pannAt = 0; S.lsAt = 0; S.sightAt = 0; S.itemRrAt = 0; S.eg = { on: false, final: false, endAt: 0, solo: false, soloAt: 0 }; S.res = null; S.gateT0 = 0; EG = egEmpty(); genHumStopAll(); closeTask(''); S.st = {}; CAMP.c = CAMP.sp = 0; S.spec = -1; S.sacAt = 0; S.cdEnd = S.cdTot = 0; TRAIL.clear(); TERROR.clear(); FX.length = 0; BOND.length = 0; for (const k in AN) delete AN[k]; for (const k in LAUGH) delete LAUGH[k]; S.item = null; S.itemC = 0; S.wo = woEmpty(); S.smokeW = []; S.smSig = ''; S.fx2 = {}; S.stt = {}; STT.sig = {}; STT.sent = {}; S.blindEnd = 0; IFX.length = 0; ALERTS.length = 0; ctxRelease(); try { k1Reset(); } catch (e) {} try { K2C.fx = {}; k2ArrowsHide(); } catch (e) {} try { K3FX.length = 0; K3UI.open = false; k3UiClose(); } catch (e) {} try { k6Reset(); } catch (e) {} try { k5Reset(); } catch (e) {}
+  try { K0C.was = false; scClose(); sawClose(); K3MF = {}; } catch (e) { diagErr('cleanup', e); }   // killer overlays / aim state of the previous round
   try { toastClear(); for (const id of ['hitBanner', 'noteBy', 'noteVic']) { const e = $(id); if (e) { e.style.transition = 'none'; e.style.opacity = '0'; } } } catch (e) {}   // stale notifications never reach the next round
 }
 function startReconnect() {
@@ -6944,7 +7013,8 @@ const ITEM_INFO = {
   teleport: 'Teleport a short distance forward.',
   nightmare: 'Give your enemies nightmares, deafening them and limiting their vision.',
   hat: 'Become invisible, repairing generators and unhooking teammates drains it faster',
-  smokebomb: 'Throw a smoke cloud that blocks sight for a while. Only with survivor perks on, from the Smoke Bomb perk.'
+  smokebomb: 'Throw a smoke cloud that blocks sight for a while. Only with survivor perks on, from the Smoke Bomb perk.',
+  handsaw: 'Use it next to a hook and move the saw back and forth to cut through the chain. When the killer tries to hang someone on it, they drop and the hook is disabled for 12 s. Only with survivor perks on, from the Handsaw perk.'
 };
 const INFO_GUIDE = [
   ['SURVIVORS', '#3fe8d2', [
@@ -6996,7 +7066,6 @@ const INFO_KILLERS = [   // [KILLERS index, [[kind, title, text, optional sprite
     ['Ability', 'Wound', 'If an injured survivor\'s bar is emptied they are not downed: they are wounded. They leave a constant blood trail (each drop lasts 3 s), move 20% slower and repair and heal 40% slower, until a locker (about 1 s) or a teammate heals them.'],
     ['Ability', 'Lockers', 'Lockers stand in pairs along the walls. Opening one reloads his rifle. Survivors can hide inside to heal; if he opens theirs, they are thrown out and slowed.']]],
   [8, [
-    ['Passive', 'Glitch', 'He sees survivors normally, but he blinks out of sight for about a second every few seconds. His terror radius never goes away.'],
     ['Ability', 'Flicker', 'He turns invisible, then reveals himself with a flicker that hurts nobody. A survivor who gets too close sees him as a transparent figure. Afterwards he is briefly slowed, then briefly sped up.'],
     ['Ability', 'Spawn', 'Whenever he hangs a survivor, a black copy of them forms at the hook and chases a random other survivor for 40 s at half speed. Its touch counts as a hit and shows that survivor to him for a moment.']]]
 ];
@@ -11304,8 +11373,16 @@ function drawBondPings(me, k, W, H, now) {   // Bonded: the same pin marker as t
   for (const b of BOND) { if (now >= b.end) continue; const q = bondTarget(V, b); if (q) pinAt(me, bx, q, b.all ? '#ff5a63' : bondCol(V, b, '#ff8fd8'), 48, now); }
   ctx.restore();
 }
+function drawReformPings(me, k, W, H, now, vRole) {   // Reforming: every BROKEN barricade is pinged to the survivor who holds the perk (same pin marker as the other pings, drawn through the darkness)
+  if (vRole !== 'survivor' || S.phase !== 'hunt' || !S.map || !S.map.doors || !hasPerk(S.me, 'reforming') || pickView().id !== S.me) return;
+  const st = myState(); if ((st !== 'healthy' && st !== 'injured') || reformLeft(now) > 0) return;   // only while Reforming is ready (not on cooldown)
+  const dr = S.map.doors, bx = pinBox(me, k, W, H); ctx.save();
+  for (let i = 0; i < dr.length; i++) if (S.ds.st[i] === 3) pinAt(me, bx, [dr[i][0] + dr[i][2] / 2, dr[i][1] + dr[i][3] / 2], '#e0a050', 40, now);
+  ctx.restore();
+}
 function drawKillerSight(me, k, W, H, now, vRole) {
   try { drawBondPings(me, k, W, H, now); } catch (e) {}
+  try { drawReformPings(me, k, W, H, now, vRole); } catch (e) {}
   try { drawTwinLink(now); } catch (e) {}
   drawK0Pings(me, k, W, H, now, vRole); drawK5Pings(me, k, W, H, now, vRole); drawK3Love(me, k, W, H, now, vRole);
   if (vRole !== 'killer' || !(S.eg.final || S.eg.solo) || S.phase !== 'hunt') return;   // monster form (full or LAST STAND)
@@ -11428,8 +11505,8 @@ function applySx(m) {   // status effect on a player {id, k: root|slide|adr|cras
   if (m.k === 'jrb') { if (m.id === S.me) scStart('rb'); return; }
   if (m.k === 'jrbk') { if (m.id === S.me) { noteShow('noteBy', 'REVERSE BEAR TRAP WENT OFF!', '#ff3b3b', 2600); sfxTone(220, 90, .35, .32, 'sawtooth'); sfxTone(1180, 1180, .1, .28, 'square', .1); } return; }
   if (m.k === 'jdis') { if (m.id === S.me) scStart('dis'); return; }
-  if (m.k === 'jsab') { if (m.id === S.me) scStart('sab'); return; }
-  if (m.k === 'jsabx') { if (m.id === S.me && SC && SC.sab) scClose(); return; }
+  if (m.k === 'jsab') { if (m.id === S.me) sawStart(); return; }
+  if (m.k === 'jsabx') { if (m.id === S.me) { if (SAW && !SAW.done) sawClose(); if (SC && SC.sab) scClose(); } return; }
   if (m.k === 'jdisx') { if (m.id === S.me && SC && SC.dis) scClose(); return; }
   if (m.k === 'jrbx') { if (m.id === S.me && SC && SC.bar) scClose(); return; }
   if (m.k === 'unblind') { if (m.id === S.me) { S.blindEnd = 0; S.blindTot = 0; } return; }
@@ -11542,6 +11619,8 @@ const ITEM_ART = [
   r => { r(5, 5, 7, 9, '#2a2d3a'); r(4, 6, 9, 7, '#2a2d3a'); r(6, 4, 5, 1, '#2a2d3a'); r(5, 6, 2, 3, '#5a6078'); r(6, 5, 2, 1, '#5a6078'); r(11, 9, 2, 4, '#14161c'); r(10, 12, 2, 2, '#14161c');
     r(8, 3, 2, 1, '#c9a227'); r(9, 2, 1, 1, '#c9a227'); r(10, 1, 2, 1, '#8a6a3a'); r(12, 0, 2, 2, '#ffd23a'); r(13, 0, 1, 1, '#ffffff'); r(11, 0, 1, 1, '#ff9a3a');
     r(1, 2, 4, 3, '#b8c0d0'); r(0, 3, 6, 2, '#b8c0d0'); r(2, 1, 2, 1, '#dfe6f7'); r(1, 2, 2, 1, '#dfe6f7'); r(3, 4, 3, 1, '#8f98b4'); r(1, 6, 2, 1, '#8f98b4'); r(8, 7, 2, 2, '#5a6078'); },   // smoke bomb: round black bomb, lit fuse, a puff of grey smoke
+  r => { r(1, 4, 10, 1, '#6a7288'); r(1, 5, 10, 4, '#c9d0e0'); r(1, 5, 10, 1, '#f1f4fb'); r(1, 8, 10, 1, '#8f98b4'); r(2, 9, 1, 1, '#8f98b4'); r(4, 9, 1, 1, '#8f98b4'); r(6, 9, 1, 1, '#8f98b4'); r(8, 9, 1, 1, '#8f98b4'); r(10, 9, 1, 1, '#8f98b4'); r(3, 9, 1, 1, '#5a6078'); r(5, 9, 1, 1, '#5a6078'); r(7, 9, 1, 1, '#5a6078'); r(9, 9, 1, 1, '#5a6078');
+    r(11, 3, 4, 8, '#8a4f1d'); r(11, 3, 4, 1, '#c98a45'); r(11, 3, 1, 8, '#c98a45'); r(14, 3, 1, 8, '#5e3310'); r(11, 10, 4, 1, '#5e3310'); r(12, 5, 2, 3, '#14161c'); r(3, 6, 1, 1, '#d8283a'); r(7, 7, 1, 1, '#d8283a'); },   // handsaw: steel blade with teeth, wooden handle, a little blood
 ];
 const BB_ART = r => {   // 16x16 berry: round purple body, light + dark shading, little bumps, stem and leaf
   const B = '#7b2fbe', D = '#4a1a7a', L = '#b57af0', H = '#efdcff';
@@ -11896,7 +11975,8 @@ function perkActiveNow(id, now) {   // the perk icon glows while the perk is doi
   if (id === 'altruism') return S.phase === 'hunt' && ctxHeld && ctxKind === ctxHeldKind && (ctxHeldKind === 'heal' || ctxHeldKind === 'rescue') && (st === 'healthy' || st === 'injured');   // while I heal or unhook
   if (id === 'unbreakablewill') { const f = S.fx2[S.me]; return !!f && f.ubglow > now; }   // while I am about to get up
   if (id === 'deliverance') return S.phase === 'hunt' && ctxHeld && ctxKind === ctxHeldKind && (ctxHeldKind === 'heal' || ctxHeldKind === 'repair') && (st === 'healthy' || st === 'injured');   // while my work fills the bar
-  if (id === 'sabotage') return S.phase === 'hunt' && (st === 'healthy' || st === 'injured') && sabCd(now) <= 0;   // glows while Sabotage is READY (off cooldown and I can act)
+  if (id === 'sabotage') { const mq = posOf(S.me); return S.phase === 'hunt' && S.item === 'handsaw' && (st === 'healthy' || st === 'injured') && !!mq && (S.map.hooks || []).some((h, i) => !hookUsed(i) && Math.hypot(h[0] - mq[0], h[1] - mq[1]) <= CFG.PK_SAB_R);   // glows while I hold the Handsaw next to a hook
+  }
   if (id === 'bonded') { const f = S.fx2[S.me]; return !!f && f.bondg > now; }   // 1 s before the reveal and during it
   if (id === 'banesberry') { const f = S.fx2[S.me]; return !!f && f.bbfx > now; }   // while a Banesberry effect is active
   if (id === 'reaction') { const f = S.fx2[S.me]; return !!f && f.react > now; }   // while the yellow streaks are showing
@@ -11976,7 +12056,6 @@ function ctxFor(mp, role, st) {   // which context action is available right now
     const bn = performance.now();   // BREAK (lowest priority): a solid barricade in reach that has stood long enough for survivors to break it
     for (let i = 0; i < dr.length; i++) if (S.ds.st[i] === 2 && S.ds.brkEnd[i] <= bn && Math.hypot(dr[i][0] + dr[i][2] / 2 - mp[0], dr[i][1] + dr[i][3] / 2 - mp[1]) <= CFG.DOOR_R) return 'breakdoor';
     if (hasPerk(S.me, 'reforming')) for (let i = 0; i < dr.length; i++) if (S.ds.st[i] === 3 && Math.hypot(dr[i][0] + dr[i][2] / 2 - mp[0], dr[i][1] + dr[i][3] / 2 - mp[1]) <= CFG.DOOR_R) return 'reform';   // REFORM (Reforming perk): a broken barricade in reach; the button greys out with the seconds left on my single cooldown
-    if (hasPerk(S.me, 'sabotage')) { const hs = S.map.hooks || []; for (let i = 0; i < hs.length; i++) if (!hookUsed(i) && Math.hypot(hs[i][0] - mp[0], hs[i][1] - mp[1]) <= CFG.PK_SAB_R) { ctxSbI = i; return 'sab'; } }   // SABOTAGE (perk): a hook in reach
     if (S.wo.k7 && k7NearC(mp, true) >= 0) return 'lkin';   // killer_7: HIDE in a free locker
     if (S.wo.k0) for (const r of S.wo.k0.rb) if (r.id !== S.me) { const q = posOf(r.id); if (q && Math.hypot(q[0] - mp[0], q[1] - mp[1]) <= K0_RB_REACH - 20) return 'rbt'; }   // remove a teammate's reverse bear trap (LOWEST priority: rescue, repair, block, task, break all come first)
     if (S.wo.k0) for (const t of S.wo.k0.tr) if (Math.hypot(t.x - mp[0], t.y - mp[1]) <= K0_DIS_R) return 'disarm';   // DISARM a killer_0 trap (lowest of all; a teammate's reverse trap comes first)
@@ -12007,6 +12086,7 @@ function updateControls(now) {
   if (itK !== UIC.item) { UIC.item = itK; UIC.k0t = null; UIC.k8t = null; const b = $('itm'); b.classList.toggle('hidden', itK === -1); b.classList.toggle('abil', abil && !J && !J1 && !J3 && !J6 && !J5 && !J2 && !J4 && !J7 && !J8);
     if (abil) { $('itmN').textContent = J8 ? 'Flicker' : J7 ? (J7.form ? 'Knife' : 'Rifle') : J ? 'Traps' : J1 ? (m1 ? 'Guard' : 'Terrify') : J3 ? (J3.n ? 'Wish x' + J3.n : 'No wish') : J6 ? (J6.form === 1 ? 'Chaos' : 'Transform') : J5 ? (J5.act ? 'Trail ON' : 'Trail') : J2 ? 'Recast' : J4 ? 'Lunge' : 'Ability'; if (J) $('itmI').src = k0Icon(J.held || 1); else if (J1) $('itmI').src = k1Icon(m1 ? 'guard' : 'wail'); else if (J3) $('itmI').src = k3Icon(); else if (J6) $('itmI').src = k6Icon(J6.form === 1 ? 'ch' : 'tf'); else if (J5) $('itmI').src = k5Icon(J5.act ? 'on' : 'off'); else if (J2) $('itmI').src = k2Icon(); else if (J4) $('itmI').src = k4Icon(0); else if (J7) $('itmI').src = k7Icon(J7.form ? 'knife' : 'rifle'); else if (J8) $('itmI').src = k8Icon(0); b.style.setProperty('--ic', J1 ? '#3affd0' : J6 ? '#e9e6dc' : J2 ? '#c2412e' : J4 ? K4_COL[0] : '#ff4f57'); }   // killer_4: the icon is Huggy's face
     else if (itI >= 0) { $('itmI').src = itemSprite(itI).toDataURL(); $('itmN').textContent = ITEMS[itI].name + ((S.itemC | 0) > 1 ? ' x' + S.itemC : ''); b.style.setProperty('--ic', ITEMS[itI].col); } }
+  { const ig = $('itmI'), mq = posOf(S.me), gray = !abil && S.item === 'handsaw' && !(hunt && mq && (S.map.hooks || []).some((h, i) => !hookUsed(i) && Math.hypot(h[0] - mq[0], h[1] - mq[1]) <= CFG.PK_SAB_R)); const f = gray ? 'grayscale(1) brightness(.75)' : ''; if (ig && ig.style.filter !== f) ig.style.filter = f; }   // Handsaw: the icon is black and white until I am next to a hook
   if (abil && J1) { const cdl = Math.max(0, (m1 ? J1.gd : J1.wail) - now), t1 = k1WailFx(S.me) ? 'Reveal' : (m1 ? 'Guard' : 'Terrify') + (cdl > 0 ? ' ' + Math.ceil(cdl / 1000) + 's' : ''); if (t1 !== UIC.k1t) { UIC.k1t = t1; $('itmN').textContent = t1; $('itm').style.opacity = cdl > 0 ? .55 : ''; } }   // killer_1: cooldown shown in the label
   else if (UIC.k1t) { UIC.k1t = ''; $('itm').style.opacity = ''; }
   if (abil && J2) { const nr = k2NearTv(now), inn = J2.tv >= 0, ext = inn && J2.ex, cdl = Math.max(0, J2.tcd - now), blk = !inn && nr >= 0 && sbRiftBlk(nr, now), tele = inn || (nr >= 0 && cdl <= 0 && !blk), cd2 = Math.max(0, J2.cd - now), sw = J2.pt >= 0 && J2.pe > now, t2 = ext ? 'Exiting...' : inn ? 'Exit Rift' : tele || blk ? 'Rift Walk' : sw ? 'Swapping...' : 'Swap' + (cd2 > 0 ? ' ' + Math.ceil(cd2 / 1000) + 's' : ''), dim = ext || blk || (!tele && (cd2 > 0 || sw)); if (t2 !== UIC.k2t || dim !== UIC.k2d) { UIC.k2t = t2; UIC.k2d = dim; $('itmN').textContent = t2; $('itmI').src = tele || blk ? k2TeleIcon() : k2Icon(); $('itm').style.opacity = dim ? .55 : ''; } }   // killer_2: Swap by default, Rift Walk next to a portal, Exit Rift inside one
@@ -12338,7 +12418,7 @@ function draw() {
   { const t = performance.now(); if (k3Laggy(t)) { if (t - K3LAG.last < K3LAG.gap) return; K3LAG.last = t; K3LAG.gap = 80 + Math.random() * 190; } }   // "fray the threads": choppy, uneven frame rate
   const now = performance.now(), dtF = Math.max(.001, Math.min((now - lastFrame) / 1000, .1)); lastFrame = now; fpsAvg += (1 / dtF - fpsAvg) * .05; qlStep(now);
   if (cv.width !== Math.round(cv.clientWidth * dpr) || cv.height !== Math.round(cv.clientHeight * dpr)) resize();   // self-heal after rotation / browser-bar changes
-  updateOverlay(now); stepShake(now);
+  updateOverlay(now); stepShake(now); try { sttRender(now); } catch (e) {}
   const V = pickView(), vId = V.id, role = V.role, vSt = V.st, ph = S.phase;   // the VIEWED player: me, or the spectated one when I'm dead
   updateControls(now); {const ub=$('udBanner'),qq=posOf(vId)||[0,0],us=(S.st[vId]||{}),u=inUD(qq[0],qq[1]);ub.classList.toggle('hidden',!u);if(u)ub.textContent='THE UPSIDE DOWN · Bulbs '+(((S.wo.ud||[]).find(e=>e[0]===vId)||[0,[]])[1].length)+'/'+CFG.UD_NEED+' · '+Math.ceil(Math.max(0,(us.udEnd||now)-now)/1000)+'s';if(now-(S._sentChipAt||0)>1000){S._sentChipAt=now;refreshStatus();}} updateAux(now, V); if(!inUD((interp(V.id)||[0,0])[0],(interp(V.id)||[0,0])[1]))stepMono(now,dtF,V); if(!inUD((interp(V.id)||[0,0])[0],(interp(V.id)||[0,0])[1])){stepNmAudio(now,V);stepAmbience(now,dtF,V);}
   const W = cv.width, H = cv.height; let k = Math.min(W, H) / CFG.VIEW;
@@ -13126,7 +13206,7 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   K(3, "Command: the drowned pond", "k3.frog_speed", "Frog speed", "Movement speed of a frog (x of a normal survivor)", "mult", 0.2, 1.5, 0.05, () => K3_FROG_SPEED, v => { K3_FROG_SPEED = v; });
   K(3, "Command: the drowned pond", "k3.frog_wind", "Cast time", "Time the ritual circle shows before the spell lands (seconds)", "ms", 100, 5000, 50, () => K3_FROG_WIND_MS, v => { K3_FROG_WIND_MS = v; });
   // ---- perk pool: one switch per perk (a switched-off perk is never offered, see perkPool) ----
-  const PERK_NAMES = [["telekinetic", "Telekinetic"], ["potential", "Potential"], ["lastlight", "Last Light"], ["groupproject", "Group Project"], ["altruism", "Altruism"], ["unbreakablewill", "Unbreakable Will"], ["deliverance", "Deliverance"], ["sabotage", "Sabotage"], ["banesberry", "Banesberry"], ["reforming", "Reforming"], ["longlasttwin", "Long Last Twin"], ["demonicdeal", "Demonic Deal"], ["magicianshat", "Magician's Hat"], ["blink", "Blink"], ["nightmarefuel", "Nightmare Fuel"], ["smokebombperk", "Smoke Bomb"]];
+  const PERK_NAMES = [["telekinetic", "Telekinetic"], ["potential", "Potential"], ["lastlight", "Last Light"], ["groupproject", "Group Project"], ["altruism", "Altruism"], ["unbreakablewill", "Unbreakable Will"], ["deliverance", "Deliverance"], ["sabotage", "Handsaw"], ["banesberry", "Banesberry"], ["reforming", "Reforming"], ["longlasttwin", "Long Last Twin"], ["demonicdeal", "Demonic Deal"], ["magicianshat", "Magician's Hat"], ["blink", "Blink"], ["nightmarefuel", "Nightmare Fuel"], ["smokebombperk", "Smoke Bomb"]];
   for (const [pid, pname] of PERK_NAMES) TUNE.add({ id: 'pk.' + pid + '.on', group: 'Perks', sub: pname, perk: pid, label: 'In the pool', desc: 'Can this perk be offered to survivors', kind: 'bool', def: true, get: () => !PERK_OFF[pid], set: v => { PERK_OFF[pid] = !v; } });
   // ---- passive perks: Telekinetic, Potential, Last Light, Reaction, Sabotage ----
   P("telekinetic", "Telekinetic", "pk.telekinetic.mult", "Reach multiplier", "Repair and unhook reach while standing still (x)", "mult", 1, 5, 0.05, () => CFG.PK_TK_MULT, v => { CFG.PK_TK_MULT = v; });
@@ -13144,14 +13224,10 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   P("lastlight", "Last Light", "pk.lastlight.blind", "Blind time", "How long the thrown Holy Light blinds the killer (seconds)", "ms", 200, 15000, 100, () => CFG.PK_LL_BLIND_MS, v => { CFG.PK_LL_BLIND_MS = v; });
   P("lastlight", "Last Light", "pk.lastlight.ab", "Ability lock", "How long the killer's ability is locked by it (seconds)", "ms", 0, 30000, 100, () => CFG.PK_LL_AB_MS, v => { CFG.PK_LL_AB_MS = v; });
   P("lastlight", "Last Light", "pk.lastlight.vis", "Extra sight", "The holder's sight radius (x1.15 = 15% further)", "mult", 1, 2.5, 0.05, () => CFG.PK_LL_VIS, v => { CFG.PK_LL_VIS = v; });
-  P("sabotage", "Sabotage", "pk.sabotage.cd", "Cooldown", "Wait after a successful sabotage before the next (seconds)", "ms", 3000, 300000, 1000, () => CFG.PK_SAB_CD_MS, v => { CFG.PK_SAB_CD_MS = v; });
-  P("sabotage", "Sabotage", "pk.sabotage.dis", "Hook disabled time", "How long a sabotaged hook stays disabled (seconds)", "ms", 3000, 300000, 1000, () => CFG.PK_SAB_DIS_MS, v => { CFG.PK_SAB_DIS_MS = v; });
-  P("sabotage", "Sabotage", "pk.sabotage.mark", "Failed-check mark", "How long the killer sees you after a failed check (seconds)", "ms", 0, 15000, 100, () => CFG.PK_SAB_MARK_MS, v => { CFG.PK_SAB_MARK_MS = v; });
-  P("sabotage", "Sabotage", "pk.sabotage.kmult", "Killer repair speed", "How much faster the killer repairs a disabled hook by hand (x)", "mult", 1, 10, 0.1, () => CFG.PK_SAB_KMULT, v => { CFG.PK_SAB_KMULT = v; });
-  P("sabotage", "Sabotage", "pk.sabotage.r", "Reach", "How close to a hook you must be to sabotage it (units)", "num", 30, 300, 2, () => CFG.PK_SAB_R, v => { CFG.PK_SAB_R = v; }, "u");
-  P("sabotage", "Sabotage", "pk.sabotage.checks", "Skill checks", "Skill checks you must pass to sabotage a hook", "int", 1, 8, 1, () => PK_SAB_CHECKS, v => { PK_SAB_CHECKS = v; });
-  P("sabotage", "Sabotage", "pk.sabotage.zone", "Check zone size", "Green zone of the sabotage checks, in radians (bigger = easier)", "num", 0.2, 3, 0.05, () => PK_SAB_ZONE, v => { PK_SAB_ZONE = v; }, "rad");
-  P("sabotage", "Sabotage", "pk.sabotage.speed", "Check needle speed", "Starting needle speed of the sabotage checks, radians per second", "num", 1, 6, 0.1, () => PK_SAB_SPEED, v => { PK_SAB_SPEED = v; }, "rad/s");
+  P("sabotage", "Handsaw", "pk.sabotage.dis", "Hook disabled time", "How long a cursed hook stays disabled (seconds)", "ms", 3000, 300000, 1000, () => CFG.PK_SAB_DIS_MS, v => { CFG.PK_SAB_DIS_MS = v; });
+  P("sabotage", "Handsaw", "pk.sabotage.kmult", "Killer repair speed", "How much faster the killer repairs a disabled hook by hand (x)", "mult", 1, 10, 0.1, () => CFG.PK_SAB_KMULT, v => { CFG.PK_SAB_KMULT = v; });
+  P("sabotage", "Handsaw", "pk.sabotage.r", "Reach", "How close to a hook you must be to use the Handsaw (units)", "num", 30, 300, 2, () => CFG.PK_SAB_R, v => { CFG.PK_SAB_R = v; }, "u");
+  P("sabotage", "Handsaw", "pk.sabotage.strokes", "Sawing strokes", "Full back-and-forth strokes needed to cut the chain", "int", 1, 40, 1, () => PK_SAW_STROKES, v => { PK_SAW_STROKES = v; });
   // ---- derived values and texts that quote numbers: recomputed after EVERY apply (host and clients) ----
   TUNE.onApply(() => {
     K1_CLONE_SPD = CFG.KILLER_SPEED * K1_CLONE_SPD_X; K1_GUARD_SPD = CFG.KILLER_SPEED * K1_GUARD_SPD_X;   // killer_1: clone speeds follow the (tunable) killer speed
@@ -13275,14 +13351,11 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   TUNE.add({ id: 'k8.sh_see', group: "Killer 8", killer: 8, sub: 'Spawn', label: 'Killer sees spawn', desc: 'How long Alternate sees a new spawn through the dark', kind: 'ms', min: 0, max: 20000, step: 250, unit: '', get: () => K8_SH_SEE_MS, set: x => { K8_SH_SEE_MS = x; } });
   TUNE.add({ id: 'k8.rev_ms', group: "Killer 8", killer: 8, sub: 'Spawn', label: 'Catch reveal time', desc: 'How long the catch of a spawn shows the target to Alternate (also in the dark)', kind: 'ms', min: 500, max: 20000, step: 250, unit: '', get: () => K8_REV_MS, set: x => { K8_REV_MS = x; } });
   TUNE.add({ id: 'k8.sh_always', group: "Killer 8", killer: 8, sub: 'Spawn', label: 'Killer always sees spawns', desc: 'On: Alternate always sees the spawns, even in the dark. Off (default): only briefly after one forms, then where his normal vision reaches', kind: 'bool', def: false, get: () => K8_SH_ALWAYS, set: x => { K8_SH_ALWAYS = x; } });
-  TUNE.add({ id: 'k8.fl_vis_min', group: "Killer 8", killer: 8, sub: 'Glitch', label: 'Visible time (min)', desc: 'Shortest time he stays visible to survivors between flickers', kind: 'ms', min: 250, max: 20000, step: 250, unit: '', get: () => K8_FL_VIS_MIN, set: v => { K8_FL_VIS_MIN = v; } });
-  TUNE.add({ id: 'k8.fl_vis_max', group: "Killer 8", killer: 8, sub: 'Glitch', label: 'Visible time (max)', desc: 'Longest time he stays visible to survivors between flickers', kind: 'ms', min: 250, max: 20000, step: 250, unit: '', get: () => K8_FL_VIS_MAX, set: v => { K8_FL_VIS_MAX = v; } });
-  TUNE.add({ id: 'k8.fl_hid_min', group: "Killer 8", killer: 8, sub: 'Glitch', label: 'Hidden time (min)', desc: 'Shortest time he is hidden from survivors (his terror radius stays)', kind: 'ms', min: 100, max: 10000, step: 100, unit: '', get: () => K8_FL_HID_MIN, set: v => { K8_FL_HID_MIN = v; } });
-  TUNE.add({ id: 'k8.fl_hid_max', group: "Killer 8", killer: 8, sub: 'Glitch', label: 'Hidden time (max)', desc: 'Longest time he is hidden from survivors (his terror radius stays)', kind: 'ms', min: 100, max: 10000, step: 100, unit: '', get: () => K8_FL_HID_MAX, set: v => { K8_FL_HID_MAX = v; } });
   TUNE.add({ id: 'k5.ring_r.1', group: "Killer 5", killer: 5, sub: "Thorn circles", label: 'Hook circle radius', desc: 'Radius of the thorn circle around a hooked survivor', kind: "num", min: 60, max: 500, step: 5, unit: "units", get: () => K5_RING_R[1], set: v => { K5_RING_R[1] = v; } });
   TUNE.add({ id: 'k5.ring_r.2', group: "Killer 5", killer: 5, sub: "Thorn circles", label: 'Generator circle radius', desc: 'Radius of the thorn circle around a kicked generator', kind: "num", min: 60, max: 500, step: 5, unit: "units", get: () => K5_RING_R[2], set: v => { K5_RING_R[2] = v; } });
 
   // ---- perks: Reforming, Long Last Twin, Bonded, Demonic Deal (CFG keys) and Banesberry (BB object) ----
+  TUNE.addCfg("Perks", 'Reforming', 'PK_REFORM_INV_MS', 'Invisible after a barricade', { id: 'pk.reforming.inv', perk: 'reforming', desc: 'How long you are invisible after placing a barricade (seconds)', kind: 'ms', min: 0, max: 15000, step: 250, unit: '' });
   TUNE.addCfg("Perks", 'Reforming', 'PK_REFORM_CD_MS', 'Reforming cooldown', { id: 'pk.reforming.cd', perk: 'reforming', desc: 'Wait after each use before it can be used again', kind: 'ms', min: 5000, max: 120000, step: 1000, unit: '' });
   TUNE.addCfg("Perks", 'Long Last Twin', 'PK_TWIN_HEAL', 'Twin heal speed', { id: 'pk.longlasttwin.heal', perk: 'longlasttwin', desc: 'Healing speed multiplier when the twins heal each other', kind: 'mult', min: 1, max: 3, step: 0.05, unit: '' });
   TUNE.addCfg("Perks", 'Long Last Twin', 'PK_TWIN_REP', 'Twin repair speed', { id: 'pk.longlasttwin.rep', perk: 'longlasttwin', desc: 'Repair speed multiplier while the twins are close', kind: 'mult', min: 1, max: 3, step: 0.05, unit: '' });
@@ -13344,4 +13417,156 @@ function tuneUses(n) { n = (n | 0) || 1; return n + (n === 1 ? ' use' : ' uses')
   TUNE.skip(['K5_RING_R[0]'], 'unused slot of the circle radius table (index 0); indices 1 (hook) and 2 (generator) are registered');
 }
 /* ==== TUNE PHASE 4: END ==== */
+
+/* ================= STATUS EFFECT HUD =================
+   HOST: sttStep() runs ~5x/s, works out every timed effect on each player (speed mods, repair / heal factors, thorns, fear, wound, traps, nightmare ...) and broadcasts a compact
+         {t:'stt', id, e:[[code, msLeft, value, sourceNames], ...]} only when the set changes (plus a 1 s refresh so timers stay right).
+   CLIENT: applyStt() stores it in S.stt[id]; sttRender() (called every frame) draws neon icons top-right for the VIEWED player (me, or who I am spectating).
+   A few effects the client already knows from S.fx2 (stun, invisible, ability lock, lag, blind, Upside Down) are added in sttList(). ========================================= */
+const STT = { at: 0, sig: {}, sent: {}, el: null, chips: {}, n: 0 };
+const STT_MOD = { burst: 'Injury burst', unhookBoost: 'Unhooked', gp: 'Group Project', adr: 'Snake Oil', bbspd: 'Banesberry', k0slow: 'Bear trap', root: 'Rooted', k5thorn: 'Thorns', k7kick: 'Locker kick', k8r: 'Flicker recovery', k8b: 'Flicker burst', k4chg: 'Lunge charge', k3spd: 'Blink boost', react: 'Reaction' };
+const STT_PAL = {w: '#e8dfcc', g: '#a89c86', r: '#d0402f', R: '#a02828', y: '#e8c862', Y: '#a8832e', c: '#a7dcf0', C: '#5f93ad', k: '#a9b3d6', K: '#5d6788', D: '#15100f', o: '#e8923c', O: '#9a5622', W: '#ffffff'};   // palette of the 16x16 pixel icons below
+const STT_PX = {   // 16x16 pixel icons ('.' = empty); outlined() adds the dark border like every other sprite
+  healUp: ['................', '.......y........', '......yyy.......', '.....yyyyy......', '......yyy.......', '......yyy.......', '................', '................', '.......wwg......', '.......wwg......', '.....wwwwwwg....', '.....wwwwwwg....', '.....gggwggg....', '.......wwg......', '.......wwg......', '................'],
+  healDn: ['................', '.......wwg......', '.......wwg......', '.....wwwwwwg....', '.....wwwwwwg....', '.....gggwggg....', '.......wwg......', '.......wwg......', '................', '................', '......rrr.......', '......rrr.......', '.....rrrrr......', '......rrr.......', '.......r........', '................'],
+  repUp: ['................', '.......y........', '......yyy.......', '.....yyyyy......', '......yyy.......', '......yyy.......', '................', '.......ww..wg...', '.......ww..wg...', '......wwwwwwg...', '......wwwwwgg...', '.....ggggg......', '....ggggg.......', '...ggggg........', '...gggg.........', '................'],
+  repDn: ['................', '.......ww..wg...', '.......ww..wg...', '......wwwwwwg...', '......wwwwwgg...', '.....ggggg......', '....ggggg.......', '...ggggg........', '...gggg.........', '................', '......rrr.......', '......rrr.......', '.....rrrrr......', '......rrr.......', '.......r........', '................'],
+  spDn: ['................', '.RR..........RR.', '..RR........RR..', '...RR......RR...', '....RR....RR....', '.....RR..RR.....', '......RRRR......', '................', '.rr..........rr.', '..rr........rr..', '...rr......rr...', '....rr....rr....', '.....rr..rr.....', '......rrrr......', '................', '................'],
+  spUp: ['................', '......yyyy......', '.....yy..yy.....', '....yy....yy....', '...yy......yy...', '..yy........yy..', '.yy..........yy.', '................', '......YYYY......', '.....YY..YY.....', '....YY....YY....', '...YY......YY...', '..YY........YY..', '.YY..........YY.', '................', '................'],
+  root: ['................', '................', '....rrrrrrrr....', '...rrrrrrrrrr...', '..rrrrrrrrrrrR..', '..rrrrrrrrrrrR..', '..rrrrrrrrrrrR..', '..rrwwwwwwwwrR..', '..rrwwwwwwwwrR..', '..rrrrrrrrrrrR..', '..rrrrrrrrrrrR..', '..rrrrrrrrrrrR..', '...RRRRRRRRRR...', '....RRRRRRRR....', '................', '................'],
+  stun: ['................', '.......yy.......', '......yyyy......', '......yyyy......', '.yyyyyyyyyyyyyy.', '..yyyyyyyyyyyy..', '...yyyyyyyyyy...', '....yyyyyyyy....', '....yyyyyyyy....', '...yyyy..yyyy...', '...yyy....yyy...', '..yyY......Yyy..', '..yY........Yy..', '................', '................', '................'],
+  stall: ['................', '................', '..oo........oo..', '...oo......oo...', '....oo....oo....', '.....oo..oo.....', '......oooo......', '.......oo.......', '......oooo......', '.....oo..oo.....', '....oo....oo....', '...oo......oo...', '..oo........oo..', '................', '................', '................'],
+  lock: ['................', '................', '.....kkkkkk.....', '....kk....kk....', '....kk....kk....', '....kk....kk....', '...kkkkkkkkkk...', '...kkkkkkkkkK...', '...kkkkDDkkkK...', '...kkkkDDkkkK...', '...kkkkDDkkkK...', '...kkkkkkkkkK...', '...KKKKKKKKKK...', '................', '................', '................'],
+  lag: ['................', '................', '...oooooooooo...', '....oyyyyyyo....', '....oyyyyyyo....', '.....oyyyyo.....', '......oyyo......', '.......oo.......', '.......oo.......', '......o..o......', '.....o.yy.o.....', '....o.yyyy.o....', '....oyyyyyyo....', '...oooooooooo...', '................', '................'],
+  vis: ['................', '.r..............', '..r.............', '...r............', '....rDwwwwww....', '..wwDr.....www..', '.ww..DrDggg..ww.', '.ww..gDrDgg..ww.', '.ww..ggDrDg..ww.', '.ww..gggDrD..ww.', '..www.....rDww..', '....wwwwwwDr....', '............r...', '.............r..', '..............r.', '................'],
+  blind: ['................', '.......ww.......', '.......ww.......', '..w....ww....w..', '...w..wwww..w...', '....wwwwwwww....', '.....wwwwww.....', '.wwwwwwwwwwwwww.', '.wwwwwwwwwwwwww.', '.....wwwwww.....', '....wwwwwwww....', '...w..wwww..w...', '..w....ww....w..', '.......ww.......', '.......ww.......', '................'],
+  rbt: ['................', '......RRRR......', '.......RR.......', '....rrrrrrrr....', '..rrr......rrr..', '..r..........r..', '..r.....w....r..', '..r.....w....r..', '..r.....wwww.r..', '..r..........r..', '..r..........r..', '..rrr......rrr..', '....rrrrrrrr....', '................', '................', '................'],
+  ud: ['................', '................', '.rrrrrrrrrrrrrR.', '.rrrrrrrrrrrrrR.', '..rrrrrrrrrrrR..', '..rrrrrwwrrrrR..', '...rrrrwwrrrR...', '...rrrrrrrrrR...', '....rrrrrrrR....', '....rrrrrrrR....', '.....rrrrrR.....', '.....rrrrrR.....', '......rrrR......', '......rrrR......', '.......rR.......', '................'],
+  inv: ['................', '................', '......cccc......', '....cccccccc....', '...cccccccccC...', '...ccDDccDDcC...', '...ccDDccDDcC...', '...cccccccccC...', '...cccccccccC...', '...cccccccccC...', '...cccccccccC...', '...cccccccccC...', '...cc.cccc.cC...', '...c...cc...c...', '................', '................'],
+};
+const STT_URL = {}; function sttUrl(c) { return STT_URL[c] || (STT_URL[c] = outlined(pxc(16, 16, r => { const g = STT_PX[c]; for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const k = g[y][x]; if (k !== '.') r(x, y, 1, 1, STT_PAL[k]); } })).toDataURL()); }
+// code: [accent colour (red = debuff, gold = buff), unused, short label (when it shows no number), tooltip name, 1 = label is a +/-% number, 2 = label is the time left]
+// ONLY base effects get a chip (combined effects such as thorns, condemn, fear, wounds, Game Guard hp, frog show through the base chips they cause)
+const STT_DEF = {
+  root: ['#c9382e', '', 'STOP', 'Stopped / rooted', 2],
+  stun: ['#c9382e', '', 'STUN', 'Stunned', 2],
+  rbt: ['#c9382e', '', 'TRAP', 'Reverse bear trap ticking', 2],
+  vis: ['#c9382e', '', 'VISION', 'Reduced vision', 2],
+  blind: ['#c9382e', '', 'FLASH', 'Blinded', 2],
+  lag: ['#c9382e', '', 'LAG', 'Input lag', 2],
+  lock: ['#c9382e', '', 'LOCKED', 'Ability locked', 2],
+  stall: ['#c9382e', '', 'STALL', 'Cannot work', 2],
+  ud: ['#c9382e', '', 'UPSIDE', 'In the Upside Down', 0],
+  inv: ['#e3c26b', '', 'HIDDEN', 'Invisible', 2],
+  spDn: ['#c9382e', '', '', 'Slowed', 1],
+  repDn: ['#c9382e', '', '', 'Repair / unhook slower', 1],
+  healDn: ['#c9382e', '', '', 'Healing slower', 1],
+  spUp: ['#e3c26b', '', '', 'Speed boost', 1],
+  repUp: ['#e3c26b', '', '', 'Repair / unhook faster', 1],
+  healUp: ['#e3c26b', '', '', 'Healing faster', 1]
+};
+const STT_ORDER = ['root', 'stun', 'rbt', 'vis', 'blind', 'lag', 'lock', 'stall', 'ud', 'inv', 'spDn', 'repDn', 'healDn', 'spUp', 'repUp', 'healUp'];
+
+function sttCalc(p, now) {   // host: every effect on player p right now -> [[code, msLeft(0 = while it lasts), value, sources], ...]
+  const out = [], push = (c, ms, v, s) => out.push([c, ms > 0 ? Math.round(ms) : 0, Math.round((v || 0) * 100) / 100, s || '']);
+  const surv = p.role === 'survivor';
+  let up = 1, dn = 1, upMs = 0, dnMs = 0, stopMs = 0, stopS = ''; const upS = [], dnS = [];
+  const add = (v, ms, nm) => { if (v > 1.001) { up *= v; upMs = Math.max(upMs, ms); upS.push(nm); } else if (v < .999) { dn *= v; dnMs = Math.max(dnMs, ms); dnS.push(nm); } };
+  for (const m of p.mods || []) {
+    if (m.until <= now) continue; const nm = STT_MOD[m.id]; if (!nm) continue;   // (attack slow, chase and Blood Lust are base changes: not shown)
+    const v = m.ramp ? m.from + ((m.to === undefined ? 1 : m.to) - m.from) * Math.max(0, Math.min(1, (now - m.t0) / m.ms)) : m.mult;
+    if (v < .12) { stopMs = Math.max(stopMs, m.until - now); stopS = nm; continue; }
+    add(v, m.until - now, nm);
+  }
+  if (surv) {
+    if (k3FrogOn(p, now)) { add(K3_FROG_SPEED, p.frogEnd - now, 'Frog'); push('stall', p.frogEnd - now, 0, 'Frog (Nikki wish)'); }
+    if (ddActive(p)) add(CFG.PK_DD_SPEED, 0, 'Demonic Deal');
+    const d = k7Debuff(p); if (d < .999) add(d, 0, 'Game Guard health bar');
+  }
+  if (stopMs > 0) push('root', stopMs, 0, stopS);
+  if (up > 1.001) push('spUp', upMs, up, upS.join(', '));
+  if (dn < .999) push('spDn', dnMs, dn, dnS.join(', '));
+  if (!surv) { if (NE.k > now && p.role === 'killer') push('vis', NE.k - now, 0, 'Nightmare Fuel'); return out; }
+  // ---- repair / unhook / heal ----
+  let ru = 1, hu = 1, ruMs = 0; const ruS = [];
+  if (p.snakeEnd > now) { ru *= CFG.SNAKE_REPAIR_MULT; ruS.push('Snake Oil'); ruMs = Math.max(ruMs, p.snakeEnd - now); }
+  if (p.bbRep > now) { ru *= BB.SWAP_REP; ruS.push('Banesberry'); ruMs = Math.max(ruMs, p.bbRep - now); }
+  if (ddActive(p)) { ru *= CFG.PK_DD_REPAIR; ruS.push('Demonic Deal'); }
+  if (twinNearH(p)) { ru *= CFG.PK_TWIN_REP; hu *= CFG.PK_TWIN_HEAL; ruS.push('Long Last Twin'); }
+  if (ru > 1.001) push('repUp', ruMs, ru, ruS.join(', '));
+  if (hu > 1.001) push('healUp', 0, hu, 'Long Last Twin');
+  const f1 = k1Slow(p, now), f5 = k5Slow(p), f7 = k7Act(p); let hd = f1 * f5 * f7, rd = hd; const dS = [];
+  if (f1 < .999) dS.push('Fear'); if (f5 < .999) dS.push('Thorns'); if (f7 < .999) dS.push('Game Guard');
+  const sc = K0.ping && K0.ping[p.id]; if (sc && sc.sc && now - sc.s < K0_SCAN_SLOW_MS) { rd *= K0_SCAN_SLOW; dS.push('IR Scanner'); }
+  if (rd < .999 || hd < .999) { if (rd < .999) push('repDn', 0, rd, dS.join(', ')); if (hd < .999) push('healDn', 0, hd, dS.join(', ')); }
+  // ---- other statuses ----
+  if (p.gscStall > now && !out.some(x => x[0] === 'stall')) push('stall', p.gscStall - now, 0, 'Skill check');
+  const rb = K0.rb && K0.rb[p.id]; if (rb) push('rbt', rb.pz ? rb.pz : rb.end - now, 0, 'Jigsaw');
+  if (K3.love && K3.love.id === p.id) push('vis', K3.love.end - now, 0, 'Nikki wish');
+  if (NE.s[p.id] > now) push('vis', NE.s[p.id] - now, 0, p.bbVisEnd && NE.s[p.id] <= p.bbVisEnd + 50 ? 'Banesberry' : 'Nightmare Fuel');
+  if (K1.on && k1Player()) { const f = K1.f[p.id] || 0, brk = (K1.brk[p.id] || 0) > now, lv = brk ? 3 : f >= K1_TIERS[2] ? 2 : f >= K1_TIERS[1] ? 1 : 0; if (lv > 0) push('vis', brk ? K1.brk[p.id] - now : 0, 0, brk ? 'Banshee breakdown' : 'Banshee fear'); }   // fear's smaller sight radius shows as the plain vision icon
+  const vs = out.filter(x => x[0] === 'vis'); if (vs.length > 1) { const keep = vs.reduce((a, b) => (a[1] === 0 || (b[1] !== 0 && a[1] >= b[1])) ? a : b); keep[3] = vs.map(x => x[3]).filter((s, i, a) => s && a.indexOf(s) === i).join(', '); for (let i = out.length - 1; i >= 0; i--) if (out[i][0] === 'vis' && out[i] !== keep) out.splice(i, 1); }   // one vision chip, whatever mix causes it
+  return out;
+}
+function sttStep(now) {   // host, from hostTick
+  if (S.role !== 'host' || !S.started || now < STT.at) return; STT.at = now + 200;
+  const live = S.phase === 'hunt' || S.phase === 'headstart';
+  for (const p of HP.values()) {
+    if (!p.on || !p.role) continue;
+    let e = []; if (live && p.st !== 'dead') { try { e = sttCalc(p, now); } catch (err) { e = []; } }
+    const sig = e.map(x => x[0] + ':' + x[2]).join('|'), was = STT.sig[p.id];
+    if (sig === '' && !was) continue;   // nothing before, nothing now
+    if (sig === was && now < (STT.sent[p.id] || 0) + 900) continue;
+    STT.sig[p.id] = sig; STT.sent[p.id] = now;
+    const m = { t: 'stt', id: p.id, e }; T.broadcast(m); try { applyStt(m); } catch (err) {}
+  }
+}
+function applyStt(m) {   // everyone
+  const all = S.stt || (S.stt = {}), now = performance.now(), id = +m.id, prev = all[id] || {}, nx = {};
+  for (const e of Array.isArray(m.e) ? m.e : []) {
+    const c = String(e[0]); if (!STT_DEF[c]) continue; const ms = +e[1] || 0, old = prev[c];
+    nx[c] = { until: now + (ms > 0 ? ms : 1800), ms, v: +e[2] || 0, src: String(e[3] || '').slice(0, 60), tot: ms > 0 ? Math.max(ms, old && old.ms > 0 ? old.tot : 0) : 0 };
+  }
+  all[id] = nx;
+}
+function sttList(id, now) {   // client: [{c, left, tot, v, src}] for the viewed player
+  const list = [], seen = {}, add = (c, left, tot, v, src) => { if (seen[c]) return; seen[c] = 1; list.push({ c, left, tot: tot || 0, v: v || 0, src: src || '' }); };
+  const mine = (S.stt || {})[id] || {};
+  for (const c in mine) { const e = mine[c]; if (e.until <= now) continue; add(c, e.ms > 0 ? Math.max(0, e.until - now) : 0, e.tot, e.v, e.src); }
+  const f = S.fx2[id];
+  if (f) {
+    if (f.stun > now) add('stun', f.stun - now, 0, 0, 'Scream');
+    if (f.hat > now) add('inv', f.hat - now, CFG.HAT_MS, 0, 'Magician\u2019s Hat');
+    if (f.bh > now) add('inv', f.bh - now, CFG.PK_REFORM_INV_MS, 0, 'Reforming');
+    if (f.k1inv > now || f.k3inv > now) add('inv', 0, 0, 0, 'Ability');
+    if (f.ablock > now) add('lock', f.ablock - now, 0, 0, 'Holy Light / Phantom');
+    if (f.k3lag > now && id === S.me) add('lag', f.k3lag - now, 0, 0, 'Nikki wish');
+  }
+  if (id === S.me && S.blindEnd > now) add('blind', S.blindEnd - now, S.blindTot, 0, 'Holy Light');
+  if (((S.st || {})[id] || {}).s === 'sent') add('ud', 0, 0, 0, 'Demogorgon');
+  return list;
+}
+function sttRender(now) {   // client, every frame
+  const box = STT.el || (STT.el = $('stt')); if (!box) return;
+  if (!inGame || !S.map || (S.phase !== 'hunt' && S.phase !== 'headstart')) { if (STT.n) { box.innerHTML = ''; STT.chips = {}; STT.n = 0; } return; }
+  const V = pickView(), list = sttList(V.id, now); list.sort((a, b) => STT_ORDER.indexOf(a.c) - STT_ORDER.indexOf(b.c));
+  const keep = {}; let shown = 0;
+  for (const it of list) {
+    if (shown >= 8) break; shown++; const d = STT_DEF[it.c]; let ch = STT.chips[it.c];
+    if (!ch) {
+      const el = document.createElement('div'); el.className = 'stc'; el.style.setProperty('--c', d[0]); el.innerHTML = '<img alt="" src="' + sttUrl(it.c) + '"><b></b><i></i>';
+      ch = STT.chips[it.c] = { el, lab: el.querySelector('b'), bar: el.querySelector('i'), txt: '', low: false, tip: '' }; box.appendChild(el);
+    }
+    keep[it.c] = 1;
+    // label = the effect's % : speed / repair / heal effects show their +/- strength, every other effect shows how much of its duration is left (100% while it has no timer)
+    if (it.left > 0) ch.max = Math.max(ch.max || 0, it.left, it.tot || 0); else ch.max = 0;
+    let txt = d[4] === 1 ? (it.v > 0 ? (it.v >= 1 ? '+' : '-') + Math.abs(Math.round((it.v - 1) * 100)) + '%' : '') : it.left > 0 && ch.max > 0 ? Math.max(1, Math.min(100, Math.round(it.left / ch.max * 100))) + '%' : '100%';
+    if (txt !== ch.txt) { ch.txt = txt; ch.lab.textContent = txt; }
+    const tip = d[3] + (it.src ? ' (' + it.src + ')' : ''); if (tip !== ch.tip) { ch.tip = tip; ch.el.title = tip; }
+    const low = it.left > 0 && it.left < 1600; if (low !== ch.low) { ch.low = low; ch.el.classList.toggle('low', low); }
+    const fr = it.tot > 0 && it.left > 0 ? Math.max(0, Math.min(1, it.left / it.tot)) : 0; ch.bar.style.display = it.tot > 0 && it.left > 0 ? '' : 'none'; if (fr) ch.bar.style.transform = 'scaleX(' + fr.toFixed(3) + ')';
+  }
+  for (const c in STT.chips) if (!keep[c]) { STT.chips[c].el.remove(); delete STT.chips[c]; }
+  STT.n = shown;
+}
 </script></body></html>
