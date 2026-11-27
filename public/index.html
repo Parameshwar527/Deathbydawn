@@ -1960,7 +1960,7 @@ const BOT_DOWN_FLEE_D = 520;   // a downed bot starts crawling away when the kil
 function botSurvivorThink(p, B, now) {
   const K = botThreatFor(p), st = p.st, wasFixed = B.fixed, hunt = S.phase === 'hunt';
   B.fixed = false; B.tgt = null; B.direct = false; B.still = false; B.goal = null; B.arrive = 24; p.hold = false; p.rep = false; p.heal = false;
-  if(st==='sent'){udBotThink(p);B.taskId=-1;B.still=false;B.goal=null;return;} if (st === 'hooked' || st === 'carried' || st === 'dead') { B.still = true; B.taskId = -1; return; }
+  if(st==='sent'){udBotThink(p);B.taskId=-1;B.still=false;B.goal=null;return;} if (st === 'hooked' || st === 'carried' || st === 'dead' || st === 'hypno') { B.still = true; B.taskId = -1; return; }
   const d = K ? Math.hypot(K.x - p.x, K.y - p.y) : Infinity;
   const L = BL(), k2f = botK2Free(p, K), kvis = hunt && K && !k2f && botSeesKiller(p, K, d, now) && (d < 110 || (d < L.sight && losClear(p.x, p.y, K.x, K.y) && botFogClear(p.x,p.y,K.x,K.y,now)));
   if (kvis) { if (now - (B.lastThreat || -1e9) > 2500) B.alertAt = now; B.lastThreat = now; B.kx = K.x; B.ky = K.y; }
@@ -2048,6 +2048,7 @@ function botDoorInSwing(k) {   // a breakable barricade inside the swing (same g
 }
 function botThreatFor(p) {   // the killer a survivor bot is afraid of: the real one, or a killer_3 summoned killer if one is closer
   let K = botKiller(); if (K3.min && K3.min.length) for (const m of K3.min) if (!K || Math.hypot(m.x - p.x, m.y - p.y) < Math.hypot(K.x - p.x, K.y - p.y)) K = m;
+  if (K10.hyp && K10.hyp.length) for (const m of K10.hyp) if (m.hv !== p.id && (!K || Math.hypot(m.x - p.x, m.y - p.y) < Math.hypot(K.x - p.x, K.y - p.y))) K = m;   // killer_10: survivor bots also run from the hypnotised
   if (K && K === botKiller() && isK1(K.id) && K1.clones.length) for (const c of K1.clones) if (Math.hypot(c.x - p.x, c.y - p.y) < Math.hypot(K.x - p.x, K.y - p.y) && Math.hypot(c.x - p.x, c.y - p.y) < 300) K = c;   // Banshee's clones look like her: bots run from them too
   return K;
 }
@@ -2333,6 +2334,18 @@ function botK8(p, B, now, L, tgt, down) {   // false = the normal chase / patrol
   return false;
 }
 
+/* killer_10 (Maleficent) bot: HYPNOSIS next to a downed survivor (while another survivor is still up to be hunted), DARKFIRE at a survivor it is chasing (it fires along its facing and does not steer). Everything goes through hostAct like a human's button. */
+function botK10(p, B, now, L, tgt, down) {   // false = the normal chase / patrol keeps deciding the movement
+  if (!K10.on || p !== k10Player() || p.carry != null) return false;
+  if (K10.hc) { B.still = true; return true; }   // mid-cast: she stands still
+  const A = BA();
+  if (now >= K10.hyAt && !p.wind && abRate(B, 'k10h', 600) && abSurvs().length >= 1 && k10HypNear(p) && (A.wise >= 1 || Math.random() < .5)) { hostAct(p, 'k10ab', true); abLog('k10.hypnosis'); B.still = true; return true; }
+  if (tgt && !K10.st && now >= K10.cd && !p.wind && abRate(B, 'k10d', 700) && Math.random() < A.use) {
+    const d = abDist(tgt, p), a = Math.atan2(tgt.y - p.y, tgt.x - p.x);
+    if (d >= 130 && d <= 750 && Math.abs(angDiff(S.face, a)) < (A.wise === 0 ? .3 : .15)) { hostAct(p, 'k10ab', true); abLog('k10.darkfire'); }
+  }
+  return false;
+}
 /* ---------- the dispatcher the killer think calls ---------- */
 function botKAb(p, B, now, L, tgt, down) {   // true = it decided the movement / action for this think
   if (p.st === 'dead') return false; const ki = kAbIdx(p.id);
@@ -2345,6 +2358,7 @@ function botKAb(p, B, now, L, tgt, down) {   // true = it decided the movement /
   else if (ki === 6) { if (botK6(p, B, now, L, tgt, down)) return true; }
   else if (ki === 7) { if (botK7(p, B, now, L, tgt, down)) return true; }
   else if (ki === 8) { if (botK8(p, B, now, L, tgt, down)) return true; }
+  else if (ki === 10) { if (botK10(p, B, now, L, tgt, down)) return true; }
   return false;
 }
 function botKRoam(p, B, now) {   // nobody in sight: ability errands (willows, scents, guards) instead of the plain patrol
@@ -2640,9 +2654,10 @@ function speedOf(p, now) {   // world units / second for this player's role + st
   if (p.role === 'killer' && isK0(p.id) && K0.held === 1) return 0;   // killer_0: his body stands still while the trap camera is up
   if (p.role === 'killer' && isK9(p.id) && K9.lk >= 0) return 0;   // killer_9: inside the locker (Evil Within) he does not walk
   if (p.role === 'killer' && isK8(p.id) && K8.sf) return 0;   // killer_8: during a selfie he only walks where k8SfStep moves him
+  if (p.role === 'killer' && isK10(p.id) && K10.hc) return 0;   // killer_10: rooted while she casts HYPNOSIS
   let base;
   if (p.role === 'killer') { base = p.carry != null ? CFG.CARRY_SPEED : CFG.KILLER_SPEED; if (EG.final) base *= CFG.MONSTER_SPEED_MULT; else if (EG.solo) base *= 1 + (CFG.SOLO_SPEED_MULT - 1) * soloFrac(now); if (p.carry != null && (EG.final || EG.solo)) base *= EG.final ? CFG.CARRY_BOOST_MULT : 1 + (CFG.SOLO_CARRY_BOOST_MULT - 1) * soloFrac(now); if (p.carry == null) base *= 1 + CFG.CHASE_MAX_BONUS * chaseMulOf(p) * (S.chase || 0); if (k6Disg(p)) base = CFG.SURVIVOR_SPEED; if (isK4(p.id)) base *= K4_BASE; if (isK10(p.id) && p.carry == null) base *= CFG.SURVIVOR_SPEED / CFG.KILLER_SPEED; if (isK5(p.id)) { base *= K5_BASE; const ka = K5.has ? (K5.act ? K5.actAt : 0) : (S.wo.k5 && S.wo.k5.act ? S.wo.k5.aAt : 0); if (ka) base *= 1 - K5_SLOW_PCT / 100 * Math.max(0, 1 - (now - ka) / K5_SLOW_MS); } }   // killer_5: same base speed as the other killers (K5_BASE = 1); no slow when the trail is toggled, no boost on thorns   // dawn has broken: the killer speeds up; chase momentum (S.chase 0..1) adds up to CHASE_MAX_BONUS while he keeps a survivor in his beam
-  else switch (p.st) { case 'downed': base = CFG.CRAWL_SPEED; break; case 'carried': case 'hooked': case 'dead': return 0; default: base = CFG.SURVIVOR_SPEED * (k3FrogOn(p, now) ? K3_FROG_SPEED : 1); }
+  else switch (p.st) { case 'downed': base = CFG.CRAWL_SPEED; break; case 'carried': case 'hooked': case 'dead': case 'hypno': return 0; default: base = CFG.SURVIVOR_SPEED * (k3FrogOn(p, now) ? K3_FROG_SPEED : 1); }
   p.mods = p.mods.filter(m => m.until > now); let mult = p.role === 'killer' && isK2(p.id) ? k2Spd() : 1; for (const m of p.mods) mult *= m.ramp ? m.from + ((m.to === undefined ? 1 : m.to) - m.from) * Math.max(0, Math.min(1, (now - m.t0) / m.ms)) : m.mult;   // (optional m.to: the ramp ends at this multiplier instead of 1)
   if (p.role === 'survivor') mult *= k7Debuff(p); if (p.role === 'survivor' && ddActive(p)) mult *= CFG.PK_DD_SPEED; if (p.role === 'survivor' && p.st !== 'downed' && hasPerk(p.id, 'suffering')) mult *= CFG.PK_SUF_SPEED;   // SUFFERING: permanent speed boost if (p.role === 'killer' && KB_ON && !k6Disg(p)) mult *= kbMul(p.id, 'speed');   // DEMONIC DEAL (+ per-killer base speed kb.N.speed)
   return base * mult;
@@ -2742,7 +2757,6 @@ function setSt(p, s, ex) {   // THE way a state changes: store, broadcast {t:'st
   p.heal = false; if (s !== p.st) { p.healMs = 0; p.healOn = false; p.healRate = 0; p.healPing = 0; p.healN = 0; }   // ...and any heal I was giving; heal progress (or the downed recover bar) on me only lives while I stay in the same state
   if (p.task >= 0) tsRelease(p, '');   // hit / downed / carried / hooked / killed ends any task in progress
   if (s === 'injured' && p.st !== 'injured') p.injAt = performance.now();   // (the blood trail window starts now)
-  if (s === 'downed') k10HexDowned(p);   // killer_10: being downed by ANY means ends the curse
   p.st = s; const m = Object.assign({ t: 'st', id: p.id, s }, ex);
   if (p.role === 'survivor' && (s === 'downed' || (p.bleedUsed || 0) > 0)) m.bl = bleedLeft(p);   // bleed-out time left (ms): clients count it down while the state is 'downed'
   if (p.role === 'survivor' && p.h2) m.h2 = 1;   // hung a second time: the status chip keeps its red outline in every state
@@ -2938,7 +2952,7 @@ function egStep(now, dtMs) {
     if (p.role !== 'survivor' || !p.on || (p.st !== 'healthy' && p.st !== 'injured' && p.st !== 'downed') || k3FrogOn(p, now)) { p.gateT = 0; continue; }   // downed survivors can crawl out too
     let near = false; for (const g of MAP.gates) if (inZone(gateZone(g, MAP), p.x, p.y)) { near = true; break; }
     p.gateT = near ? p.gateT + dtMs : 0;
-    if (p.gateT >= gateHoldMs(p.id, now)) { p.gateT = 0; p.esc = true; freeHold(p); p.hold = false; setSt(p, 'dead', { esc: 1 }); checkWin(); }
+    if (p.gateT >= CFG.GATE_HOLD_MS) { p.gateT = 0; p.esc = true; freeHold(p); p.hold = false; setSt(p, 'dead', { esc: 1 }); checkWin(); }
   }
 }
 /* ---------- GENERATORS (host-authoritative) ----------
@@ -3039,7 +3053,7 @@ function healDone(v, now, healers) {   // the bar is full: injured -> healthy ag
 const GSC_LOST_GRACE_MS = 400, GSC_EARLY_SLACK_MS = 60;   // TUNE: how long the repair / heal button may be let go with a check up before it counts as a miss / answers earlier than the pause + this are rejected
 function gscStep(now, dtMs) {
   for (const p of HP.values()) {
-    if (p.role !== 'survivor') continue;
+    if (p.role !== 'survivor' || p.st === 'hypno') continue;
     const up = p.on && (p.st === 'healthy' || p.st === 'injured'), k = up && now - (p.gscG || 0) < 250 ? 'g' : up && now - (p.gscH || 0) < 250 ? 'h' : '';
     if (p.gscPend) {   // waiting for the answer: stopped working / went down -> the check is simply gone; no answer in time -> a miss
       if (!k) {
@@ -3062,6 +3076,7 @@ function gscFire(p, k, now) {
 }
 function gscResolve(p, res, now, fromClient) { const pe = p.gscPend; p.gscPend = null; if (!pe) return; if (fromClient && res && pe.t0 && now - pe.t0 < CFG.GSC_DELAY_MS - GSC_EARLY_SLACK_MS) res = 0; gscApply(p, pe.k, res, now, pe); }   // an answer that arrives before the needle could even have started is impossible: counts as a miss   // res: 0 miss, 1 good, 2 great
 function gscApply(p, k, res, now, pe) {
+  if (k === 'hyp') { k10HypSc(p, res, now); return; }   // killer_10 HYPNOSIS skill check
   if (res === 2) {   // great: a little extra progress
     if (k === 'g') { const g = GH.g[pe.gi]; if (g && g.st === 1 && !g.dis) g.prog = Math.min(99.9, g.prog + CFG.GSC_GEN_BONUS); }
     else { const v = HP.get(pe.tid); if (v && healSt(v.st)) { v.healMs = Math.min(healCost(v) - 1, (v.healMs || 0) + CFG.GSC_HEAL_BONUS * healCost(v)); sendHl(v); } }
@@ -3190,6 +3205,7 @@ function stList(now) {   // compact status of everyone, for welcome/start (recon
     if (healSt(e.s) && p.healMs > 0) { e.hp = Math.round(p.healMs); e.ho = p.healOn ? 1 : 0; e.hr = p.healRate || 0; e.hc = Math.round(healCapMs(p, e.hr)); }   // heal progress (or the downed recover bar)
     if (p.esc) e.esc = 1;
     if (e.s === 'carried') e.by = p.carriedBy;
+    if (e.s === 'hypno') e.hs = p.hyHs | 0;
     return e; });
 }
 function pkLastLight(v, kid) {   // LAST LIGHT (host): the survivor really THROWS a Holy Light (the flashbang item) at the killer: same toss, same arm time as the item, but a fixed PK_LL_BLIND_MS blind and PK_LL_AB_MS ability lock. No cooldown
@@ -3427,8 +3443,7 @@ function resolveAttack(k, now) {
     if (!ok && snap) { const kp = snap.p[k.id], vp = snap.p[v.id]; if (kp && vp && inSector(kp[0], kp[1], snap.f, vp[0], vp[1], k.id)) { ok = true; rew = true; } }
     if (!ok) continue;
     if (rew) useFace = snap.f;
-    const hx = isK10(k.id) && abilitiesOn() ? k10HexAdd(v, now) : 0;   // killer_10: her own swing adds a curse tier too
-    hit = true; TW.extra = []; hitSurvivor(v, now, 0, hx === K10_HEX_MAX); if (hx) woSend('k10'); if (hx === K10_HEX_MAX || (hx && v.st !== 'downed')) { msgTo(v, hx === K10_HEX_MAX ? 'The curse takes you down!' : 'Cursed! Tier ' + hx + ' of ' + K10_HEX_MAX); } hits.push([v.id, v.st]); for (const e of TW.extra) hits.push(e); TW.extra = [];   // v.st = 'injured' | 'downed' after the hit
+    hit = true; TW.extra = []; hitSurvivor(v, now, 0); hits.push([v.id, v.st]); for (const e of TW.extra) hits.push(e); TW.extra = [];   // v.st = 'injured' | 'downed' after the hit
   }
   if (hit && K7.on && isK7(k.id)) { K7.bul = K7_BULLETS; K7.dirty = true; }   // killer_7: landing a melee hit refills the whole magazine
   for (const c of DCY.slice()) {   // phantoms (survivor-made) can be hit: they pop in a 0.7 s holy light that blinds the killer and disables his ability for 3 s
@@ -3447,6 +3462,8 @@ const AB_ACTS = ['shopbuy', 'k0place', 'k1ab', 'k2ab', 'k4chg', 'k5ab', 'k6ab', 
 function abLockSet(p, ms, now) { if (!abilitiesOn() || !p || p.role !== 'killer') return; p.abLock = Math.max(p.abLock || 0, now + ms); sxSend(p.id, 'ablock', ms); }   // the killer's ability button is disabled for ms (the client greys the button out)
 function hostAct(p, a, down, n) {   // validates range, state and cooldowns; clients only ever REQUEST
   if (!S.started || S.phase !== 'hunt' || ACTS.indexOf(a) < 0 || p.st==='sent' || inUD(p.x,p.y)) return;
+  if (p.st === 'hypno' && a !== 'gscdone' && a !== 'gscgreat' && a !== 'gscfail') return;   // killer_10 HYPNOSIS: a hypnotised survivor can only answer the skill checks
+  if (down && p.role === 'killer' && isK10(p.id) && K10.hc && a !== 'abx') return;   // killer_10: while she casts Hypnosis she can do NOTHING else
   if (!abilitiesOn() && ABIL_ONLY_ACTS.indexOf(a) >= 0) return;   // abilities OFF: no ability action is ever honoured, whatever a client sends
   if (down && p.role === 'killer' && isK8(p.id)) { K8.stillAt = performance.now(); if (K8.stl) k8Stealth(p, false); }   // killer_8: any button breaks the stillness invisibility
   if (p.role === 'survivor' && ((a === 'barricade' && down) || (a === 'heal' && !down && p.heal && performance.now() - (p.gscH || 0) < 500) || (a === 'repair' && !down && p.rep && GH.g.some(g => g.rep.includes(p.id))) || (a === 'rescue' && !down && p.hold && p.st !== 'hooked'))) pkReact(p);   // REACTION: letting go of a generator / an unhook that was really in progress, or blocking a barricade, or letting go of a heal that was really in progress
@@ -3986,7 +4003,7 @@ function woList(k, now) {
     case 'k1': { if (!k1Player()) return []; const r = v => Math.round(v); return [left(K1.wailAt), left(K1.gdAt), Object.keys(K1.f).map(id => [+id, Math.round(K1.f[id] * 10) / 10]), K1.clones.map(c => [c.id, r(c.x), r(c.y), r(c.vx), r(c.vy), left(c.end), c.tk, c.ti]), Object.keys(K1.brk).concat(Object.keys(K1.imm).filter(id => !(id in K1.brk))).map(id => [+id, left(K1.brk[id] || 0), left(K1.imm[id] || 0)]).filter(e => e[1] || e[2])]; }   // killer_1 (see the KILLER_1 section)
     case 'k5': { if (!k5Player()) return []; return [K5.act ? 1 : 0, Math.round(K5.torm * 10) / 10, left(K5.cd), K5.rings.map(r => [r.id, r.k, r.i, r.x, r.y, r.end ? Math.max(1, left(r.end)) : 0, Math.round(now - r.t0)]), K5.mv ? 1 : 0, Object.keys(K5.cond).map(id => [+id, Math.round(K5.cond[id].b), K5.cond[id].c]), Object.keys(K5.ping).map(id => [+id, Math.max(1, left(K5.ping[id]))]), 0, K5.rg ? 1 : 0, MAP && MAP.shr ? MAP.shr : [], K5.act ? Math.round(now - K5.actAt) : 0]; }   // killer_5 (see the KILLER_5 section); 8 = the shrine [x, y], 9 = refilling (torment regen unlocked)
     case 'k6': { if (!k6Player()) return []; return [K6.form, K6.tid, left(K6.tfEnd), left(K6.chEnd), left(K6.cd), left(K6.chAt), K6.fh, Math.round(K6.fp), K6.fo ? 1 : 0]; }   // killer_6 (see the KILLER_6 section)
-    case 'k10': { if (!k10Player()) return []; return [K10.st, Math.round(K10.x), Math.round(K10.y), Math.round(Math.atan2(K10.hy, K10.hx) * 1000), K10.red, left(K10.steerEnd), left(K10.cd), K10.red ? K10_RED_SPD : K10_SPD, Object.keys(K10.hex).map(id => [+id, K10.hex[id].t, left(K10.hex[id].end)])]; }   // killer_10: [state 0/1, x, y, heading*1000, redirected, steer ms left, cooldown ms left, speed]
+    case 'k10': { if (!k10Player()) return []; return [K10.st, Math.round(K10.x), Math.round(K10.y), Math.round(Math.atan2(K10.hy, K10.hx) * 1000), K10.red, left(K10.steerEnd), left(K10.cd), K10.red ? K10_RED_SPD : K10_SPD, [], [K10.hc ? left(K10.hc.end) : 0, K10.hc ? K10.hc.v : -1, left(K10.hyAt), K10.hyp.map(m => m.hv)]]; }   // killer_10: [state 0/1, x, y, heading*1000, redirected, steer ms left, cooldown ms left, speed]
     case 'k9': { if (!k9Player()) return []; return [K9.ax ? 1 : 0, K9.st, Math.round(K9.x), Math.round(K9.y), K9.v, left(K9.embEnd), left(K9.cd), Math.round(K9.hx * K9_SPD / 10), Math.round(K9.hy * K9_SPD / 10), K9.lk, left(K9.inEnd)]; }   // killer_9: [has axe, state, axe x, y, survivor the axe is in, ms until it comes out, Evil Within cooldown left, vel x/10, y/10, locker he is inside (-1 none), ms left to choose]
     case 'k8': { if (!k8Player()) return []; return [left(K8.flAt), K8.hid ? 1 : 0, Object.keys(K8.rev).map(id => [+id, left(K8.rev[id])]), K8.sh.map(h => [h.id, h.v, h.c, Math.round(h.x), Math.round(h.y), h.st, Math.round(now - h.born), Math.round(h.ix * 100), Math.round(h.iy * 100)]), left(K8.sfAt), K8.sf ? 1 : 0]; }   // killer_8 (see the KILLER_8 section): [Flicker ready in ms, Glitch hidden 0/1, revealed survivors [id, ms left], spawns [id, target, copy of, x, y, state, age, heading x100, heading y100], Selfie ready in ms, selfie running 0/1]
     case 'k7': { if (!k7Player() && !k9Player()) return []; return [K7.form, K7.bul, left(K7.swEnd), K7.L.map(l => [Math.round(l.x), Math.round(l.y), l.nx, l.ny, l.occ, l.k9 ? 1 : 0]), Object.keys(K7.h).map(id => [+id, K7.h[id]]), Object.keys(K7.w).filter(id => K7.w[id].rev > now).map(id => [+id, left(K7.w[id].rev), left(K7.w[id].bl), K7.w[id].n]), Object.keys(K7.wd).map(id => +id)]; }   // killer_7 (see the KILLER_7 section)
@@ -4409,7 +4426,7 @@ function gscStart(m) {
 function gscClose() { if (!GSC) return; GSC.el.remove(); GSC = null; }
 function gscAbort() { if (!GSC) return; gscClose(); sendAct('gscdone', true); }   // a different skill check took over: this one ends without a penalty
 function gscLoop() {
-  if (!GSC) return; const st = myState(); if (S.phase !== 'hunt' || (st !== 'healthy' && st !== 'injured')) { gscClose(); return; }
+  if (!GSC) return; const st = myState(); if (S.phase !== 'hunt' || (st !== 'healthy' && st !== 'injured' && st !== 'hypno')) { gscClose(); return; }
   const el = performance.now() - GSC.t0 - GSC.d; gscDraw(GSC, el > 0 ? Math.min(el / GSC.r, 1) * TAU : 0, el > 0);
   if (el > GSC.r + 40) { gscAnswer(0); return; }   // the needle went all the way round: missed
   requestAnimationFrame(gscLoop);
@@ -6021,15 +6038,15 @@ function k3mThink(m, B, now) {   // same decision order as botKillerThink minus 
   const ready = now >= m.cd && Math.random() < L.atkOk, freeHk = MAP.hooks.some((h, i) => hookOpen(i));
   let tgt = null, bs = 1e9, down = null, dd2 = 1e9;
   for (const q of HP.values()) {
-    if (q.role !== 'survivor' || !q.on || (GOD && q.host)) continue;
+    if (q.role !== 'survivor' || !q.on || (GOD && q.host) || (m.hv && (q.id === m.hv || q.st === 'hypno'))) continue;
     const up = q.st === 'healthy' || q.st === 'injured', dn = freeHk && q.st === 'downed' && now >= q.pickupImmuneUntil; if (!up && !dn) continue;   // up = can be hit, dn = can be picked up
     const dd = Math.hypot(q.x - m.x, q.y - m.y);
-    if (!((EG.final && L.kdawn) || dd < 110 || (dd < L.ksight && losClear(m.x, m.y, q.x, q.y)))) continue;
-    if (up) { const sc = dd - (q.st === 'injured' ? 80 : 0) - (B.tid === q.id ? 120 : 0); if (sc < bs) { bs = sc; tgt = q; } } else if (dd < dd2) { dd2 = dd; down = q; }
+    if (!(m.hv || (EG.final && L.kdawn) || dd < 110 || (dd < L.ksight && losClear(m.x, m.y, q.x, q.y)))) continue;   // a hypnotised survivor (m.hv) always knows where everyone is
+    if (up) { const sc = m.hv ? dd : dd - (q.st === 'injured' ? 80 : 0) - (B.tid === q.id ? 120 : 0); if (sc < bs) { bs = sc; tgt = q; } } else if (dd < dd2) { dd2 = dd; down = q; }
     B.last = { x: q.x, y: q.y, t: now };
   }
-  if (tgt || down) { if (!B.hadTgt) B.acqAt = now; B.hadTgt = true; if (now - B.acqAt < L.kreact) { B.still = true; return; } } else B.hadTgt = false;   // takes a moment to react when it first notices someone
-  if (down && (!tgt || dd2 < 260)) {   // pick up the downed survivor (same rule as the killer bots)
+  if (tgt || down) { if (!B.hadTgt) B.acqAt = now; B.hadTgt = true; if (now - B.acqAt < L.kreact && !m.hv) { B.still = true; return; } } else B.hadTgt = false;   // takes a moment to react when it first notices someone
+  if (down && (!tgt || (m.hv ? dd2 <= bs : dd2 < 260))) {   // pick up the downed survivor (same rule as the killer bots; a hypnotised one picks up whoever is nearest)
     B.tgt = down; B.direct = true; B.arrive = 10; B.tid = down.id; if (dd2 <= CFG.PICKUP_R - 10) k3mPickup(m, down, now); return; }
   if (tgt) { B.tid = tgt.id; B.tgt = tgt; B.direct = Math.hypot(tgt.x - m.x, tgt.y - m.y) < 260; if (ready && inSector(m.x, m.y, m.face, tgt.x, tgt.y)) k3mStrike(m, now); return; }
   B.tid = -1;
@@ -6063,7 +6080,7 @@ function k3mStrike(m, now) {   // the standard killer swing: sector hit check, h
   const hits = [];
   for (const v of HP.values()) { if (v.role !== 'survivor' || (v.st !== 'healthy' && v.st !== 'injured') || (GOD && v.host) || v.lk >= 0 || !inSector(m.x, m.y, m.face, v.x, v.y)) continue; hitSurvivor(v, now, 1); hits.push([v.id, v.st]); }
   const ms = hits.length ? CFG.ATTACK_HIT_CD_MS : CFG.ATTACK_MISS_CD_MS; m.cd = now + ms; m.slowUntil = now + (hits.length ? ms : Math.round(ms * .65)); m.ix = m.iy = 0;
-  const am = { t: 'atk', k: m.id, a: Math.round(m.face * 100) / 100, h: hits }; T.broadcast(am); try { onAtk(am); } catch (e) {}
+  const am = { t: 'atk', k: m.id, a: Math.round(m.face * 100) / 100, h: hits }; if (m.hv) { am.g = 1; evSend({ k: 'k10s', x: Math.round(m.x), y: Math.round(m.y), a: am.a }); } T.broadcast(am); try { onAtk(am); } catch (e) {}
 }
 function k3mStep(now) {   // host, every tick of the hunt
   if (!K3.min.length) { K3.mT = 0; return; }
@@ -6684,83 +6701,67 @@ function k7Ev(m, now) {
 
 /* ==== KILLER_10 (MALEFICENT): DARKFIRE ====
    ABILITY button: a green hellfire projectile leaves her hand at K10_SPD (400 units/s; the MENACING form flies at K10_RED_SPD = 700) in the direction she is FACING. Her sprite lifts the hand with a green flame for K10_STEER_MS (3 s), and for that time she has the
-   AIM JOYSTICK (the same right-hand stick Game Guard's rifle uses; on desktop the mouse): while it points somewhere the projectile is REDIRECTED from where it is, and she sees its trajectory (a dashed line to the map edge,
-   the time left as a ring round the projectile and the spot it will have reached when the window closes). For those 3 s it stays in its NORMAL form; when the steering window closes it turns menacing (black-violet core with eyes, a roaring green corona, a long fire trail).
-   The projectile flies THROUGH walls, can hit several survivors (each one once) and keeps going until it has left the map. Her normal swing ALSO adds a tier (on top of its usual damage). A cursed survivor needs K10_HEX_GATE_MS (10 s) at an exit gate. Darkfire itself does not injure: each survivor it touches gains a CURSE tier (1, 2, then 3). Tier 3 DOWNS them whether healthy or injured. The curse lasts K10_HEX_MS (45 s), every new tier restarts the timer, and when it runs out all tiers are gone.
-   The cooldown (K10_CD) starts when the 3 s steering window closes (or when she presses ATTACK, which turns the normal projectile menacing at once and ends the steering). Every generator she KICKS, or Darkfire flies over, is CURSED for K10_CURSE_MS (60 s): +70% skill checks with a smaller success zone (15%), shown by a green ritual oval (see genKick / gscStep / drawGens).
-   WHERE: host = K10_*, k10Empty / K10, k10Player, k10Elig, k10Ability, k10Step, k10End; client = k10Apply, k10Ev, k10Steer, k10Casting, drawK10Over, k10Icon;
-   HOOKS: hostAct 'k10ab', WO_KINDS / WO_OWNER 'k10', itemsInit, the 'aim' message (p.aimA / p.aimT, same as the rifle), aimStickOn / aimMove / aimEnd / mouseAimSend, maleficentBmp (hv = hand raised),
+   AIM JOYSTICK (the same right-hand stick Game Guard's rifle uses; on desktop the mouse): while it points somewhere the projectile is REDIRECTED from where it is (it follows her stick), and she sees its trajectory (a dashed line to the map edge,
+   the time left as a ring round the projectile and the spot it will have reached when the window closes). For those 3 s it stays in its NORMAL form; when the steering window closes (or she presses ATTACK) it turns MENACING (black-violet core with eyes, a roaring
+   green corona, a long fire trail) and steering ends. The projectile flies THROUGH walls, can hit several survivors (each one once) and keeps going until it has left the map. It is a plain HIT: every survivor it touches takes exactly a normal killer hit
+   (healthy -> injured, injured -> downed). No curse tiers. The cooldown (K10_CD = 10 s) counts from the cast. Every generator she KICKS, or Darkfire flies over, is CURSED for K10_CURSE_MS (60 s): +70% skill checks with a smaller success zone (15%),
+   shown by a green ritual oval (see genKick / gscStep / drawGens).
+   WHERE: host = K10_*, k10Empty / K10, k10Player, k10Elig, k10Ability, k10Menace, k10Hit, k10Step, k10End; client = k10Apply, k10Ev, k10Steer, k10Casting, drawK10Over, k10Icon;
+   HOOKS: hostAct 'k10ab' + 'attack', WO_KINDS / WO_OWNER 'k10', itemsInit, the 'aim' message (p.aimA / p.aimT, same as the rifle), aimStickOn / aimMove / aimEnd / mouseAimSend, maleficentBmp (hv = hand raised),
    updateControls (button), abilityPress, KILLER info card, TUNE panel "Killer 10". */
 const isK10 = id => kAbIdx(id) === 10;
-let K10_SPD = 400, K10_STEER_MS = 3000, K10_CD = 10000, K10_HIT_R = 20;   // projectile speed (units/s) / how long she can steer it after the cast (ms) / cooldown, counted from the moment the projectile is gone (ms) / hit radius added to a survivor's own radius
+let K10_SPD = 400, K10_STEER_MS = 3000, K10_CD = 10000, K10_HIT_R = 20;   // projectile speed (units/s) / how long she can steer it after the cast (ms) / cooldown, counted from the cast (ms) / hit radius added to a survivor's own radius
 let K10_RED_SPD = 700, K10_CURSE_MS = 60000, K10_CURSE_SC_MULT = 1.7, K10_CURSE_ZONE = .15;   // speed of the MENACING projectile (units/s) / how long a gen she kicks or burns stays CURSED (ms) / cursed gens roll repair skill checks this many times as often (1.7 = +70%) / success zone of those checks (share of the dial; normal = CFG.GSC_ZONE)
-let K10_HEX_GATE_MS = 10000;   // time a CURSED survivor must stand at an open gate to escape
-let K10_HEX_MS = 45000;   // survivor CURSE: lifetime, restarted by every Darkfire hit
-const K10_HEX_MAX = 3, K10_HEX3_MS = 2000;   // the tier that downs / how long its mark stays
 const K10_GEN_R = 32;   // generator size as the projectile sees it (units)
 const K10_MARGIN = 240, K10_RED_DEG = 3.5;   // the projectile is gone once it is this far outside the map (units) / the smallest turn that counts as a redirect (deg)
-function k10Empty() { return { on: false, init: false, st: 0, x: 0, y: 0, hx: 1, hy: 0, red: 0, tn: 0, steerEnd: 0, cd: 0, hit: {}, shT: 0, hex: {} }; }   // hex = cursed survivors {id: {t: tier, end}}   // st: 0 idle, 1 projectile in flight / red = it has been redirected / steerEnd = when the steering window closes / cd = Darkfire ready at / hit = survivors it already went through
+function k10Empty() { return { hc: null, hyAt: 0, hyp: [], on: false, init: false, st: 0, x: 0, y: 0, hx: 1, hy: 0, red: 0, tn: 0, steerEnd: 0, cd: 0, hit: {}, shT: 0, tn: 0 }; }   // st: 0 idle, 1 projectile in flight / red = menacing / tn = she has started steering / steerEnd = when the steering window closes / cd = Darkfire ready at / hit = survivors + generators it already went through
 let K10 = k10Empty();
 function k10Player() { for (const p of HP.values()) if (p.role === 'killer' && p.on && isK10(p.id)) return p; return null; }
 function k10Elig(v, now) { return v.role === 'survivor' && v.on && (v.st === 'healthy' || v.st === 'injured') && !(v.lk >= 0) && !inUD(v.x, v.y) && !hatHid(v, now) && !(GOD && v.host); }   // a survivor the fire can touch (walls do not matter)
-function k10HexAdd(v, now) {   // one more curse tier + restarted timer; returns the new tier
-  const c = K10.hex[v.id], tier = Math.min(K10_HEX_MAX, (c && c.end > now && c.t < K10_HEX_MAX ? c.t : 0) + 1);
-  K10.hex[v.id] = { t: tier, end: now + (tier === K10_HEX_MAX ? K10_HEX3_MS : K10_HEX_MS) };
-  return tier;
-}
-function k10HexDowned(v) {   // tier 1 / 2 are wiped at once; a tier 3 entry is only the 2 s mark of the down it caused, so it is left to fade
-  const c = K10.hex[v.id]; if (c && c.t < K10_HEX_MAX) { delete K10.hex[v.id]; woSend('k10'); }
-}
-function k10HexHit(v, B, now) {   // Darkfire touched them: one more curse tier (no injury); the 3rd tier downs them from any health state
-  const tier = k10HexAdd(v, now);
-  if (tier === K10_HEX_MAX) { TW.extra = []; hitSurvivor(v, now, 0, true); TW.extra = []; }   // forced down, with all the usual hit side effects
-  msgTo(v, tier === K10_HEX_MAX ? 'The curse takes you down!' : 'Cursed! Tier ' + tier + ' of ' + K10_HEX_MAX); msgTo(B, tier === K10_HEX_MAX ? 'Darkfire downed a survivor!' : 'Darkfire curse: tier ' + tier);
-}
-function k10HexStep(now) {   // curses run out (tier 3 after K10_HEX3_MS; sooner if they are back on their feet)
-  let ch = false;
-  for (const id in K10.hex) {
-    const c = K10.hex[id], v = HP.get(+id), up = !!v && (v.st === 'healthy' || v.st === 'injured');
-    if (!v || now >= c.end || !(up || v.st === 'downed' || v.st === 'carried' || v.st === 'hooked') || (up && c.t >= K10_HEX_MAX)) { delete K10.hex[id]; ch = true; }
-  }
-  if (ch) woSend('k10');
+function k10Hit(v, B, now, ang) {   // Darkfire touched a survivor: it is exactly a normal killer hit (healthy -> injured, injured -> downed), with the usual hit effects for everybody
+  TW.extra = []; hitSurvivor(v, now, 0); const hits = [[v.id, v.st]]; for (const e of TW.extra) hits.push(e); TW.extra = [];
+  const am = { t: 'atk', k: B.id, a: Math.round(ang * 100) / 100, h: hits, g: 1 }; T.broadcast(am); try { onAtk(am); } catch (e) {}
+  msgTo(B, 'Darkfire hit!');
 }
 function k10Send(now) { if (now - K10.shT > (now < K10.steerEnd ? 50 : 200)) { K10.shT = now; woSend('k10'); } }   // fast sync while she can steer, slower afterwards
 function k10Ability(p, now) {   // ABILITY: cast Darkfire (nothing happens while the projectile is still out)
-  if (!K10.on || p !== k10Player() || S.phase !== 'hunt' || K10.st) return;
+  if (!K10.on || p !== k10Player() || S.phase !== 'hunt' || K10.hc) return;
   if (p.carry != null || p.wind) return;
+  if (now >= K10.hyAt) { const ht = k10HypNear(p); if (ht) { k10HypStart(p, ht, now); return; } }   // next to a downed survivor with Hypnosis ready: HYPNOSIS instead of Darkfire
+  if (K10.st) return;
   if (now < K10.cd) { msgTo(p, 'Darkfire ready in ' + Math.ceil((K10.cd - now) / 1000) + 's'); return; }
   const f = S.face, hx = Math.cos(f), hy = Math.sin(f);
-  K10.st = 1; K10.x = p.x + hx * 26; K10.y = p.y + hy * 26; K10.hx = hx; K10.hy = hy; K10.red = 0; K10.tn = 0; K10.hit = {}; K10.steerEnd = now + K10_STEER_MS; K10.cd = K10.steerEnd + K10_CD; K10.shT = now;   // the cooldown starts when the steering window closes
+  K10.st = 1; K10.x = p.x + hx * 26; K10.y = p.y + hy * 26; K10.hx = hx; K10.hy = hy; K10.red = 0; K10.tn = 0; K10.hit = {}; K10.steerEnd = now + K10_STEER_MS; K10.cd = now + K10_CD; K10.shT = now;   // the cooldown starts at the cast
   evSend({ k: 'k10f', x: Math.round(K10.x), y: Math.round(K10.y), a: Math.round(f * 100) / 100 }); woSend('k10');
 }
-function k10Menace(now) {   // the projectile turns MENACING (steer window over, or she pressed ATTACK): steering ends, the cooldown starts now if it has not started yet
+function k10Menace(now) {   // the projectile turns MENACING (steer window over, or she pressed ATTACK): steering ends
   if (!K10.st || K10.red) return;
-  K10.red = 1; if (now < K10.steerEnd) { K10.steerEnd = now; K10.cd = now + K10_CD; }
+  K10.red = 1; if (now < K10.steerEnd) K10.steerEnd = now;
   evSend({ k: 'k10r', x: Math.round(K10.x), y: Math.round(K10.y) }); woSend('k10');
 }
 function k10End(now) {   // the projectile has left the map: it is gone, the cooldown starts
   evSend({ k: 'k10x', x: Math.round(K10.x), y: Math.round(K10.y) });
-  K10.st = 0; K10.red = 0; K10.tn = 0; K10.steerEnd = 0; K10.hit = {}; K10.cd = Math.max(K10.cd, now); woSend('k10');   // (the cooldown was already started at the cast: steer window + K10_CD)
+  K10.st = 0; K10.red = 0; K10.tn = 0; K10.steerEnd = 0; K10.hit = {}; K10.cd = Math.max(K10.cd, now); woSend('k10');   // (the cooldown already started at the cast)
 }
 function k10Step(now, dtMs) {
-  const B = k10Player(); K10.on = !!B; if (!B) return; const dt = Math.min(.1, dtMs / 1000);
+  const B = k10Player(); K10.on = !!B; if (!B) { if (K10.hyp.length) k10HypClear(performance.now()); return; } const dt = Math.min(.1, dtMs / 1000);
   if (!K10.init) { K10.init = true; woSend('k10'); }
-  if (S.phase !== 'hunt') { if (K10.st || Object.keys(K10.hex).length) { K10.st = 0; K10.red = 0; K10.tn = 0; K10.hit = {}; K10.hex = {}; woSend('k10'); } return; }
-  k10HexStep(now);
+  if (S.phase !== 'hunt') { if (K10.hc || K10.hyp.length) { K10.hc = null; K10.hyp = []; } if (K10.st) { K10.st = 0; K10.red = 0; K10.tn = 0; K10.hit = {}; woSend('k10'); } return; }
+  k10HypStep(B, now, dtMs);
   if (!K10.st) return;
   if (now < K10.steerEnd && B.aimA !== undefined && now - (B.aimT || 0) < 450) {   // her stick (or the mouse) points somewhere: the projectile is turned from where it is
     const a = B.aimA, d = Math.abs(angDiff(a, Math.atan2(K10.hy, K10.hx)));
     if (!K10.tn && d > K10_RED_DEG * Math.PI / 180) K10.tn = 1;   // the first real redirect: from then on it follows her stick (it stays in the NORMAL form while she steers)
     if (K10.tn) { K10.hx = Math.cos(a); K10.hy = Math.sin(a); }
   }
-  if (!K10.red && now >= K10.steerEnd) k10Menace(now);   // the steering window (3 s) is over: it turns MENACING
+  if (!K10.red && now >= K10.steerEnd) k10Menace(now);   // the steering window is over: it turns MENACING
   const s = (K10.red ? K10_RED_SPD : K10_SPD) * dt, x0 = K10.x, y0 = K10.y, nx = x0 + K10.hx * s, ny = y0 + K10.hy * s, sx = nx - x0, sy = ny - y0, l2 = sx * sx + sy * sy || 1, R = CFG.RADIUS + K10_HIT_R;
   for (const v of HP.values()) {
     if (K10.hit[v.id] || !k10Elig(v, now)) continue;
     const t = Math.max(0, Math.min(1, ((v.x - x0) * sx + (v.y - y0) * sy) / l2));   // swept check, so a survivor is never skipped between two ticks
     if (Math.hypot(x0 + sx * t - v.x, y0 + sy * t - v.y) > R) continue;
     K10.hit[v.id] = 1;
-    k10HexHit(v, B, now);
+    k10Hit(v, B, now, Math.atan2(K10.hy, K10.hx));   // a plain hit (health state) on every survivor it goes through
     evSend({ k: 'k10h', id: v.id, x: Math.round(v.x), y: Math.round(v.y) }); woSend('k10');
   }
   if (typeof GH !== 'undefined' && GH && GH.g) GH.g.forEach((g, i) => {   // Darkfire also CURSES every open generator it flies over (once per cast; restarts the timer; no kick / regression)
@@ -6773,35 +6774,148 @@ function k10Step(now, dtMs) {
   if (nx < -K10_MARGIN || ny < -K10_MARGIN || nx > MAP.w + K10_MARGIN || ny > MAP.h + K10_MARGIN) { k10End(now); return; }   // map long: it flies until it has left the map
   k10Send(now);
 }
+/* ==== KILLER_10 (MALEFICENT): HYPNOSIS ====
+   ABILITY button next to a DOWNED survivor (within K10_HYP_REACH, Hypnosis ready: K10_HYP_CD) = HYPNOSIS instead of Darkfire (the same idea as Ghost Face's Selfie).
+   CAST (K10_HYP_CAST_MS = 2 s): she is rooted, lifts her staff, green flames burn round her and her eyes turn green; she can do nothing else. It is cancelled if the survivor is no longer downed.
+   RESULT: the survivor is HYPNOTISED = it counts as a HOOK STATE (hkS + 1: the status chip shows h1 / h2). Their state is 'hypno': they cannot move or act, their body is walked by the host with the
+   SAME AI as Freaky Nikki's summoned killers (k3mThink / k3mStrike / k3mPickup / k3mHook: it hunts nearby survivors, hits them, picks up the downed and hangs them on hooks).
+   THEIR PLAYER: after K10_HYP_FIRST_MS (5 s) a skill check appears every K10_HYP_EVERY_MS (3 s). K10_HYP_NEED (3) passed checks, or K10_HYP_MAX_MS (30 s), ends it: they stand where they are, INJURED with the
+   unhook speed boost (as if they had been left off a hook). If they were already on their LAST hook state (death hook) they are SACRIFICED at the end instead.
+   WHERE: host = k10HypNear / k10HypStart / k10Hypnotise / k10HypStep / k10HypRun / k10HypSc / k10HypEnd / k10HypClear; client = k10Hyp / k10HypNearC / drawK10Hyp / drawHypno / hypVig; events 'k10y' (cast) 'k10z' (hypnotised) 'k10s' (their swing). */
+let K10_HYP_CD = 30000, K10_HYP_REACH = 80, K10_HYP_CAST_MS = 2000, K10_HYP_FIRST_MS = 5000, K10_HYP_EVERY_MS = 3000, K10_HYP_NEED = 5, K10_HYP_MAX_MS = 30000, K10_HYP_ZONE = .2;   // cooldown / how close to a downed survivor / cast time / first skill check after / gap between checks / passes needed / longest it can last / success zone of its checks (share of the dial)
+function k10HypNear(B) {   // the nearest downed survivor within reach (not in the Upside Down), or null
+  let best = null, bd = 1e9;
+  for (const v of HP.values()) { if (v.role !== 'survivor' || !v.on || v.st !== 'downed' || inUD(v.x, v.y)) continue; const d = Math.hypot(v.x - B.x, v.y - B.y); if (d <= K10_HYP_REACH && d < bd) { bd = d; best = v; } }
+  return best;
+}
+function k10HypStart(B, v, now) {   // the 2 s cast begins
+  K10.hc = { v: v.id, end: now + K10_HYP_CAST_MS }; K10.hyAt = now + K10_HYP_CD; B.wind = 0; B.kick = false; S.faceTarget = Math.atan2(v.y - B.y, v.x - B.x);
+  evSend({ k: 'k10y', x: Math.round(B.x), y: Math.round(B.y), vx: Math.round(v.x), vy: Math.round(v.y) }); woSend('k10');
+}
+function k10Hypnotise(B, v, now) {   // the cast finished: v is hypnotised (a hook state) and walks as a killer for the next seconds
+  const death = (v.hkS | 0) >= hkMax(v);
+  if (!death) { v.hkS = (v.hkS | 0) + 1; if (v.hkS === hkMax(v)) v.h2 = 1; }
+  v.hyHs = death ? hkMax(v) + 1 : v.hkS; v.hold = false; v.ix = v.iy = 0; v.gscPend = null; v.gscLost = 0;
+  setSt(v, 'hypno', { hs: v.hyHs });
+  const L = BOT_LEVELS[1], m = { id: v.id, hv: v.id, x: v.x, y: v.y, ix: 0, iy: 0, role: 'killer', mn: 1, lv: L, carry: null, face: rnd(0, TAU), faceT: 0, cd: now + 700, slowUntil: 0, stillUntil: 0, end: now + K10_HYP_MAX_MS, start: now, next: now + K10_HYP_FIRST_MS, passed: 0, death, T: now,
+    B: { next: now + 300, goal: null, tgt: null, direct: false, still: false, arrive: 24, path: null, pi: 0, rp: 0, gx: 0, gy: 0, fixed: false, sx: v.x, sy: v.y, sT: now, stuck: 0, nudge: 0, nx: 0, ny: 0, tried: {}, noPathAt: 0, seed: Math.random() * 1e9 | 0, hn: 0, hnT: 0, hnAt: 0, smooth: true } };
+  m.faceT = m.face; v.hyp = m; K10.hyp.push(m);
+  evSend({ k: 'k10z', id: v.id, x: Math.round(v.x), y: Math.round(v.y) }); msgTo(v, 'You are HYPNOTISED! Pass ' + K10_HYP_NEED + ' skill checks to break free'); msgTo(B, death ? 'Hypnosis: they will be sacrificed' : 'Hypnosis! They hunt for you'); woSend('k10');
+}
+function k10HypFire(v, m, now) {   // one skill check for the hypnotised survivor's own client (bots answer by themselves)
+  if (v.bot) { k10HypSc(v, Math.random() <= BA().skill ? 1 : 0, now); return; }
+  v.gscPend = { k: 'hyp', t0: now, end: now + CFG.GSC_DELAY_MS + CFG.GSC_REV_MS + 1500 };
+  const msg = { t: 'sx', id: v.id, k: 'jgsc', ms: 0, z: K10_HYP_ZONE, g: CFG.GSC_GREAT, r: CFG.GSC_REV_MS, d: CFG.GSC_DELAY_MS }; T.broadcast(msg); try { applySx(msg); } catch (e) {}
+}
+function k10HypSc(v, res, now) {   // a hypnosis skill check was answered: res 0 miss, 1 good, 2 great
+  const m = v.hyp; if (!m || v.st !== 'hypno') return;
+  if (res > 0) { m.passed++; msgTo(v, m.passed >= K10_HYP_NEED ? 'You broke free!' : 'Hypnosis ' + m.passed + '/' + K10_HYP_NEED); } else msgTo(v, 'Missed! ' + m.passed + '/' + K10_HYP_NEED);
+  if (m.passed >= K10_HYP_NEED) k10HypEnd(m, now);
+}
+function k10HypEnd(m, now) {   // passes / time: the survivor is released (injured, with the unhook boost) or - on a death hook - sacrificed
+  if (!K10.hyp.includes(m)) return; K10.hyp = K10.hyp.filter(x => x !== m);
+  if (m.carry != null) k3mDrop(m, now);
+  const v = HP.get(m.hv); if (!v) { woSend('k10'); return; }
+  v.hyp = null; v.gscPend = null; v.gscLost = 0; v.ix = v.iy = 0; sxSend(v.id, 'gscx', 0);
+  if (v.st === 'hypno') {
+    if (m.death) { msgTo(v, 'You were sacrificed'); killSurvivor(v); }
+    else { setSt(v, 'injured'); addMod(v, 'unhookBoost', UNHOOK_BOOST, UNHOOK_BOOST_MS, now); msgTo(v, 'You shook off the hypnosis'); }
+  }
+  woSend('k10');
+}
+function k10HypClear(now) { for (const m of K10.hyp.slice()) k10HypEnd(m, now); K10.hc = null; }
+function k10HypStep(B, now, dtMs) {   // host, every hunt tick: the cast, then every hypnotised survivor (skill checks + the hunting AI)
+  const h = K10.hc;
+  if (h) {
+    const v = HP.get(h.v);
+    if (!v || !v.on || v.st !== 'downed' || B.carry != null || inUD(v.x, v.y)) { K10.hc = null; K10.hyAt = now + 1500; woSend('k10'); }   // cancelled: they are no longer downed (a short wait, not the full cooldown)
+    else if (now >= h.end) { K10.hc = null; k10Hypnotise(B, v, now); }
+  }
+  const dt = Math.min(.1, Math.max(0, dtMs / 1000));
+  for (const m of K10.hyp.slice()) {
+    const v = HP.get(m.hv);
+    if (!v || !v.on || v.st !== 'hypno') { k10HypEnd(m, now); continue; }
+    if (v.gscPend && v.gscPend.k === 'hyp' && now >= v.gscPend.end) gscResolve(v, 0, now);   // no answer in time = a miss
+    if (!K10.hyp.includes(m)) continue;
+    if (!v.gscPend && now >= m.next) { m.next = now + K10_HYP_EVERY_MS; k10HypFire(v, m, now); if (!K10.hyp.includes(m)) continue; }
+    if (now >= m.end) { k10HypEnd(m, now); continue; }
+    const b = m.B; if (now >= b.next) { b.next = now + 110 + rnd(0, 40); try { k3mThink(m, b, now); } catch (e) { console.warn('[k10hyp]', e); } }
+    botMove(m, b, now);
+    if (now < m.stillUntil) m.ix = m.iy = 0; else if ((m.ix || m.iy) && Math.random() < m.lv.pause * dt) { m.stillUntil = now + rnd(250, 550); m.ix = m.iy = 0; }
+    if (m.ix || m.iy) { const sp = CFG.SURVIVOR_SPEED * CFG.AUX_SPEED_MULT * (now < m.slowUntil ? CFG.ATTACK_SLOW_MULT : 1); moveCircle(m, m.ix * sp * dt, m.iy * sp * dt); m.faceT = Math.atan2(m.iy, m.ix); }
+    const stp = CFG.KILLER_TURN_DPS * Math.PI / 180 * dt; m.face += Math.max(-stp, Math.min(stp, angDiff(m.faceT, m.face)));
+    if (m.carry != null) { const cv = HP.get(m.carry); if (cv && cv.st === 'carried') { cv.x = m.x - Math.cos(m.face) * CFG.CARRY_OFFSET; cv.y = m.y - Math.sin(m.face) * CFG.CARRY_OFFSET; } }
+    v.x = m.x; v.y = m.y; v.ix = m.ix; v.iy = m.iy;
+  }
+}
 const K10C = { fx: [], trail: [], mm: 0, icon: null };
 function k10Apply(a, now) {   // [st, x, y, heading*1000, redirected, steer ms left, cooldown ms left, speed]
   if (!a || !a.length) { S.wo.k10 = null; return; }
   const o = S.wo.k10, fresh = a[0] === 1 && !(o && o.st === 1);
-  S.wo.k10 = { st: a[0], x: a[1], y: a[2], ang: a[3] / 1000, red: !!a[4], steer: now + a[5], cd: now + a[6], spd: a[7], at: now, t0: fresh ? now : (o ? o.t0 : now), rAt: a[4] ? ((o && o.red && o.rAt) ? o.rAt : now) : 0, hex: {}, hexMs: K10_HEX_MS };
-  for (const h of a[8] || []) S.wo.k10.hex[h[0]] = { t: h[1], end: now + h[2] };
+  S.wo.k10 = { st: a[0], x: a[1], y: a[2], ang: a[3] / 1000, red: !!a[4], steer: now + a[5], cd: now + a[6], spd: a[7], at: now, t0: fresh ? now : (o ? o.t0 : now), rAt: a[4] ? ((o && o.red && o.rAt) ? o.rAt : now) : 0 };
+  S.wo.k10.hy = a[9] ? { castEnd: now + a[9][0], v: a[9][1], cd: now + a[9][2], ids: a[9][3] || [] } : null;   // HYPNOSIS: [cast ms left, target id, cooldown ms left, hypnotised ids]
   if (fresh) { K10C.mm = 0; K10C.trail = []; }
 }
-const k10Casting = now => { const W = S.wo && S.wo.k10; return !!W && W.st === 1 && now < W.steer; };   // her hand is up (everybody sees it)
-const k10Steer = () => { const W = S.wo && S.wo.k10; return !!W && W.st === 1 && performance.now() < W.steer && S.phase === 'hunt' && myRole() === 'killer' && isK10(S.me) && abilitiesOn(); };   // MY steering window is open: the aim stick / mouse is live
+const k10Casting = now => { const W = S.wo && S.wo.k10; return !!W && W.st === 1 && !W.red && now < W.steer; };   // her hand is up (everybody sees it)
+const k10Steer = () => { const W = S.wo && S.wo.k10; return !!W && W.st === 1 && !W.red && performance.now() < W.steer && S.phase === 'hunt' && myRole() === 'killer' && isK10(S.me) && abilitiesOn(); };   // MY steering window is open: the aim stick / mouse is live
 function k10Ev(m, now) {
+  if (m.k === 'k10y') { K10C.fx.push({ t: 'hy', x: m.x, y: m.y, t0: now }); try { const v = Math.max(.4, evVol(m.x, m.y, 1500)); sfxTone(90, 300, 1.8, v * .3, 'sawtooth'); sfxTone(180, 520, 1.6, v * .14, 'sine', .1); sfxNoise(1.8, v * .22, 'bandpass', 900, 2600); } catch (e) {} return; }
+  if (m.k === 'k10z') { K10C.fx.push({ t: 'hy', x: m.x, y: m.y, t0: now }); try { const v = Math.max(.4, evVol(m.x, m.y, 1400)); sfxTone(520, 70, .7, v * .3, 'triangle'); sfxTone(260, 40, .8, v * .26, 'sawtooth', .05); sfxNoise(.5, v * .3, 'lowpass', 1800, 200); } catch (e) {} if (m.id === S.me) vibrate([60, 40, 120]); return; }
+  if (m.k === 'k10s') { K10C.fx.push({ t: 'hs', x: m.x, y: m.y, a: m.a, t0: now }); try { sfxWhoosh(Math.max(.3, evVol(m.x, m.y, 1200))); } catch (e) {} return; }
   if (m.k === 'k10f') { K10C.fx.push({ t: 'cast', x: m.x, y: m.y, a: m.a, t0: now }); try { const v = Math.max(.35, evVol(m.x, m.y, 1400)); sfxWhoosh(v); sfxNoise(.45, v * .35, 'bandpass', 1900, 500); sfxTone(150, 480, .4, v * .22, 'sawtooth'); sfxTone(320, 960, .3, v * .1, 'triangle', .05); } catch (e) {} return; }
   if (m.k === 'k10r') { K10C.fx.push({ t: 'red', x: m.x, y: m.y, t0: now }); try { const v = Math.max(.4, evVol(m.x, m.y, 1600)); sfxTone(110, 38, .7, v * .35, 'sawtooth'); sfxTone(520, 160, .5, v * .14, 'square', .03); sfxNoise(.6, v * .3, 'lowpass', 1600, 180); } catch (e) {} if (S.role && myRole() === 'killer') vibrate([30, 20, 50]); return; }
   if (m.k === 'k10h') { K10C.fx.push({ t: 'hit', x: m.x, y: m.y, t0: now }); try { const v = Math.max(.4, evVol(m.x, m.y, 1100)); sfxNoise(.35, v * .5, 'bandpass', 2400, 600); sfxTone(260, 70, .35, v * .3, 'sawtooth'); } catch (e) {} if (m.id === S.me) { shake(CFG.SHAKE_KILLER_PX); vibrate([60, 30, 80]); } return; }
   if (m.k === 'k10x') { K10C.fx.push({ t: 'x', x: m.x, y: m.y, t0: now }); }
 }
-function drawK10Hex(e, state) {   // the curse mark every viewer sees: one small dot per tier slot (filled = tier reached) over a faint time-left line
-  const W = S.wo && S.wo.k10, c = W && W.hex && W.hex[e.p.id], kid = killerIdRaw();
-  if (!c || c.end <= e.now || e.p.role !== 'survivor' || kid < 0 || !isK10(kid)) return;
-  const x = Math.round(e.x), y = Math.round(e.y - (state === 'hooked' ? 118 : state === 'downed' || state === 'carried' ? 48 : 59));
-  ctx.save(); ctx.globalAlpha *= c.t >= K10_HEX_MAX ? .75 * Math.min(1, (c.end - e.now) / 500) : .75;   // tier 3 fades out
-  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,.7)';
-  for (let i = 0; i < K10_HEX_MAX; i++) { ctx.beginPath(); ctx.arc(x + (i - 1) * 8, y, 2.7, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = i < c.t ? '#9be36a' : 'rgba(155,227,106,.22)'; ctx.fill(); }
-  if (c.t < K10_HEX_MAX) { ctx.fillStyle = 'rgba(155,227,106,.55)'; ctx.fillRect(x - 10, y + 5, Math.round(20 * Math.max(0, Math.min(1, (c.end - e.now) / W.hexMs))), 1); }
+const k10Hyp = now => { const W = S.wo && S.wo.k10; return !!W && !!W.hy && W.hy.v >= 0 && W.hy.castEnd > now; };   // her Hypnosis cast is running (everybody sees it)
+function k10HypNearC(now) {   // client: is the button HYPNOSIS right now (same rule the host applies)?
+  const W = S.wo && S.wo.k10; if (!W || S.phase !== 'hunt' || !isK10(S.me) || k10Hyp(now) || (W.hy && W.hy.cd > now)) return false; const mp = posOf(S.me); if (!mp) return false;
+  for (const id in S.st) if (S.st[id].s === 'downed') { const q = posOf(+id); if (q && Math.hypot(q[0] - mp[0], q[1] - mp[1]) <= K10_HYP_REACH) return true; }
+  return false;
+}
+/* ---- HYPNOSIS visuals: everything is built from square "pixels" of HPXS world units on a fixed grid (no smooth circles, gradients or strokes), in four greens ---- */
+const HPXS = 4, HP_COL = ['#2f7d12', '#6fd62a', '#a6ff4d', '#e4ffb8'];
+function hpx(x, y, col, a, n) { ctx.globalAlpha = a; ctx.fillStyle = col; const s = HPXS * (n || 1); ctx.fillRect(Math.floor(x / HPXS) * HPXS, Math.floor(y / HPXS) * HPXS, s, s); }
+function hpxRing(cx, cy, rx, ry, n, rot, col, a, sz) { for (let i = 0; i < n; i++) { const t = i / n * Math.PI * 2 + rot; hpx(cx + Math.cos(t) * rx, cy + Math.sin(t) * ry, col, a, sz); } }
+function hpxLine(x0, y0, x1, y1, step, col, a, now) { const d = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, (d / step) | 0); for (let i = 0; i <= n; i++) { if ((i + ((now / 90) | 0)) % 3 === 0) continue; hpx(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, col, a, 1); } }
+function hpxGlow(cx, cy, gr, a, ry) { for (let gy = -gr; gy <= gr; gy++) for (let gx = -gr; gx <= gr; gx++) { const d = Math.hypot(gx, gy * (ry || 1.6)); if (d > gr || ((gx + gy) & 1)) continue; hpx(cx + gx * HPXS, cy + gy * HPXS, d < gr * .5 ? HP_COL[2] : HP_COL[1], a * (1 - d / gr), 1); } }   // a dithered (checkerboard) glow
+function drawK10Hyp(now, kid, lite) {   // above the darkness (green fire is light): her cast = a ring of pixel flames, a dithered glow and a dashed pixel beam to the victim
+  const W = S.wo.k10; if (!W || !W.hy || !k10Hyp(now)) return;
+  const q = posOf(kid), vq = posOf(W.hy.v), u = Math.max(0, Math.min(1, 1 - (W.hy.castEnd - now) / K10_HYP_CAST_MS)), tk = (now / 110) | 0;
+  ctx.save();
+  if (q) {
+    const cx = q[0], cy = q[1] + 14;
+    hpxGlow(cx, q[1], 11 + ((4 * u) | 0), .34 + .26 * u, 1.6);
+    hpxRing(cx, cy + 2, 30 + 8 * Math.sin(u * Math.PI), 11, 26, now / 800, HP_COL[1], .85, 1);
+    const n = lite ? 10 : 18;
+    for (let j = 0; j < n; j++) { const sd = j * 7.31 + tk * .37, a = j / n * Math.PI * 2 + now / 900, bx = cx + Math.cos(a) * 28, by = cy + 2 + Math.sin(a) * 10, h = 3 + ((sfRnd(sd) * 4 + 6 * u) | 0);
+      for (let k = 0; k < h; k++) hpx(bx, by - k * HPXS, HP_COL[k === h - 1 ? 3 : k >= h - 2 ? 2 : k >= 1 ? 1 : 0], .9 - k * .07, 1); }
+    if (vq) hpxLine(q[0], q[1] - 14, q[0] + (vq[0] - q[0]) * u, q[1] - 14 + (vq[1] - q[1] + 14) * u, 8, HP_COL[2], .9, now);
+  }
+  if (vq) for (let k = 0; k < 3; k++) { const rr = 12 + ((u * 2 + k / 3) % 1) * 30; hpxRing(vq[0], vq[1] + 4, rr, rr * .45, 16, 0, HP_COL[1], .2 + .6 * u, 1); }
   ctx.restore();
 }
-function gateHoldMs(id, now, client) {   // exit gate escape time: an active survivor curse (tier 1 or 2; tier 3 is already spent) makes it K10_HEX_GATE_MS
-  const c = client ? S.wo && S.wo.k10 && S.wo.k10.hex[id] : K10.hex[id];
-  return c && c.t < K10_HEX_MAX && c.end > now ? Math.max(CFG.GATE_HOLD_MS, K10_HEX_GATE_MS) : CFG.GATE_HOLD_MS;
+function drawHypno(e, state) {   // a hypnotised survivor, all in pixels: a pulsing pixel ring on the ground, a dithered glow, two square glowing eyes and a stepped pixel spiral over the head
+  if (state !== 'hypno' || GHOSTING) return; const now = e.now, x = e.x, y = e.y, f = (AN[e.p.id] && AN[e.p.id].face) || 1;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  hpxGlow(x, y + 12, 7, .3, 1.5);
+  const rr = 20 + ((now / 70) % 6 | 0) * 1.5; hpxRing(x, y + 14, rr, rr * .4, 20, ((now / 220) | 0) * .3, HP_COL[1], .85, 1);
+  ctx.globalAlpha = 1; for (const dx of [-5, 5]) { const ex = Math.round(x + dx + f * 1.5), ey = Math.round(y - 8); ctx.fillStyle = HP_COL[1]; ctx.fillRect(ex - 3, ey - 3, 6, 6); ctx.fillStyle = HP_COL[2]; ctx.fillRect(ex - 2, ey - 2, 4, 4); ctx.fillStyle = HP_COL[3]; ctx.fillRect(ex - 1, ey - 1, 2, 2); }
+  const rot = ((now / 120) | 0) * .55; for (let i = 0; i < 26; i++) { const t = i / 26, a = t * 3.2 * Math.PI * 2 + rot, r = 2 + t * 13; hpx(x + Math.cos(a) * r, y - 42 + Math.sin(a) * r * .55, HP_COL[(i >> 2) & 1 ? 2 : 1], .9, 1); }
+  ctx.restore();
+  ctx.save(); ctx.textAlign = 'center'; ctx.font = "10px 'DBD Pixel','Courier New',monospace"; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.strokeText('HYPNOTISED', Math.round(x), Math.round(y - 62)); ctx.fillStyle = HP_COL[2]; ctx.fillText('HYPNOTISED', Math.round(x), Math.round(y - 62)); ctx.restore();
+}
+function drawHypEyes(e, face, bob) {   // Maleficent's eyes glow green while she casts Hypnosis: square pixel eyes that flicker (same spot as the sprite's own eyes)
+  const y = Math.round(e.y + 23 - bob - 22.7 * PSK), big = ((e.now / 80) | 0) & 1; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1;
+  for (const px of [12.5, 14.5]) { const x = Math.round(e.x + face * (px - 13) * PSK), o = big ? 5 : 4; ctx.fillStyle = HP_COL[1]; ctx.fillRect(x - o, y - o, o * 2, o * 2); ctx.fillStyle = HP_COL[2]; ctx.fillRect(x - 3, y - 3, 6, 6); ctx.fillStyle = HP_COL[3]; ctx.fillRect(x - 1, y - 1, 3, 3); }
+  ctx.restore();
+}
+function hypVig() {}   // (the old pixel border is gone: the hypnotised player's vignette is the heartbeat style one, see drawHypVig)
+function drawHypVig(W, H, now) {   // the hypnotised survivor's own screen: the terror heartbeat's pulsing edge vignette, but GREEN, on its own steady lub-dub beat (no sound)
+  const t = now % 800, env = Math.max(Math.exp(-t / 90), t > CFG.HB_GAP_MS ? .7 * Math.exp(-(t - CFG.HB_GAP_MS) / 90) : 0), a = Math.min(.95, CFG.VIGNETTE_MAX * (.35 + .65 * env));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .3, W / 2, H / 2, Math.hypot(W, H) / 2);
+  g.addColorStop(0, 'rgba(40,190,30,0)'); g.addColorStop(1, `rgba(40,190,30,${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 }
 function k10Icon() {   // the ability button's icon: a green hellfire flame (16x16 pixels)
   if (K10C.icon) return K10C.icon; const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
@@ -6813,6 +6927,7 @@ function drawK10Over(now) {   // drawn ABOVE the darkness (her fire is a light s
   const W = S.wo.k10, kid = killerIdRaw(); if (!W || kid < 0 || !isK10(kid)) { K10C.fx.length = 0; K10C.trail.length = 0; return; }
   const lite = !!reduceFx, TAU2 = Math.PI * 2;
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  try { drawK10Hyp(now, kid, lite); } catch (e) {}
   // ---- flashes + impacts ----
   K10C.fx = K10C.fx.filter(f => now - f.t0 < (f.t === 'hit' ? 1200 : 700));
   for (const f of K10C.fx) {
@@ -6828,6 +6943,10 @@ function drawK10Over(now) {   // drawn ABOVE the darkness (her fire is a light s
     } else if (f.t === 'cast') {   // the cast: a flare at her hand and sparks thrown out along the shot
       const u = Math.min(1, el / 600), gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 44 * (1 - u * .5)); gr.addColorStop(0, `rgba(232,255,192,${(.9 * (1 - u)).toFixed(3)})`); gr.addColorStop(1, 'rgba(90,200,40,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(f.x, f.y, 44, 0, TAU2); ctx.fill();
       if (!lite) for (let j = 0; j < 8; j++) { const sd = j * 9.1 + f.x * .01, aa = f.a + (sfRnd(sd) - .5) * 1.3, dd = 20 + u * (60 + 60 * sfRnd(sd + 2)); ctx.fillStyle = `rgba(190,255,100,${(.8 * (1 - u)).toFixed(3)})`; ctx.fillRect(f.x + Math.cos(aa) * dd - 1.5, f.y + Math.sin(aa) * dd - 1.5, 3, 3); }
+    } else if (f.t === 'hy') {   // hypnosis: pixel rings spreading out
+      const u = Math.min(1, el / 700); ctx.save(); for (let k = 0; k < 3; k++) { const rr = 10 + (u + k * .2) * 70; hpxRing(f.x, f.y + 4, rr, rr * .5, 22, u * 2, HP_COL[1 + (k & 1)], .9 * (1 - u), 1); } ctx.restore();
+    } else if (f.t === 'hs') {   // a hypnotised survivor's swing: a crescent of pixels
+      const u = Math.min(1, el / 260); ctx.save(); for (let i = 0; i <= 12; i++) { const t = f.a - .9 + 1.8 * i / 12, r = 34 + u * 14; hpx(f.x + Math.cos(t) * r, f.y + Math.sin(t) * r, HP_COL[2], .9 * (1 - u), 1); hpx(f.x + Math.cos(t) * (r - 5), f.y + Math.sin(t) * (r - 5), HP_COL[1], .7 * (1 - u), 1); } ctx.restore();
     } else if (f.t === 'x') {   // it left the map: a last puff of embers
       const u = Math.min(1, el / 700); for (let j = 0; j < 6; j++) { const sd = j * 11.7 + f.x * .01; ctx.fillStyle = `rgba(139,255,60,${(.6 * (1 - u)).toFixed(3)})`; ctx.beginPath(); ctx.arc(f.x + (sfRnd(sd) - .5) * 50, f.y + (sfRnd(sd + 1) - .5) * 50 - u * 20, 6 * (1 - u) + 1, 0, TAU2); ctx.fill(); }
     }
@@ -6896,7 +7015,7 @@ function drawK10Over(now) {   // drawn ABOVE the darkness (her fire is a light s
    HOOKS: hostAct 'attack' / 'k9ab' / 'k9sw' / 'k9cx', WO_KINDS 'k9' (+ the locker list of 'k7' carries the "Slasher inside" flag), speedOf, canSee / k1MinDist / eyes (sx 'k9hid'), jasonBmp (hv = empty-handed), updateControls, abilityPress. */
 const isK9 = id => kAbIdx(id) === 9;
 const K9_SPD = 1500, K9_RANGE = 640, K9_CONE = 22, K9_PUSH = 234, K9_PUSH_SPD = 620, K9_HIDE_MS = 12000, K9_THROW_CD = 450, K9_EW_CD = 40000, K9_EW_MAX_MS = 12000;   // axe speed (units/s) / range / aim-assist half-angle (deg) / shove distance / shove speed / how long it stays embedded (he is invisible to that survivor) / swing-lockout after a throw (ms) / Evil Within cooldown (ms) / longest he can stay in the locker choosing (ms)
-const K9_SLOW = .1, K9_SLOW_MS = 2500;   // after the axe lands: 90% slow + red sprite for this long; a hit during it removes both (hitSurvivor)
+const K9_SLOW = .1, K9_SLOW_MS = 1500;   // after the axe lands: 90% slow + red sprite for this long; a hit during it removes both (hitSurvivor)
 function k9Empty() { return { ax: 1, st: 0, x: 0, y: 0, hx: 1, hy: 0, trav: 0, v: -1, embEnd: 0, push: null, cd: 0, lk: -1, inEnd: 0, boostAt: 0, on: false, init: false, shT: 0 }; }   // ax = holds the axe / st: 0 idle, 1 axe in flight / v = survivor the axe sits in (-1 none) / embEnd = when it comes out / lk = locker index he is inside (-1 none) / cd = Evil Within ready at
 let K9 = k9Empty();
 function k9Player() { for (const p of HP.values()) if (p.role === 'killer' && p.on && isK9(p.id)) return p; return null; }
@@ -7915,7 +8034,8 @@ const INFO_KILLERS = [   // [KILLERS index, [[kind, title, text, optional sprite
     ['Ability', 'Axe throw', 'Throws his axe: knocks back and slows a survivor, who cannot see him while it is stuck in them. Open a locker for a new one.'],
     ['Ability', 'Evil Within', 'Near a locker, hides inside and swaps places with any survivor.']]],
   [10, [
-    ['Ability', 'Darkfire', 'Fires a green hellfire projectile the way she faces. For 3 s she can steer it with the aim stick and sees its path. Once redirected it turns menacing, passes through walls, hits every survivor on its way and flies until it leaves the map. It does not injure: each touch adds a curse tier, and the final tier downs the survivor. The curse fades if they are not hit again in time. Generators it flies over are cursed, the same as ones she kicks. Her normal hits add a curse tier too, and cursed survivors take much longer to escape through the gates.', [[10, false, 0], [10, false, 1]]]]],
+    ['Ability', 'Darkfire', 'Fires a fireball through walls that hits every survivor it touches. She can steer it for 3 s.', [[10, false, 0], [10, false, 1]]],
+    ['Ability', 'Hypnosis', 'Beside a downed survivor, hypnotises them: they hunt for her until they pass 5 skill checks. Counts as a hook state.']]],
 
 ];
 function objPic(kind) {   // small pictures for the Objects tab, drawn with the game's own sprite code (nothing here touches a running round)
@@ -8106,14 +8226,15 @@ function refreshUI() {
   $('hud').textContent = `Room ${S.code} · ${S.players.length}/${CFG.MAX_PLAYERS}`;
   refreshStatus();
 }
-const SI = { healthy: ['✓', '#69f0ae'], injured: ['!', '#ffb300'], downed: ['↓', '#ff5252'], carried: ['↑', '#ff5252'], hooked: ['H', '#ff1744'], sent: ['◉', '#72d9ff'], dead: ['✕', '#9e9e9e'] };
-function refreshStatus() {   // survivors and the killer: one small chip per survivor (colour dot + state glyph); wraps if it has to
+const SI = { healthy: ['✓', '#69f0ae'], injured: ['!', '#ffb300'], downed: ['↓', '#ff5252'], carried: ['↑', '#ff5252'], hooked: ['H', '#ff1744'], hypno: ['h', '#8bff3a'], sent: ['◉', '#72d9ff'], dead: ['✕', '#9e9e9e'] };
+function refreshStatus() {
+  try { hypVig(); } catch (e) {}   // survivors and the killer: one small chip per survivor (colour dot + state glyph); wraps if it has to
   const box = $('stat'), on = inGame && (myRole() === 'survivor' || myRole() === 'killer'); box.classList.toggle('hidden', !on); if (!on) return;   // survivors AND the killer see who is alive / hooked / dead
   box.replaceChildren(); BLH = [];
   S.players.filter(p => p.role === 'survivor').forEach(p => {
     const g = SI[(S.st[p.id] || {}).s || 'healthy'] || SI.healthy, el = document.createElement('span');
     el.className = 'si' + (p.id === S.me ? ' me' : '') + (p.on ? '' : ' away') + ((S.st[p.id] || {}).h2 && (S.st[p.id] || {}).s !== 'dead' ? ' last' : '');   // 'last' = hung a second time (hooked, rescued, hooked again)
-    const d = document.createElement('i'); d.style.background = p.color; const b = document.createElement('b'); const fg = false /* DISABLED (was: K1C.fog && myRole() === 'survivor') = the Banshee '?' on everyone's status chips; put that condition back to re-enable */; b.textContent=fg?'?':((S.st[p.id]||{}).s==='sent'?'◉ '+Math.ceil(Math.max(0,((S.st[p.id]||{}).udEnd||0)-performance.now())/1000)+'s':((S.st[p.id]||{}).s==='hooked'&&(S.st[p.id]||{}).hs?'H'+(S.st[p.id]).hs:g[0]));b.style.color=fg?'#9aa0b0':g[1];   // killer_1 fear: unknown states
+    const d = document.createElement('i'); d.style.background = p.color; const b = document.createElement('b'); const fg = false /* DISABLED (was: K1C.fog && myRole() === 'survivor') = the Banshee '?' on everyone's status chips; put that condition back to re-enable */; b.textContent=fg?'?':((S.st[p.id]||{}).s==='sent'?'◉ '+Math.ceil(Math.max(0,((S.st[p.id]||{}).udEnd||0)-performance.now())/1000)+'s':((S.st[p.id]||{}).s==='hypno'?'h'+((S.st[p.id]||{}).hs||1):((S.st[p.id]||{}).s==='hooked'&&(S.st[p.id]||{}).hs?'H'+(S.st[p.id]).hs:g[0])));b.style.color=fg?'#9aa0b0':g[1];   // killer_1 fear: unknown states
     el.append(d, b);
     const sx = S.st[p.id] || {}; if (sx.s !== 'dead' && sx.bl >= 0) { const bw = document.createElement('span'); bw.className = 'bl'; const bf = document.createElement('span'); bw.append(bf); el.append(bw); BLH.push({ id: p.id, f: bf }); }   // BLEED-OUT: thin yellow bar under the status icon (only once the survivor has been downed)
     box.append(el); });
@@ -8266,7 +8387,7 @@ function bindBtn(el, onDown, onUp) {   // own pointerId per button => works toge
 }
 const K4H = { t0: 0 };   // client: the local killer is HOLDING the ABILITY button to charge a lunge (time the hold began)
 function k4ChT0(mine, now) { const J = S.wo.k4; if (!J) return 0; if (mine) return K4H.t0 && !J.lg && now - K4H.t0 <= K4_CH_MAX_MS + 200 ? K4H.t0 : 0; return J.ch || 0; }   // when the charge being drawn began (0 = none): my own hold for instant feedback, otherwise what the host says
-function iCarry() { for (const id in S.st) { const e = S.st[id]; if (e.s === 'carried' && !isK3Min(e.by)) return true; } return false; }   // am I (the killer) carrying someone? a survivor carried by one of killer_3's summoned killers (ids 9101+) is not mine
+function iCarry() { for (const id in S.st) { const e = S.st[id]; if (e.s === 'carried' && !isK3Min(e.by) && !((S.st[e.by] || {}).s === 'hypno')) return true; } return false; }   // am I (the killer) carrying someone? a survivor carried by one of killer_3's summoned killers (ids 9101+) is not mine
 function k4LungeReady() {   // killer_4, at least one charge ready and free to charge
   const J = S.wo.k4; if (!J || !isK4(S.me) || myRole() !== 'killer' || S.phase !== 'hunt' || myState() === 'dead' || k6Me() || J.lg || J.sb > performance.now() || k4ReadyC(J, performance.now()) < 1) return false;
   if (iCarry()) return false; return true; }
@@ -11419,7 +11540,8 @@ function drawKiller(e, ov) {   // ov = K6_OV: draw this entity as the Skinwalker
   let fa1 = null; if (ki === 1 && !ov && !e.decoy && !e.minion && swing < 0 && K1C.anim) { const el1 = e.now - K1C.anim.t0, dur1 = K1C.anim.type === 'cry' ? 920 : 760; if (el1 >= 0 && el1 < dur1) fa1 = { t: K1C.anim.type, u: el1 / dur1 }; }   // Banshee: the Wail / Guard animation plays over her walk and idle poses
   const lw = lau || !!(fa1 && fa1.t === 'cry' && fa1.u > .1 && fa1.u < .9);   // mouth open for most of the Wail
   const pz8 = ki === 8 && !ov && !e.decoy && !e.minion ? k8Pz(e.p.id, e.now) : null;   // killer_8: the selfie pose (phone up, knife down in the other hand)
-  const b = pz8 ? killerBmp('selfie', pz8.f, false, ki, mon, hv) : swing >= 0 ? killerBmp('swing', swing, false, ki, mon, hv) : mv ? killerBmp('run', (((e.now + 40) / 95) | 0) & 3, lw, ki, mon, hv) : killerBmp('idle', lf, lw, ki, mon, hv);
+  const hyc = ki === 10 && !ov && !e.decoy && !e.minion && abilitiesOn() && k10Hyp(e.now);   // killer_10: casting Hypnosis (staff raised, green eyes)
+  const b = hyc ? killerBmp('swing', 0, false, ki, mon, 0) : pz8 ? killerBmp('selfie', pz8.f, false, ki, mon, hv) : swing >= 0 ? killerBmp('swing', swing, false, ki, mon, hv) : mv ? killerBmp('run', (((e.now + 40) / 95) | 0) & 3, lw, ki, mon, hv) : killerBmp('idle', lf, lw, ki, mon, hv);
   const bob = (lau ? Math.abs(Math.sin(lel / 85)) * 3 : 0), jx = lau ? (((lel / 60) | 0) & 1 ? 1 : -1) : tfm ? (((tel / 40) | 0) & 1 ? 2 : -2) : tfm4 ? (((tel4 / 40) | 0) & 1 ? 2 : -2) : 0;   // shoulders shake, body bounces; he convulses while changing
   let cu = -1; if (ki === 4 && !ov && !e.decoy && !e.minion && S.phase === 'hunt' && swing < 0) { const t0 = k4ChT0(!!e.me, e.now); if (t0 && e.now - t0 > 100) cu = Math.min(1, (e.now - t0) / (K4_CH_FULL + 300)); }   // Huggy winding up a lunge (everybody sees it): 0..1 = how far the charge has come
   charShadow(e, 24, 21); colorRing(e, 22, 21, ov ? 'rgba(0,0,0,0)' : '#b3121a'); if (!e.me && !ov) killerGlow(e);
@@ -11445,6 +11567,7 @@ function drawKiller(e, ov) {   // ov = K6_OV: draw this entity as the Skinwalker
     if (!reduceFx) { ctx.shadowColor = 'rgba(58,255,208,.9)'; ctx.shadowBlur = 5 + 14 * pk; }
     blit(b, 0, 0, a.face, PSK, e.flash, kcx(b)); ctx.restore();
   } else blit(b, e.x + jx, e.y + 23 - bob, a.face, PSK, e.flash, kcx(b));
+  if (hyc) drawHypEyes(e, a.face, bob);
   if (fa1 && !reduceFx) {   // the Wail: three sound-rings ripple out of her; the Guard: a ring spreads on the floor and sparks rise
     const u = fa1.u, ea = e.alpha === undefined ? 1 : e.alpha; ctx.save(); ctx.lineCap = 'round';
     if (fa1.t === 'cry') { for (let i = 0; i < 3; i++) { const q = u * 1.25 - i * .2; if (q <= 0 || q >= 1) continue; ctx.globalAlpha = (1 - q) * .75 * ea; ctx.strokeStyle = i ? '#3affd0' : '#d8fff8'; ctx.lineWidth = 2.6 * (1 - q) + .8; ctx.beginPath(); ctx.ellipse(e.x + a.face * 2, e.y - 6, 14 + q * 44, 12 + q * 38, 0, 0, TAU); ctx.stroke(); } }
@@ -12368,7 +12491,7 @@ function drawGatePins(me, k, W, H, now, vRole) {
   for (const g of gt) { const z = gateZone(g, S.map); pinAt(me, b, [z[0] + z[2] / 2, z[1] + z[3] / 2], '#ffd27a', 60, now); }
   const mp = vRole === 'survivor' && ['healthy', 'injured', 'downed'].includes(myState()) ? posOf(S.me) : null; let near = false;   // my escape progress: a ring that fills while I stand at a gate
   if (mp) for (const g of gt) if (inZone(gateZone(g, S.map), mp[0], mp[1])) { near = true; break; }
-  if (near) { if (!S.gateT0) S.gateT0 = now; const u = Math.min(1, (now - S.gateT0) / gateHoldMs(S.me, now, true)); ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.arc(mp[0], mp[1], 38, 0, TAU); ctx.stroke(); ctx.strokeStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(mp[0], mp[1], 38, -Math.PI / 2, -Math.PI / 2 + TAU * u); ctx.stroke(); } else S.gateT0 = 0;
+  if (near) { if (!S.gateT0) S.gateT0 = now; const u = Math.min(1, (now - S.gateT0) / CFG.GATE_HOLD_MS); ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.arc(mp[0], mp[1], 38, 0, TAU); ctx.stroke(); ctx.strokeStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(mp[0], mp[1], 38, -Math.PI / 2, -Math.PI / 2 + TAU * u); ctx.stroke(); } else S.gateT0 = 0;
   ctx.restore();
 }
 /* ---------- killer ping: pulsing orange ring on the generator (edge-pinned arrow if it is off-screen), drawn after the darkness so it shows through it ---------- */
@@ -12506,7 +12629,7 @@ function onEv(m) {
     case 'k1w': case 'k1i': k1Ev(m, now); break;
     case 'k8f': case 'k8x': case 'k8e': case 'k8s': k8Ev(m, now); break;
     case 'k9f': case 'k9b': case 'k9l': case 'k9r': case 'k9t': k9Ev(m, now); break;
-    case 'k10f': case 'k10r': case 'k10h': case 'k10x': k10Ev(m, now); break;
+    case 'k10f': case 'k10r': case 'k10h': case 'k10x': case 'k10y': case 'k10z': case 'k10s': k10Ev(m, now); break;
     case 'k6t': case 'k6s': k6Ev(m, now); break;
     case 'ddoval': DDO[m.id] = now + 1000; break;   // Demonic Deal: the totem went dark -> a ritual oval under that player for 1 s
     case 'k7shot': case 'k7op': case 'k7lk': case 'k7sw': k7Ev(m, now); break;
@@ -13016,6 +13139,7 @@ function sbCtx(now) {   // the interact button's label for a hook: SABOTAGE / DI
 }
 function ctxFor(mp, role, st) {   // which context action is available right now (same ranges the host validates)
   if (k6Me()) return k6Ctx(mp);   // killer_6 disguised: only the fake RESCUE and the un-REPAIR
+  if (role === 'survivor' && st === 'hypno') return null;   // hypnotised: no actions
   if (role === 'survivor' && st === 'hooked') return CAMP.c >= 1000 ? 'selfunhook' : null;   // ANTI-CAMP: once my camp meter is full I can free myself (hold)
   if (role === 'killer') {
     let carrying = false; if (iCarry()) carrying = true;
@@ -13055,6 +13179,7 @@ function dsbUpdate(now) {   // killer_0: a survivor holding DISARM sees a pixel 
   el.querySelector('.f').style.width = Math.min(100, (now - DSB.t0) / K0_DIS_MS * 100).toFixed(1) + '%';
 }
 function updateControls(now) {
+  try { hypVig(); } catch (e) {}   // the hypnosis vignette follows my state every frame (also clears when a round ends)
   if (TK) { ctxKind = null; UIC.item = -2; UIC.rr = 0; $('itmT').classList.add('hidden'); $('atk').classList.add('hidden'); $('ctx').classList.add('hidden'); $('itm').classList.add('hidden'); return; }   // minigame open: action buttons are off
   const hunt = S.phase === 'hunt', role = myRole(), st = myState(), dead = st === 'dead'; if(st==='sent'){$('atk').classList.add('hidden');$('ctx').classList.add('hidden');$('itm').classList.add('hidden');$('itmT').classList.add('hidden');$('k5f').classList.add('hidden');return;}
   const mp = !dead && hunt && st!=='sent' ? posOf(S.me) : null; let carrying = false; if (iCarry()) carrying = true;
@@ -13080,7 +13205,7 @@ function updateControls(now) {
   if (abil && J4) { const rd4 = k4ReadyC(J4, now), t4 = rd4 < 1 ? Math.ceil(Math.max(0, Math.min.apply(null, J4.cds) - now) / 1000) + 's' : 'Lunge x' + rd4, o4 = rd4 < 1 || J4.sb > now ? .55 : ''; if (t4 !== UIC.k4t) { UIC.k4t = t4; $('itmN').textContent = t4; } if (o4 !== UIC.k4o) { UIC.k4o = o4; $('itm').style.opacity = o4; } }   // killer_4: label = Lunge x(charges ready); with none left it shows only the seconds until the next charge (e.g. 8s); greyed out with no charge or while the swing slow runs
   else if (UIC.k4t) { UIC.k4t = ''; UIC.k4o = ''; $('itm').style.opacity = ''; }
   if (abil && J6) { const cd6 = J6.form === 0 ? Math.max(0, J6.cd - now) : 0, lk6 = J6.form === 0 ? Math.max(0, J6.chEnd - now) : 0, cc6 = J6.form === 1 ? Math.max(0, J6.chCd - now) : 0, t6 = J6.form === 2 ? 'Changing...' : J6.form === 1 ? 'Chaos' + (cc6 > 0 ? ' ' + Math.ceil(cc6 / 1000) + 's' : '') : lk6 > 0 ? 'Chaos ' + Math.ceil(lk6 / 1000) + 's' : 'Transform' + (cd6 > 0 ? ' ' + Math.ceil(cd6 / 1000) + 's' : ''); if (t6 !== UIC.k6t) { UIC.k6t = t6; $('itmN').textContent = t6; $('itm').style.opacity = cd6 > 0 || lk6 > 0 || cc6 > 0 || J6.form === 2 ? .55 : ''; } }   // transform is greyed out while CHAOS runs   // killer_6: label + cooldown
-  if (abil && J10) { const cd10 = Math.max(0, J10.cd - now), fly10 = J10.st === 1, lf10 = fly10 ? Math.max(0, J10.steer - now) : 0, t10 = fly10 && lf10 > 0 ? 'Steer ' + (lf10 / 1000).toFixed(1) + 's' : 'Darkfire' + (cd10 > 0 ? ' ' + Math.ceil(cd10 / 1000) + 's' : ''), o10 = fly10 || cd10 > 0 ? .55 : ''; if (t10 !== UIC.k10t) { UIC.k10t = t10; $('itmN').textContent = t10; } if (o10 !== UIC.k10o) { UIC.k10o = o10; $('itm').style.opacity = o10; } }   // killer_10: label = Darkfire (+ cooldown) / Steer 2.4s while she can redirect it; greyed out while the projectile is out or recharging
+  if (abil && J10) { const cd10 = Math.max(0, J10.cd - now), fly10 = J10.st === 1, lf10 = fly10 ? Math.max(0, J10.steer - now) : 0, hc10 = k10Hyp(now), hn10 = !hc10 && k10HypNearC(now), t10 = hc10 ? 'Hypnosis...' : hn10 ? 'Hypnosis' : fly10 && lf10 > 0 ? 'Steer ' + (lf10 / 1000).toFixed(1) + 's' : 'Darkfire' + (cd10 > 0 ? ' ' + Math.ceil(cd10 / 1000) + 's' : ''), o10 = hc10 ? .55 : hn10 ? '' : fly10 || cd10 > 0 ? .55 : ''; if (t10 !== UIC.k10t) { UIC.k10t = t10; $('itmN').textContent = t10; } if (o10 !== UIC.k10o) { UIC.k10o = o10; $('itm').style.opacity = o10; } }   // killer_10: label = Darkfire (+ cooldown) / Steer 2.4s while she can redirect it; greyed out while the projectile is out or recharging
   if (abil && J9) { const cd9 = Math.max(0, J9.cd - now), mp9 = posOf(S.me), near9 = !!mp9 && k7NearC(mp9, false) >= 0, free9 = !!mp9 && k7NearC(mp9, true) >= 0, in9 = J9.lk >= 0, ew9 = in9 || near9, secs9 = cd9 > 0 ? ' ' + Math.ceil(cd9 / 1000) + 's' : '';   // killer_9: same choice as k9Ability on the host
     const t9 = in9 ? 'Leave' : ew9 ? 'Evil Within' + secs9 : J9.ax ? 'Throw Axe' : 'No Axe'; if ($('itmN').textContent !== t9) $('itmN').textContent = t9; const ic9 = ew9 ? k9Icon() : k9AxeIcon(); if (UIC.k9i !== ic9 || $('itmI').getAttribute('src') !== ic9) { UIC.k9i = ic9; $('itmI').src = ic9; } $('itm').style.opacity = (!in9 && (ew9 ? cd9 > 0 || !free9 : !J9.ax)) ? .55 : ''; }
   if (abil && J8) { const cd8 = Math.max(0, J8.cd - now), sn8 = k8SelfNearC(), t8 = J8.sfOn ? 'Selfie...' : k1WailFx(S.me) ? 'Reveal' : sn8 ? 'Selfie' : 'Shroud' + (cd8 > 0 ? ' ' + Math.ceil(cd8 / 1000) + 's' : ''); if (t8 !== UIC.k8t) { UIC.k8t = t8; $('itmN').textContent = t8; $('itmI').src = k8Icon(J8.sfOn || sn8 ? 1 : 0); $('itm').style.opacity = J8.sfOn || (!sn8 && cd8 > 0) ? .55 : ''; } }   // killer_8: the button is SELFIE next to a downed survivor (greyed out while it plays), otherwise Shroud, greyed out with a countdown while it recharges
@@ -13431,7 +13556,7 @@ function draw() {
   ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.font = (S.players.length > 6 ? 'bold 12px' : 'bold 15px') + ' system-ui,sans-serif';
   for (const p of S.players) { const q = posOf(p.id); if (!q || Math.abs(q[0] - me[0]) > vw || Math.abs(q[1] - me[1]) > vh || !canSee(role, vId, p.id) || k2Hid(p.id)) continue;   // (inside a TV even his own body is not drawn)
     const s = effSt(p.id); if (s === 'dead') continue;
-    const fe = entityOf(p, q, vId, now), em = k2Emerge(p.id, now); ctx.globalAlpha = (p.on ? 1 : .4) * (fe.hat ? (p.id === vId ? .5 : .3) : 1); if (em) { ctx.save(); ctx.translate(0, Math.round((1 - em) * 20)); ctx.globalAlpha *= Math.min(1, em * 1.8); } animFor(p.id, q[0], q[1], now); drawSnakeGhosts(p, q, s, vId, now); drawStatusFx(fe, q, now, 0); drawPlayer(fe, s); drawStatusFx(fe, q, now, 1); drawK10Hex(fe, s); if (em) ctx.restore(); ctx.globalAlpha = 1; if (fe.hat) drawHatFx(fe, now); }   // Magician's Hat wearers are drawn see-through (50% for themselves, 30% for teammates)
+    const fe = entityOf(p, q, vId, now), em = k2Emerge(p.id, now); ctx.globalAlpha = (p.on ? 1 : .4) * (fe.hat ? (p.id === vId ? .5 : .3) : 1); if (em) { ctx.save(); ctx.translate(0, Math.round((1 - em) * 20)); ctx.globalAlpha *= Math.min(1, em * 1.8); } animFor(p.id, q[0], q[1], now); drawSnakeGhosts(p, q, s, vId, now); drawStatusFx(fe, q, now, 0); drawPlayer(fe, s); drawStatusFx(fe, q, now, 1); drawHypno(fe, s); if (em) ctx.restore(); ctx.globalAlpha = 1; if (fe.hat) drawHatFx(fe, now); }   // Magician's Hat wearers are drawn see-through (50% for themselves, 30% for teammates)
   if (!realm && S.phase === 'hunt') drawK1World(me, vw, vh, now, role, vId);
   if (!realm && S.phase === 'hunt') drawK6World(me, vw, vh, now);
   if (!realm && (S.phase === 'hunt' || S.phase === 'headstart')) drawK4World(me, vw, vh, now, role, vId);
@@ -13484,6 +13609,7 @@ function draw() {
     if (inten > 0 && !S._near && now - (S._stab || 0) > 9000) { S._stab = now; sfxStab(Math.min(1, .5 + inten)); } S._near = inten > 0;
     stepHeartbeat(inten, dtF, now); if (inten > 0) drawVignette(inten * (vSt === 'injured' ? CFG.INJURED_VIGNETTE_MULT : 1), W, H, now);
   }
+  if (role === 'survivor' && S.phase === 'hunt' && vId === S.me && vSt === 'hypno') drawHypVig(W, H, now);   // killer_10 HYPNOSIS: green heartbeat vignette on my own screen
   if (role === 'survivor' && S.phase === 'hunt') { try { drawK8Caught(W, H, now, vId); } catch (e) {} }   // killer_8: a survivor a spawn just caught gets a very faint static + a soft flash
   if (camLive) { try { drawK0Cam(W, H, k, now, me0); } catch (e) {} }   // killer_0: the VHS trap camera interface on top of everything
   debugLine(now);
@@ -14346,12 +14472,16 @@ function tuneNumWord(n) { n = n | 0; return ['zero', 'one', 'two', 'three', 'fou
   TUNE.add({ id: 'k10.curse_ms', group: "Killer 10", killer: 10, sub: 'Cursed generators', label: 'Curse duration', desc: 'How long a generator stays cursed after her kick or Darkfire (seconds)', kind: 'ms', min: 5000, max: 300000, step: 5000, unit: '', get: () => K10_CURSE_MS, set: v => { K10_CURSE_MS = v; } });
   TUNE.add({ id: 'k10.curse_sc', group: "Killer 10", killer: 10, sub: 'Cursed generators', label: 'Skill check frequency', desc: 'Repair skill checks on a cursed generator come this many times as often (1.7 = +70%)', kind: 'num', min: 1, max: 10, step: 0.1, unit: 'x', get: () => K10_CURSE_SC_MULT, set: v => { K10_CURSE_SC_MULT = v; } });
   TUNE.add({ id: 'k10.curse_zone', group: "Killer 10", killer: 10, sub: 'Cursed generators', label: 'Skill check success zone', desc: 'Share of the dial that counts as a hit on a cursed generator (0.15 = 15%)', kind: 'num', min: 0.03, max: 0.6, step: 0.01, unit: '', get: () => K10_CURSE_ZONE, set: v => { K10_CURSE_ZONE = v; } });
+  TUNE.add({ id: 'k10.hyp_cd', group: "Killer 10", killer: 10, sub: 'Hypnosis', label: 'Hypnosis cooldown', desc: 'Wait before she can hypnotise again (seconds)', kind: 'ms', min: 0, max: 120000, step: 1000, unit: '', get: () => K10_HYP_CD, set: x => { K10_HYP_CD = x; } });
+  TUNE.add({ id: 'k10.hyp_cast', group: "Killer 10", killer: 10, sub: 'Hypnosis', label: 'Hypnosis cast time', desc: 'How long she is rooted while she casts it (seconds)', kind: 'ms', min: 500, max: 6000, step: 250, unit: '', get: () => K10_HYP_CAST_MS, set: x => { K10_HYP_CAST_MS = x; } });
+  TUNE.add({ id: 'k10.hyp_first', group: "Killer 10", killer: 10, sub: 'Hypnosis', label: 'First skill check after', desc: 'Time before the first skill check of a hypnotised survivor (seconds)', kind: 'ms', min: 0, max: 30000, step: 500, unit: '', get: () => K10_HYP_FIRST_MS, set: x => { K10_HYP_FIRST_MS = x; } });
+  TUNE.add({ id: 'k10.hyp_every', group: "Killer 10", killer: 10, sub: 'Hypnosis', label: 'Skill check gap', desc: 'Time between the skill checks (seconds)', kind: 'ms', min: 1000, max: 15000, step: 250, unit: '', get: () => K10_HYP_EVERY_MS, set: x => { K10_HYP_EVERY_MS = x; } });
+  TUNE.add({ id: 'k10.hyp_need', group: "Killer 10", killer: 10, sub: 'Hypnosis', label: 'Checks to break free', desc: 'Skill checks the hypnotised survivor must pass', kind: 'int', min: 1, max: 10, step: 1, unit: '', get: () => K10_HYP_NEED, set: x => { K10_HYP_NEED = x; } });
+  TUNE.add({ id: 'k10.hyp_max', group: "Killer 10", killer: 10, sub: 'Hypnosis', label: 'Longest hypnosis', desc: 'Hypnosis ends by itself after this long (seconds)', kind: 'ms', min: 5000, max: 120000, step: 1000, unit: '', get: () => K10_HYP_MAX_MS, set: x => { K10_HYP_MAX_MS = x; } });
   TUNE.add({ id: 'k10.spd', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Projectile speed', desc: 'Speed of the Darkfire projectile (units per second)', kind: 'num', min: 100, max: 2000, step: 10, unit: 'units/s', get: () => K10_SPD, set: v => { K10_SPD = v; } });
-  TUNE.add({ id: 'k10.steer_ms', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Steering time', desc: 'How long she can redirect the projectile after casting it (seconds)', kind: 'ms', min: 500, max: 15000, step: 250, unit: '', get: () => K10_STEER_MS, set: v => { K10_STEER_MS = v; } });
-  TUNE.add({ id: 'k10.cd', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Darkfire cooldown', desc: 'Wait after the projectile is gone before she can cast again (seconds)', kind: 'ms', min: 0, max: 120000, step: 1000, unit: '', get: () => K10_CD, set: v => { K10_CD = v; } });
-  TUNE.add({ id: 'k10.hex_ms', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Survivor curse duration', desc: 'How long a survivor curse lasts; every Darkfire hit restarts it (seconds)', kind: 'ms', min: 5000, max: 180000, step: 1000, unit: '', get: () => K10_HEX_MS, set: v => { K10_HEX_MS = v; } });
-  TUNE.add({ id: 'k10.hex_gate_ms', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Cursed gate escape time', desc: 'Time a cursed survivor must stand in front of an open gate to escape (seconds)', kind: 'ms', min: 2000, max: 60000, step: 500, unit: '', get: () => K10_HEX_GATE_MS, set: v => { K10_HEX_GATE_MS = v; } });
-  TUNE.add({ id: 'k10.hit_r', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Hit radius', desc: 'How far from a survivor the projectile still burns them (added to the survivor radius)', kind: 'num', min: 4, max: 80, step: 1, unit: 'units', get: () => K10_HIT_R, set: v => { K10_HIT_R = v; } });
+  TUNE.add({ id: 'k10.steer_ms', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Steering time', desc: 'How long she can steer the projectile after casting it (seconds)', kind: 'ms', min: 500, max: 15000, step: 250, unit: '', get: () => K10_STEER_MS, set: v => { K10_STEER_MS = v; } });
+  TUNE.add({ id: 'k10.cd', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Darkfire cooldown', desc: 'Wait after a cast before she can cast again (seconds)', kind: 'ms', min: 0, max: 120000, step: 1000, unit: '', get: () => K10_CD, set: v => { K10_CD = v; } });
+  TUNE.add({ id: 'k10.hit_r', group: "Killer 10", killer: 10, sub: 'Darkfire', label: 'Hit radius', desc: 'How far from a survivor the projectile still hits them (added to the survivor radius)', kind: 'num', min: 4, max: 80, step: 1, unit: 'units', get: () => K10_HIT_R, set: v => { K10_HIT_R = v; } });
   TUNE.add({ id: 'k8.fl_inv_ms', group: "Killer 8", killer: 8, sub: 'Shroud', label: 'Invisible time', desc: 'Longest he stays invisible before reappearing (seconds)', kind: 'ms', min: 1000, max: 60000, step: 500, unit: '', get: () => K8_FL_INV_MS, set: x => { K8_FL_INV_MS = x; } });
   TUNE.add({ id: 'k8.fl_cd', group: "Killer 8", killer: 8, sub: 'Shroud', label: 'Shroud cooldown', desc: 'Wait after he leaves invisibility before the next Flicker (seconds)', kind: 'ms', min: 1000, max: 120000, step: 500, unit: '', get: () => K8_FL_CD, set: x => { K8_FL_CD = x; } });
   TUNE.add({ id: 'k8.fl_reveal_cd', group: "Killer 8", killer: 8, sub: 'Shroud', label: 'Stun after the reveal', desc: 'No attacking and slowed for this long after the reveal (seconds)', kind: 'ms', min: 200, max: 10000, step: 100, unit: '', get: () => K8_FL_REVEAL_CD, set: x => { K8_FL_REVEAL_CD = x; } });
