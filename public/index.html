@@ -623,7 +623,7 @@ html #k5c b{font-size:8px;line-height:9px;letter-spacing:.02em}
   <button id="testDiff" class="sec hidden"></button><button id="testN" class="sec hidden"></button><button id="testKiller" class="sec hidden"></button><div id="testRole" class="row hidden"><button data-r="killer">Killer</button><button data-r="survivor">Survivor</button></div>
   <!-- MAP SELECT REMOVED (archived): the Spencer / Elm / Random dropdown and its "Selected map" label lived here. Original markup kept in the JS comment "MAP SELECT ARCHIVE" below. --><button id="start">Start</button><div id="wait">Waiting for the host to start…</div><div id="lStatus"></div>
   <button id="leaveL" class="sec">Leave</button><small id="dbg"></small></div>
- <div class="lB"><div id="rules"><div class="rrow"><span>Killer abilities</span><button id="rAb" class="sec"></button></div><div class="rrow"><span>Survivor perks</span><button id="rPk" class="sec"></button></div><div class="rrow"><span>Map</span><button id="rMap" class="sec"></button></div><button id="rTune" class="sec">Game settings</button><div id="rBan" class="hidden"></div><button id="rTest" class="sec hidden"></button></div><div id="plist"></div></div></div></div>
+ <div class="lB"><div id="rules"><div class="rrow"><span>Killer abilities</span><button id="rAb" class="sec"></button></div><div class="rrow"><span>Survivor perks</span><button id="rPk" class="sec"></button></div><div class="rrow"><span>Killer</span><button id="rKiller" class="sec"></button></div><button id="rTune" class="sec">Game settings</button><div id="rBan" class="hidden"></div><button id="rTest" class="sec hidden"></button></div><div id="plist"></div></div></div></div>
 <div id="game" class="screen hidden"><canvas id="cv"></canvas>
  <div id="stt"></div>
  <div id="under"><div id="chips" class="hidden"><div id="thud" class="hidden"></div><div id="gchip" class="hidden"></div></div><div id="stat"></div><div id="coin" class="hidden"></div><div id="gpill" class="hidden"></div><div id="specL" class="hidden"></div><div id="udBanner" class="hidden" style="background:rgba(22,5,8,.88);border:1px solid #c4504c;color:#ffd9d4;padding:5px 12px;border-radius:4px;font:800 13px Courier New,monospace;text-align:center"></div><div id="banner" class="hidden"></div></div>
@@ -1705,7 +1705,7 @@ const randCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.random() 
 const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
 function getToken() { try { let t = sessionStorage.getItem('dotsToken'); if (!t) { t = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('dotsToken', t); } return t; } catch (e) { return Math.random().toString(36).slice(2); } }
 const S = { ts: tsEmpty(), test: false, testRole: 'survivor', role: null, code: '', me: -1, players: [], started: false, map: null, seq: 0, token: getToken(),
-  pick: {}, chars: {}, rules: { abilities: true, perks: false, map: 'spencer' }, perk: perkEmpty(), tune: {}, lastRx: 0, leaving: false, inRoom: false, reconnecting: false, reconnectUntil: 0, lobbyOn: false, hsT: 0,
+  pick: {}, chars: {}, rules: { abilities: true, perks: false, map: 'spencer', killer: -1 }, perk: perkEmpty(), tune: {}, lastRx: 0, leaving: false, inRoom: false, reconnecting: false, reconnectUntil: 0, lobbyOn: false, hsT: 0,
   phase: 'lobby', phaseEnd: 0, eyesStart: 0, eyesMs: 0, nextEyes: 0, face: 0, faceTarget: 0,   // phase: lobby | reveal | select | headstart | hunt | result (phaseEnd/eyesStart = local performance.now() times)
   st: {}, spec: -1, sacAt: 0, cdEnd: 0, cdTot: 0,
   gs: gcEmpty(), gping: {}, powAt: 0, monAt: 0, ds: dcEmpty(), eg: { on: false, final: false, endAt: 0 }, res: null, gateT0: 0, item: null, wo: woEmpty(), smokeW: [], smSig: '', fx2: {}, blindEnd: 0, blindTot: 0 };   // gs: client copy of the generator state; gping: generator index -> time of the last killer ping; powAt: time of the GENERATORS POWERED announcement   // st: id -> client-side status record (see applyStatus); spec: spectated player id; cdEnd/cdTot: my attack cooldown
@@ -2523,8 +2523,9 @@ let PERK_TEST_SEL = null;   // Test Room only (lobby button "Choose perks"): a S
 const PERK_TEST_ONLY = null;   // TESTING: when this list is set, ONLY these perks are ever offered (every match, not just the Test Room). Set it to null to offer every implemented perk again
 const PERK_OFF = {};   // TUNE (pk.<id>.on): perks the host switched out of the pool
 const perkPool = () => (PERK_TEST_ONLY ? PERKS.filter(p => PERK_TEST_ONLY.includes(p.id)) : PERKS.filter(p => S.test && PERK_TEST_SEL ? PERK_TEST_SEL.has(p.id) : p.implemented)).filter(p => !PERK_OFF[p.id]);
-const rulesPack = () => ({ a: S.rules.abilities ? 1 : 0, p: S.rules.perks ? 1 : 0, m: S.rules.map || 'spencer', tn: S.tune || {} });   // tn = the host's tuning overrides only (see TUNE)
-function applyRules(m) { S.rules.map = (m.m === 'manor9' || m.m === 'random') ? m.m : 'spencer'; S.rules.abilities = !!m.a; S.rules.perks = !!m.p && S.rules.abilities; applyRuleset(); tuneRemote(m.tn); try { rulesUI(); } catch (e) {} }
+const rulesPack = () => ({ a: S.rules.abilities ? 1 : 0, p: S.rules.perks ? 1 : 0, m: S.rules.map || 'spencer', k: Number.isInteger(S.rules.killer) ? S.rules.killer : -1, tn: S.tune || {} });   // tn = the host's tuning overrides only (see TUNE)
+function applyRules(m) { S.rules.map = 'spencer';   // map selection removed: always Spencer - open grounds
+  S.rules.killer = Number.isInteger(m.k) ? m.k : -1; S.rules.abilities = !!m.a; S.rules.perks = !!m.p && S.rules.abilities; applyRuleset(); tuneRemote(m.tn); try { rulesUI(); } catch (e) {} }
 function lead() { return S.role === 'host' || (S.role === 'client' && S.players.some(p => p.id === S.me && p.lead)); }   // may this screen use the host-only buttons? (a browser host, or the leader of a server-hosted room)
 function fwd(fn, args) { if (S.role !== 'client' || !lead()) return false; T.send({ t: 'lead', f: fn, a: Array.from(args) }); return true; }   // leader's screen: ask the server to do it instead
 function hostSetRule(k, v) {   // host only, lobby only
@@ -2532,7 +2533,8 @@ function hostSetRule(k, v) {   // host only, lobby only
   if (S.role !== 'host' || S.started) return;
   if (k === 'abilities') { S.rules.abilities = !!v; if (!v) S.rules.perks = false; }   // abilities OFF switches perks off
   else if (k === 'perks') { if (v && !S.rules.abilities) return; S.rules.perks = !!v; }
-  else if (k === 'map') { S.rules.map = (v === 'manor9' || v === 'random') ? v : 'spencer'; }
+  else if (k === 'map') { S.rules.map = 'spencer'; }   // (no map choice any more)
+  else if (k === 'killer') { S.rules.killer = Number.isInteger(v) && HP.has(v) ? v : -1; }   // -1 = random killer; otherwise the id of the player who will be the killer
   applyRuleset(); TUNE.applyAll(S.tune); T.broadcast({ t: 'rules', ...rulesPack() }); try { rulesUI(); } catch (e) {}
 }
 function perkPack() {
@@ -2753,6 +2755,7 @@ function losClear(x1, y1, x2, y2) {   // no wall between the two points
   return true;
 }
 function setSt(p, s, ex) {   // THE way a state changes: store, broadcast {t:'st',id,s,...extras} (reliable), apply locally (host is a client too)
+  if (s === 'sent' && p.role === 'survivor' && !p.bot) sxSend(p.id, 'k3lag', 0);   // being sent into the Upside Down cancels any 'fray the threads' lag still running on them
   if (p.frogEnd && s !== 'healthy' && s !== 'injured') k3FrogEnd(p, true);   // command 7: downed / carried / hooked / sent / dead ends the frog (quietly)
   p.rep = false;   // hit / downed / carried / hooked / killed ends any generator repair
   p.heal = false; if (s !== p.st) { p.healMs = 0; p.healOn = false; p.healRate = 0; p.healPing = 0; p.healN = 0; }   // ...and any heal I was giving; heal progress (or the downed recover bar) on me only lives while I stay in the same state
@@ -3261,8 +3264,9 @@ function twinShare(v, now, minion) {   // host, end of every hit: the OTHER twin
    Reuses: Reaction-style speed mod (addMod), the item pickup path (sendItem), the Bonded pin reveal (event 'bond' with all:1), Blink's 'tp' event, the Neighbour's frog (k3FrogStart), Nightmare Fuel's halved sight + black and white (NE.s).
    Clients get one sx key per effect (BB_KEY) for the icon over the holder's head + 'bbfx' for the perk icon glow. ---- */
 const BB = { COOLDOWN_MS: 10000, RESPAWN_MIN: 2700, RESPAWN_MAX: 4000, MAX: 5, PICK_R: 34, SYNC_MS: 1500, EDGE: 300, CORNER: 700, MIN_D: 500, MIN_APART: 650,   // berries: pause before the first wave and after each pickup / gap between berries in a wave / max on the map / pickup radius / host -> holder resend / spawn rules (same as the willows)
-  SPEED_MUL: 1.25, SPEED_MS: 5000, MARK_MS: 6000, ITEM_SHOW_MS: 3000, SWAP_REP: 1.1, SWAP_MS: 10000, FROG_MS: 6000, JIT_MS: 8000, JIT_ACC: 1.6, JIT_DEC: 1.0, VIS_MS: 6000, VIS: .5,
-  FX: [['speed', 1], ['mark', 1], ['swap', 1], ['frog', 1], ['vision', 1]] };   // the five berry effects, all equally likely (item + jitter are no longer rolled)
+  SPEED_MUL: 1.25, SPEED_MS: 6000, MARK_MS: 6000, ITEM_SHOW_MS: 3000, SWAP_REP: 1.1, SWAP_MS: 10000, FROG_MS: 6000, JIT_MS: 8000, JIT_ACC: 1.6, JIT_DEC: 1.0, VIS_MS: 6000, VIS: .5,
+  FX: [['speed', 1], ['mark', 1], ['swap', 1], ['frog', 1], ['vision', 1]],
+  BAG: { speed: 2, mark: 2, swap: 2, frog: 1, vision: 1 } };   // BAG = how many times each effect is in the bag: Speed boost, Killer marked and Swap come up TWICE per cycle, the others once; the bag refills when it is empty   // the five berry effects, all equally likely (item + jitter are no longer rolled)
 const BB_KEY = { speed: 'bbSpeed', item: 'bbItem', mark: 'bbMark', swap: 'bbSwap', frog: 'bbFrog', jitter: 'bbJit', vision: 'bbVis' };
 const BB_SHOW = { speed: BB.SPEED_MS, item: BB.ITEM_SHOW_MS, mark: BB.MARK_MS, swap: BB.SWAP_MS, frog: BB.FROG_MS, jitter: BB.JIT_MS, vision: BB.VIS_MS };
 const BB_NAME = { speed: 'Speed boost', item: 'Free item', mark: 'Killer marked', swap: 'Swap', frog: 'Frogified', jitter: 'Jitter', vision: 'Terrible vision' };
@@ -3284,11 +3288,12 @@ function bbRoll(p, now) {
   let K = null; for (const q of HP.values()) if (q.role === 'killer' && q.on) { K = q; break; }
   const mates = [...HP.values()].filter(q => q !== p && q.role === 'survivor' && q.on && (q.st === 'healthy' || q.st === 'injured') && !(GOD && q.host));
   const ok = { speed: true, mark: !!K, swap: mates.length > 0, frog: true, vision: true };   // an effect that cannot work right now (full item slot, no killer, nobody to swap with) is not rolled
-  const usable = BB.FX.filter(e => ok[e[0]]); if (!p.bbUsed) p.bbUsed = {};   // the BAG {}: every usable effect starts in it; each pick uses one up; the bag refills once every effect has come up once
-  let pool = usable.filter(e => !p.bbUsed[e[0]]); if (!pool.length) { p.bbUsed = {}; pool = usable; }
+  const usable = BB.FX.filter(e => ok[e[0]]); if (!p.bbUsed) p.bbUsed = {};   // the BAG: p.bbUsed[kind] = how many copies of that effect were drawn this cycle; each effect has BB.BAG[kind] copies (default 1); the bag refills once every usable effect has used up all its copies
+  const left = e => (BB.BAG[e[0]] || 1) - (p.bbUsed[e[0]] || 0);
+  let pool = usable.filter(e => left(e) > 0); if (!pool.length) { p.bbUsed = {}; pool = usable; }
   let tot = 0; for (const e of pool) tot += e[1];
   let r = Math.random() * tot, kind = pool[0][0]; for (const e of pool) { r -= e[1]; if (r <= 0) { kind = e[0]; break; } }
-  const ms = BB_SHOW[kind]; p.bbKind = kind; p.bbUsed[kind] = 1;
+  const ms = BB_SHOW[kind]; p.bbKind = kind; p.bbUsed[kind] = (p.bbUsed[kind] || 0) + 1;
   if (kind === 'speed') addMod(p, 'bbspd', BB.SPEED_MUL, BB.SPEED_MS, now);
   else if (kind === 'item') { const ids = ITEM_POOL_PERKS, id = ids[Math.random() * ids.length | 0]; p.item = id; p.ch = CFG.ITEM_CHARGES[id] || 1; p.itemAt = now; sendItem(p); }   // a random BASE item (the perks-on pool without the perk-only items)
   else if (kind === 'mark') { const kHid = (isK2(K.id) && K2.tv >= 0) || (isK1(K.id) && (K1.inv > now || K1.stl)) || (isK8(K.id) && (K8.inv > now || K8.stl)); evSend({ k: 'bond', id: p.id, kid: K.id, ms: BB.MARK_MS, sh: 0, sk: kHid ? 0 : 1, all: 1 }); }   // every survivor sees the killer's pin; the killer is not told where anybody is
@@ -3673,7 +3678,7 @@ function startGame() {
   if (fwd('startGame', [])) return;
   if (S.role !== 'host' || S.started) return;
   // (map select removed) was: const pick = $('mapChoice') ? $('mapChoice').value : selectedMapId; activateMap(pick === 'random' ? (Math.random() < .5 ? 'spencer' : 'elm') : pick);
-  const mapPick = S.rules.map === 'random' ? (Math.random() < .5 ? 'spencer' : 'manor9') : (S.rules.map || 'spencer');   // the host's choice in the lobby
+  const mapPick = 'spencer';   // the host's choice in the lobby
   if (mapPick === 'manor9') activateMap('manor9', manorLayout(Math.random() * MANOR_LAYOUTS.length | 0));
   else activateMap('spencer', spencerLayout(SPENCER_FORCE >= 0 && SPENCER_FORCE < SPENCER_LAYOUTS.length ? SPENCER_FORCE : Math.random() * SPENCER_LAYOUTS.length | 0));   // random Spencer layout every match
   applyRuleset(); TUNE.applyAll(S.tune);   // the host's ruleset is authoritative: item tuning matches S.rules.abilities before anything spawns; the host's tuning wins on top of it
@@ -3681,7 +3686,8 @@ function startGame() {
   S.rid = (S.rid | 0) + 1;   // ROUND LIFECYCLE step 1: a new round id invalidates every message / callback of the previous round
   const want = S.test ? S.testRole : (DEBUG ? DBG_ROLE : '');   // test room: the host picks killer / survivor
   let pool = all; if (want === 'survivor') pool = all.filter(p => !p.host);
-  const killer = (want === 'killer' && all.find(p => p.host)) || pool[Math.random() * pool.length | 0];
+  const picked = !want && Number.isInteger(S.rules.killer) && S.rules.killer >= 0 ? all.find(p => p.id === S.rules.killer) : null;   // the host chose who plays the killer in the lobby (if that player is still here)
+  const killer = (want === 'killer' && all.find(p => p.host)) || picked || pool[Math.random() * pool.length | 0];
   for (const p of all) { p.role = p === killer ? 'killer' : 'survivor'; p.ix = p.iy = 0; resetCombat(p); }
   if (isK5(killer.id)) {   // THE BOILED ONE: K5_SHRINES (3) of the hooks are shrines (the ones lying furthest apart); the rest stay normal hooks. MAP.shr = their indexes; the map is copied, the registry stays untouched
     const hs = MAP.hooks, keep = [Math.random() * hs.length | 0];
@@ -5921,7 +5927,7 @@ function k3Grant(K, w, arg, now) {   // checks first (a failed command costs not
     msgTo(v, 'She has found you'); for (const q of HP.values()) if (q.role === 'survivor' && q !== v) msgTo(q, 'Your items fall silent'); }
   else if (w === 1) k3mSummon(K, now);   // the hollow ones: two other killers (random, not her own) chase the survivors for K3_MIN_MS = 20 s, then vanish (k3mStep)
   else if (w === 2) k3Send2UD(K, arg, now);   // the Upside Down: she sends them into the Upside Down (the Demogorgon's send): 20 bulbs in 60 s (K3_UD_MS) while Vecna hunts them, else they are lost
-  else if (w === 3) { for (const q of HP.values()) if (q.role === 'survivor' && q.on && !q.bot && q.st !== 'dead') sxSend(q.id, 'k3lag', K3_LAG_MS); }   // fray the threads: input lag + choppy frames, played on each survivor's own client
+  else if (w === 3) { for (const q of HP.values()) if (q.role === 'survivor' && q.on && !q.bot && q.st !== 'dead' && q.st !== 'sent') sxSend(q.id, 'k3lag', K3_LAG_MS); }   // fray the threads: input lag + choppy frames, played on each survivor's own client (a survivor inside the Upside Down is not affected)
   else if (w === 4) { K3.tp = { x: arg.x, y: arg.y, at: now + K3_TP_WIND_MS }; addMod(K, 'root', 0, K3_TP_WIND_MS, now); evSend({ k: 'k3tpw', x: K.x, y: K.y, ms: K3_TP_WIND_MS }); }   // fold the earth: windup, then the jump + speed boost (k3Step)
   else if (w === 5) {   // engines sleep: every generator vanishes for 15 s (repair is impossible, progress is kept)
     K3.gone = now + K3_GONE_MS; GH.g.forEach((g, i) => { if (g.st === 1) { g.dis = Math.max(g.dis, K3.gone); genRelease(g); } evSend({ k: 'puff', x: MAP.gens[i][0], y: MAP.gens[i][1], ti: 2 }); }); gsSend(); woSend('k3x'); }
@@ -8192,7 +8198,7 @@ function enterGame() { if (inGame) return refreshUI(); inGame = true; show('game
 function rulesUI() { try { tuneRulesUI(); } catch (e) {}   // lobby: the host's two switches (everyone else sees them read-only)
   const host = lead(), a = !!S.rules.abilities, p = !!S.rules.perks, ba = $('rAb'), bp = $('rPk');
   ba.textContent = a ? 'ON' : 'OFF'; bp.textContent = p ? 'ON' : 'OFF'; ba.classList.toggle('on', a); bp.classList.toggle('on', p); ba.disabled = !host; bp.disabled = !host || !a; $('rules').classList.toggle('ro', !host);   // perks grey out while abilities are OFF
-  const bm = $('rMap'); bm.textContent = ({ spencer: 'Spencer - open grounds', manor9: 'Blackwood - 9 rooms', random: 'Random' })[S.rules.map || 'spencer']; bm.disabled = !host; bm.classList.toggle('on', (S.rules.map || 'spencer') !== 'spencer');
+  const kb = $('rKiller'), kp = S.players.find(x => x.id === S.rules.killer); kb.textContent = kp ? String(kp.name || 'Player').slice(0, 16) : 'Random'; kb.disabled = !host || !!S.test; kb.classList.toggle('on', !!kp);   // who plays the killer: Random or one of the players in the room
   const t = $('rTest'); t.classList.toggle('hidden', !(S.test && host)); t.textContent = 'Choose perks (' + (PERK_TEST_SEL ? PERK_TEST_SEL.size : PERKS.filter(x => x.implemented).length) + '/' + PERKS.length + ')';
 }
 function perkChooser() {   // Test Room, host: a menu with every perk; tick / untick what may be offered
@@ -8216,7 +8222,7 @@ function perkChooser() {   // Test Room, host: a menu with every perk; tick / un
   box.append(h, list, bar); ov.append(box); document.body.appendChild(ov);
 }
 $('rAb').addEventListener('click', () => hostSetRule('abilities', !S.rules.abilities)); $('rPk').addEventListener('click', () => hostSetRule('perks', !S.rules.perks)); $('rTest').addEventListener('click', () => perkChooser());
-$('rMap').addEventListener('click', () => { const o = ['spencer', 'manor9', 'random'], c = S.rules.map || 'spencer'; hostSetRule('map', o[(o.indexOf(c) + 1) % o.length]); });
+$('rKiller').addEventListener('click', () => { const ids = [-1, ...S.players.map(x => x.id)], i = ids.indexOf(S.rules.killer); hostSetRule('killer', ids[(i + 1) % ids.length]); });
 function refreshUI() {
   syncChars(); try { rulesUI(); } catch (e) {} woSanitize();   // final characters (roster ch), then drop any killer-exclusive state whose owner is not the active killer (safety net, every phase)
   $('code').textContent = S.code; $('count').textContent = `Players ${S.players.length}/${CFG.MAX_PLAYERS}`;
@@ -8255,7 +8261,7 @@ function stepBleedHud(now) {   // the bar drains in real time while the survivor
 function resetToMenu(msg) {
   S.creating = false;
   try { S.tune = {}; TUNE.applyAll({}); } catch (e) {} clearTimeout(S.hsT); Timers.stop(); T.close(); HP.clear(); HU = []; snaps = []; botN = 0; TRAIL.clear(); TERROR.clear(); FX.length = 0; BOND.length = 0;
-  Object.assign(S, { rid: undefined, pick: {}, rules: { abilities: true, perks: false, map: 'spencer' }, perk: perkEmpty(), chars: {}, ts: tsEmpty(), test: false, testRole: 'survivor', role: null, me: -1, players: [], started: false, map: null, seq: 0, inRoom: false, reconnecting: false, lobbyOn: false, leaving: false, phase: 'lobby', phaseEnd: 0, eyesStart: 0, eyesMs: 0, st: {}, spec: -1, sacAt: 0, cdEnd: 0, cdTot: 0, item: null, wo: woEmpty(), smokeW: [], fx2: {}, blindEnd: 0 });
+  Object.assign(S, { rid: undefined, pick: {}, rules: { abilities: true, perks: false, map: 'spencer', killer: -1 }, perk: perkEmpty(), chars: {}, ts: tsEmpty(), test: false, testRole: 'survivor', role: null, me: -1, players: [], started: false, map: null, seq: 0, inRoom: false, reconnecting: false, lobbyOn: false, leaving: false, phase: 'lobby', phaseEnd: 0, eyesStart: 0, eyesMs: 0, st: {}, spec: -1, sacAt: 0, cdEnd: 0, cdTot: 0, item: null, wo: woEmpty(), smokeW: [], fx2: {}, blindEnd: 0 });
   leaveGameUI(); banner(''); joining(false); show('menu'); $('mStatus').textContent = msg || ''; busy(false); T.warm();
   try { if (wl) wl.release(); } catch (e) {}
 }
@@ -8757,8 +8763,9 @@ function predFrame(now, dt, vId) {
   if (!PREDICT_ON) { PR.ok = false; PR.mode = 'off (?nopredict=1)'; return; }
   if (S.role === 'host') { PR.ok = false; PR.mode = 'n/a (I am the host)'; return; }
   if (vId !== S.me || !S.inRoom || S.reconnecting || (S.phase !== 'hunt' && S.phase !== 'headstart')) { PR.ok = false; PR.mode = 'idle'; return; }
-  const st = myState(); if (st !== 'healthy' && st !== 'injured' && st !== 'downed') { PR.ok = false; PR.mode = 'host decides (' + st + ')'; return; }
+  const st = myState(); if (st !== 'healthy' && st !== 'injured' && st !== 'downed' && st !== 'sent') { PR.ok = false; PR.mode = 'host decides (' + st + ')'; return; }   // 'sent' (inside the Upside Down) is predicted too: the host moves me like a normal survivor there, and resolve() already uses the maze walls
   const last = snaps[snaps.length - 1], sp = last && find(last.d, S.me); if (!sp) { PR.ok = false; PR.mode = 'no snapshot'; return; }
+  if (inUD(sp[0], sp[1]) !== (st === 'sent')) { PR.ok = false; PR.mode = 'host decides (changing realm)'; return; }   // the state and the host's position disagree for a moment (just sent / just back out): show the host's truth until they match
   { const jf = S.fx2[S.me]; if (jf && jf.bbJit > now) { PR.ok = false; PR.mode = 'host decides (jitter)'; return; } }   // Banesberry Jitter: the host smooths my steering, so show the host's truth
   if (PR.spdSt !== st) { PR.spdSt = st; PR.spd = predBase(st); }
   const hsFresh = PR.hs !== undefined && now - PR.hsT < 1500;   // new hosts tell me my exact speed (covers every slow/root/stun/boost without special cases); old hosts: learn it
@@ -12315,7 +12322,7 @@ function drawAuras(me, k, W, H, now, vId, vRole) {
   const T0 = me[1] - vh / 2 + (INS.t + CFG.BAR_H + CFG.PIN_MARGIN + 14) * f, B = me[1] + vh / 2 - (INS.b + CFG.PIN_MARGIN) * f;
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   for (const id in S.st) {
-    const st = S.st[id]; if (st.s !== 'hooked' || +id === vId) continue; if (now - (st.hkAt || now) > CFG.AURA_MS) continue; const h = S.map.hooks[st.hk]; if (!h) continue;   // revealed only for AURA_MS after being hooked
+    const st = S.st[id]; if (st.s !== 'hooked' || +id === vId) continue; const h = S.map.hooks[st.hk]; if (!h) continue;   // a hooked teammate stays revealed (glow + edge arrow) for as long as they hang on the hook
     if (h[0] >= L && h[0] <= Rr && h[1] >= T0 && h[1] <= B) {
       const r = CFG.AURA_R, a = CFG.AURA_ALPHA * (.55 + .45 * pulse), g = ctx.createRadialGradient(h[0], h[1], 0, h[0], h[1], r);
       g.addColorStop(0, `rgba(255,40,40,${a})`); g.addColorStop(1, 'rgba(255,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(h[0], h[1], r, 0, 7); ctx.fill();
@@ -13419,7 +13426,7 @@ function drawUDMonster(vx, vy, vw, vh, now) {   // client: drawn with the realm 
     ctx.fillStyle = '#4a0f14'; ctx.strokeStyle = '#ff6a5a'; ctx.lineWidth = 2; rr(q[0] - w / 2, y - 12, w, 18, 6); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#ffe2dc'; ctx.fillText('VECNA', q[0], y + 2); ctx.restore(); }
   if (el >= 0 && el < CFG.SLASH_MS) drawSlash({ k: UM_ID, ang: m.ang, dir: m.dir, t0: m.sw0 }, q, now);   // the standard killer slash
 }
-let UD_BG = null;
+let UD_BG = null, UD_PRE = 0;   // UD_PRE: the realm's background is painted early (a few seconds into the round, see draw) so entering the Upside Down never freezes the game
 function udBuildBg() {   // THE UPSIDE DOWN, after the reference art (the Stranger Things forest): a drowned, fog-lit wood. Floor = near-black ground under pools of cold glowing mist, a tangled web of veined roots that crawl out from every trunk, ash and cobweb threads. Walls = huge gnarled, ragged trunks: uneven bark, ridges, root-feet at both ends, thick glowing-veined vines wrapped round them, knots, pale lichen, thorns and hanging tendrils, with a cold rim light as if the fog glowed behind them. Painted once at 1/3 resolution, shown with nearest-neighbour scaling so it sits on the same 3px pixel grid as the bulbs.
   const S3 = 3, c = document.createElement('canvas'); c.width = Math.ceil(UD.w / S3); c.height = Math.ceil(UD.h / S3);
   const g = c.getContext('2d'); g.scale(1 / S3, 1 / S3); g.translate(-UD.x, 0); g.lineCap = 'round'; g.lineJoin = 'round';
@@ -13558,7 +13565,8 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#05070b'; ctx.fillRect(0, 0, W, H); worldTf();
   const vx = me[0] - W / 2 / k, vy = me[1] - H / 2 / k, vw = W / k, vh = H / k;
   if(realm) drawUpsideDown(vx,vy,vw,vh,now);
-  else { drawWorld(M,vx,vy,vw,vh);
+  else { if(!UD_BG&&!UD_PRE){UD_PRE=1;setTimeout(()=>{try{if(!UD_BG)UD_BG=udBuildBg();}catch(e){}},1500);}   // pre-paint the Upside Down in the background of the round (it is a heavy one-off job: doing it on the first frame inside the realm froze the screen)
+   drawWorld(M,vx,vy,vw,vh);
    if(S.phase==='hunt') drawK5World(me,vw,vh,now);
    drawHooks(vx,vy,vw,vh);drawTasks(vx,vy,vw,vh,now);drawDoors(vx,vy,vw,vh,now,role);drawGates(vx,vy,vw,vh,now);drawGens(vx,vy,vw,vh,now,role,me);drawTrails(now);drawTerror(now);drawItemsWorld(vx,vy,vw,vh,now,role);if(S.phase==='hunt')drawK0Traps(me,vw,vh,now,role);if(S.phase==='hunt'||S.phase==='headstart')drawK2World(now,role);
   }
@@ -13777,7 +13785,6 @@ T.ready().then(bootReady, bootHide); bootSafe = setTimeout(bootHide, 100000);   
 
   ['Hooks', 'Hook time', 'HOOK_STAGE_MS', 'Hook stage time', 'How long ONE hook stage lasts (seconds). Stage 1 running out moves the survivor to stage 2 with a fresh timer; stage 2 running out kills them. A 3rd hook kills on the spot', 'ms', 5000, 300000, 1000],
   ['Hooks', 'Hook time', 'HOOK_BREAK_MS', 'Broken hook time', 'A hook where a survivor was sacrificed is unusable this long, then it repairs itself (seconds)', 'ms', 1000, 300000, 1000],
-  ['Hooks', 'Hook time', 'AURA_MS', 'Hooked reveal time', 'How long survivors see a hooked teammate (glow + arrow) after the hook (seconds)', 'ms', 1000, 60000, 500],
   ['Hooks', 'Hook time', 'HOOK_AUTO_MS', 'Auto-release time', 'A hooked survivor nobody tries to save drops off after this (seconds). 0 = off (the hook stages decide)', 'ms', 0, 120000, 1000],
   ['Hooks', 'Hook time', 'HOOK_WARN_FRAC', 'Hook warning point', 'The hook ring changes colour when this fraction of time is left', 'num', 0.05, 1, 0.05],
   ['Hooks', 'Reach', 'HOOK_R', 'Hook reach', 'How close the killer must be to hang a survivor (units)', 'num', 30, 400, 2, 'u'],
